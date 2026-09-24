@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bonwise</title>
+<meta name="description" content="Scan any receipt and see where the same things are cheaper: groceries, drugstore and sneakers.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Figtree:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --ground:#EEF2EE;--surface:#FFFFFF;--sunk:#F5F8F5;--ink:#14201A;--ink-2:#4A5A51;--ink-3:#7A8A81;--line:#D5DDD7;
+  --accent:#0E7A52;--accent-ink:#FFFFFF;--accent-soft:#DDEFE6;
+  --warn:#9A5A05;--warn-soft:#FBEBD2;--bad:#B0432E;--bad-soft:#F8E4DE;--thermal:#5B4B8A;
+  --shadow:0 1px 0 rgba(20,32,26,.04),0 14px 32px -20px rgba(20,32,26,.30);
+  --display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --body:"Figtree",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){color-scheme:dark;
+    --ground:#0F1512;--surface:#18201C;--sunk:#131A16;--ink:#E7EFEA;--ink-2:#A3B5AA;--ink-3:#7C8E84;--line:#2C3832;
+    --accent:#3CC48E;--accent-ink:#06140D;--accent-soft:#173427;--warn:#F0A94A;--warn-soft:#3A2A12;--bad:#E8836A;--bad-soft:#3A2118;--thermal:#B7A7EA;
+    --shadow:0 14px 32px -20px rgba(0,0,0,.8)}
+}
+:root[data-theme="dark"]{color-scheme:dark;
+  --ground:#0F1512;--surface:#18201C;--sunk:#131A16;--ink:#E7EFEA;--ink-2:#A3B5AA;--ink-3:#7C8E84;--line:#2C3832;
+  --accent:#3CC48E;--accent-ink:#06140D;--accent-soft:#173427;--warn:#F0A94A;--warn-soft:#3A2A12;--bad:#E8836A;--bad-soft:#3A2118;--thermal:#B7A7EA;
+  --shadow:0 14px 32px -20px rgba(0,0,0,.8)}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--ground);color:var(--ink);font-family:var(--body);font-size:15.5px;line-height:1.5;-webkit-font-smoothing:antialiased}
+.app{max-width:620px;margin:0 auto;padding-inline:16px;padding-block:8px 48px;display:flex;flex-direction:column;gap:14px}
+h1,h2,h3{font-family:var(--display);margin:0;line-height:1.1;text-wrap:balance}
+p{margin:0}
+button,input,textarea{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:6px}
+.num{font-variant-numeric:tabular-nums}
+
+/* top bar */
+.top{display:flex;align-items:center;justify-content:space-between;padding-block:14px 4px}
+.logo{display:flex;align-items:center;gap:9px;font-family:var(--display);font-weight:800;font-size:21px;letter-spacing:-.02em}
+.logo-mark{width:26px;height:30px;background:var(--ink);border-radius:4px 4px 0 0;position:relative;display:grid;place-items:center;color:var(--ground);font-family:var(--mono);font-size:12px}
+.logo-mark::after{content:"";position:absolute;left:0;right:0;bottom:-5px;height:6px;background:linear-gradient(135deg,var(--ink) 33%,transparent 33%) 0 0/6px 6px,linear-gradient(225deg,var(--ink) 33%,transparent 33%) 0 0/6px 6px}
+.tagline{font-size:13px;color:var(--ink-2);margin-top:6px}
+.month{font-family:var(--mono);font-size:12.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2)}
+
+.card{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:18px;box-shadow:var(--shadow)}
+.card-h{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:12px}
+.card-h h2{font-size:18px;font-weight:800;letter-spacing:-.01em}
+.label{font-family:var(--mono);font-size:11.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-2)}
+
+/* budget */
+.budget-top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.left-big{font-family:var(--display);font-weight:800;font-size:44px;letter-spacing:-.03em;line-height:1}
+.left-big small{font-family:var(--body);font-size:15px;font-weight:500;color:var(--ink-2);letter-spacing:0;margin-left:6px}
+.left-big.over{color:var(--bad)}
+.budget-edit{display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--ink-2)}
+.budget-edit input{width:92px;font-family:var(--mono);font-size:15px;background:var(--sunk);border:1.5px solid var(--line);border-radius:10px;padding:7px 10px;text-align:right}
+.budget-edit input:focus{border-color:var(--accent);outline:none}
+.meter{position:relative;height:12px;background:var(--sunk);border:1px solid var(--line);border-radius:99px;margin-top:16px;overflow:hidden;display:flex}
+.meter i{display:block;height:100%}
+.meter .spent{background:var(--ink-2)}
+.meter .pending{background:var(--accent)}
+.meter .today{position:absolute;top:-1px;bottom:-1px;width:2px;background:var(--warn)}
+.meter-legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;font-size:12.5px;color:var(--ink-2)}
+.meter-legend span{display:inline-flex;align-items:center;gap:6px}
+.meter-legend i{width:10px;height:10px;border-radius:3px;display:inline-block}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px}
+.stat{background:var(--sunk);border-radius:12px;padding:10px 12px}
+.stat .v{font-family:var(--display);font-weight:800;font-size:20px;letter-spacing:-.02em}
+.stat .k{font-size:12px;color:var(--ink-2)}
+
+/* scan */
+.scan-actions{display:flex;gap:10px;flex-wrap:wrap}
+.btn{border:0;border-radius:12px;padding:12px 18px;font-weight:600;font-size:15.5px;cursor:pointer;background:var(--accent);color:var(--accent-ink);display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
+.btn:hover{filter:brightness(1.07)}
+.btn:disabled{opacity:.5;cursor:not-allowed;filter:none}
+.btn.line{background:transparent;color:var(--ink);border:1.5px solid var(--line)}
+.btn.line:hover{border-color:var(--ink);filter:none}
+.btn.small{padding:8px 12px;font-size:14px;border-radius:10px}
+.linkbtn{background:none;border:0;padding:0;color:var(--accent);font-weight:600;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.hint{font-size:13px;color:var(--ink-2);margin-top:10px}
+.drop{margin-top:12px;border:1.5px dashed var(--line);border-radius:14px;padding:18px;text-align:center;font-size:14px;color:var(--ink-2)}
+.drop.drag{border-color:var(--accent);background:var(--accent-soft);color:var(--ink)}
+.paste{margin-top:12px}
+.paste textarea{width:100%;min-height:150px;resize:vertical;font-family:var(--mono);font-size:13.5px;background:var(--sunk);border:1.5px solid var(--line);border-radius:12px;padding:12px}
+.paste textarea:focus{border-color:var(--accent);outline:none}
+.paste .row{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap}
+
+.progress{margin-top:14px;display:grid;grid-template-columns:72px 1fr;gap:14px;align-items:center}
+.progress img{width:72px;height:92px;object-fit:cover;border-radius:8px;border:1px solid var(--line);background:var(--sunk)}
+.progress .stage{font-weight:600}
+.progress .sub{font-size:13px;color:var(--ink-2)}
+.pbar{height:6px;border-radius:99px;background:var(--sunk);overflow:hidden;margin-top:8px}
+.pbar i{display:block;height:100%;width:0;background:var(--accent);transition:width .25s}
+.notice{margin-top:12px;border-radius:12px;padding:12px 14px;font-size:14px}
+.notice.bad{background:var(--bad-soft);color:var(--bad)}
+.notice.warn{background:var(--warn-soft);color:var(--warn)}
+.notice.ok{background:var(--accent-soft);color:var(--accent)}
+
+/* receipt */
+.r-head{display:flex;justify-content:space-between;gap:12px;align-items:baseline;flex-wrap:wrap;padding-bottom:10px;border-bottom:2px solid var(--ink)}
+.r-store{font-family:var(--mono);font-weight:500;letter-spacing:.08em;text-transform:uppercase}
+.r-date{font-family:var(--mono);font-size:12.5px;color:var(--ink-2)}
+.src{font-size:12px;font-weight:600;border-radius:99px;padding:2px 9px;background:var(--sunk);color:var(--ink-2)}
+.src.ai{background:var(--accent-soft);color:var(--accent)}
+.items{list-style:none;margin:0;padding:0}
+.item{display:grid;grid-template-columns:1fr auto auto;gap:4px 10px;align-items:center;padding:10px 0;border-bottom:1px dashed var(--line)}
+.item .nm{font-weight:600;min-width:0;overflow-wrap:anywhere}
+.item .raw{grid-column:1;font-family:var(--mono);font-size:12px;color:var(--thermal);overflow-wrap:anywhere}
+.chip{display:inline-block;font-size:11px;font-weight:700;border-radius:99px;padding:1px 8px;margin-left:6px;vertical-align:1px;background:var(--accent-soft);color:var(--accent)}
+.chip.pfand{background:var(--warn-soft);color:var(--warn)}
+.chip.flag{background:var(--warn-soft);color:var(--warn)}
+.chip.bad{background:var(--bad-soft);color:var(--bad)}
+.price{width:78px;text-align:right;font-family:var(--mono);font-size:14px;background:var(--sunk);border:1.5px solid transparent;border-radius:8px;padding:5px 7px}
+.price:focus{border-color:var(--accent);outline:none}
+.price.need{border-color:var(--bad);background:var(--bad-soft)}
+.del{width:28px;height:28px;border-radius:8px;border:0;background:transparent;color:var(--ink-3);cursor:pointer;font-size:18px;line-height:1}
+.del:hover{background:var(--sunk);color:var(--bad)}
+.tip{grid-column:1/-1;font-size:13.5px;color:var(--ink-2);display:flex;gap:8px;align-items:baseline}
+.tip b{color:var(--accent);font-weight:700;white-space:nowrap}
+.tip .arrow{color:var(--accent);font-weight:700}
+.r-foot{display:grid;gap:6px;padding-top:12px}
+.r-foot .line{display:flex;justify-content:space-between;gap:12px;font-size:14.5px}
+.r-foot .line.big{font-family:var(--display);font-weight:800;font-size:22px;letter-spacing:-.02em}
+.r-foot .line.save{color:var(--accent);font-weight:700}
+.r-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+
+/* recommendations */
+.recs{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.rec{display:grid;grid-template-columns:30px 1fr;gap:10px;align-items:start}
+.rec .ic{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-family:var(--mono);font-weight:700;font-size:14px;background:var(--sunk);color:var(--ink-2)}
+.rec.good .ic{background:var(--accent-soft);color:var(--accent)}
+.rec.warn .ic{background:var(--warn-soft);color:var(--warn)}
+.rec.bad .ic{background:var(--bad-soft);color:var(--bad)}
+.rec p{font-size:14.5px}
+.rec strong{font-weight:700}
+.status{display:inline-block;font-size:12.5px;font-weight:700;border-radius:99px;padding:3px 10px}
+.status.good{background:var(--accent-soft);color:var(--accent)}
+.status.warn{background:var(--warn-soft);color:var(--warn)}
+.status.bad{background:var(--bad-soft);color:var(--bad)}
+.ai-box{margin-top:14px;padding-top:14px;border-top:1px dashed var(--line)}
+.ai-box .label{display:block;margin-bottom:8px}
+.ai-box ul{margin:0;padding-left:18px;display:grid;gap:6px;font-size:14.5px}
+
+/* savings hero */
+.save-hero{background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 35%,var(--line))}
+.save-hero .label{color:var(--accent)}
+.save-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-top:4px}
+.save-big{font-family:var(--display);font-weight:800;font-size:56px;letter-spacing:-.04em;line-height:.95;color:var(--accent)}
+.save-big small{display:block;font-family:var(--body);font-size:15px;font-weight:600;letter-spacing:0;color:var(--ink);margin-top:6px}
+.pct-badge{flex:none;font-family:var(--display);font-weight:800;font-size:18px;background:var(--accent);color:var(--accent-ink);border-radius:12px;padding:6px 12px}
+.save-hero.none .save-big{font-size:30px;color:var(--ink)}
+.compare{display:grid;grid-template-columns:auto 1fr auto;gap:8px 10px;align-items:center;margin-top:18px}
+.cmp{display:contents;font-size:13.5px;font-weight:600;white-space:nowrap}
+.cmp .bar{height:14px;border-radius:5px;background:color-mix(in srgb,var(--surface) 70%,transparent);overflow:hidden}
+.cmp .bar i{display:block;height:100%;border-radius:5px;background:var(--ink-2)}
+.cmp.after .bar i{background:var(--accent)}
+.cmp .v{text-align:right;font-family:var(--mono);font-weight:500}
+.cmp.after span{color:var(--accent)}
+.facts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:16px}
+.fact{background:var(--surface);border-radius:12px;padding:10px 12px}
+.fact b{display:block;font-family:var(--display);font-weight:800;font-size:22px;letter-spacing:-.02em;color:var(--accent)}
+.fact span{font-size:12.5px;color:var(--ink-2);line-height:1.3;display:block}
+.fact.warn b{color:var(--warn)}
+
+/* swaps */
+.swaps{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.swap{display:grid;grid-template-columns:26px 1fr auto;gap:4px 12px;align-items:center;padding:12px;border:1.5px solid var(--line);border-radius:14px;cursor:pointer;transition:border-color .15s,background .15s}
+.swap:hover{border-color:var(--accent)}
+.swap.on{border-color:var(--accent);background:var(--accent-soft)}
+.swap input{width:20px;height:20px;accent-color:var(--accent);margin:0;cursor:pointer}
+.swap .what{font-weight:700;min-width:0;overflow-wrap:anywhere}
+.swap .how{grid-column:2/-1;font-size:13.5px;color:var(--ink-2)}
+.swap .how s{color:var(--ink-3)}
+.swap .how .to{color:var(--accent);font-weight:700}
+.swap .amt{font-family:var(--display);font-weight:800;font-size:20px;color:var(--accent);white-space:nowrap}
+.plan-bar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px;padding:12px 14px;border-radius:12px;background:var(--sunk);font-size:14px}
+.plan-bar b{font-family:var(--display);font-weight:800;font-size:18px;color:var(--accent)}
+.with-swaps{margin-top:10px;font-size:14px;color:var(--ink-2)}
+.with-swaps b{color:var(--accent)}
+.item.has-save{background:linear-gradient(to right,var(--accent-soft),transparent 70%);margin-inline:-8px;padding-inline:8px;border-radius:10px}
+.plan-list{list-style:none;margin:0;padding:0}
+.plan-list li{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line);font-size:14.5px}
+.plan-list li:last-child{border-bottom:0}
+.plan-list .sub{display:block;font-size:12.5px;color:var(--ink-2)}
+.plan-list .amt{font-family:var(--mono);color:var(--accent);font-weight:500}
+
+.reader{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:-2px 0 12px;font-size:13px;color:var(--ink-2)}
+.reader .pill{font-size:12px;font-weight:700;border-radius:99px;padding:3px 10px;background:var(--sunk);color:var(--ink-2)}
+.reader .pill.ai{background:var(--accent-soft);color:var(--accent)}
+.src-tag{display:inline-block;font-size:11px;font-weight:700;border-radius:99px;padding:1px 8px;margin-left:8px;vertical-align:1px;white-space:nowrap}
+.src-tag.real{background:var(--accent);color:var(--accent-ink)}
+.src-tag.est{background:var(--sunk);color:var(--ink-2)}
+.pricecheck{grid-column:1/-1;font-size:13px;color:var(--accent);display:flex;gap:6px;align-items:baseline}
+.coverage{margin-top:12px;font-size:13px;color:var(--ink-2)}
+.coverage b{color:var(--ink)}
+
+.saved{font-size:13px;color:var(--accent);font-weight:600}
+
+.pc-search{display:flex;gap:10px;flex-wrap:wrap}
+.pc-search input{flex:1 1 200px;min-width:0;font:inherit;font-size:15px;background:var(--sunk);border:1.5px solid var(--line);border-radius:12px;padding:11px 12px;color:var(--ink)}
+.pc-search input:focus{border-color:var(--accent);outline:none}
+.pc-list{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:8px}
+.pc{display:grid;grid-template-columns:1fr auto;gap:2px 12px;align-items:center;padding:12px;border:1.5px solid var(--line);border-radius:14px}
+.pc .nm{font-weight:700}
+.pc .nm small{font-weight:500;color:var(--ink-2);margin-left:4px}
+.pc .amt{font-family:var(--display);font-weight:800;font-size:19px;color:var(--accent);white-space:nowrap;text-align:right}
+.pc .how{grid-column:1/-1;font-size:13.5px;color:var(--ink-2)}
+.pc .how s{color:var(--ink-3)}
+.pc .how .to{color:var(--accent);font-weight:700}
+.pc-note{font-size:12.5px;color:var(--ink-2);margin-top:10px}
+
+/* history */
+.hist{list-style:none;margin:0;padding:0}
+.hist li{display:grid;grid-template-columns:auto 1fr auto auto;gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line);font-size:14.5px}
+.hist li:last-child{border-bottom:0}
+.hist .d{font-family:var(--mono);font-size:12.5px;color:var(--ink-2)}
+.hist .s{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.empty{font-size:14px;color:var(--ink-2)}
+.foot{font-size:12.5px;color:var(--ink-2);padding-inline:4px}
+
+@media (max-width:440px){
+  .save-big{font-size:46px}
+  .facts{gap:6px}
+  .fact{padding:9px 9px}
+  .fact b{font-size:18px}
+  .left-big{font-size:38px}
+  .stats{gap:8px}
+  .stat{padding:9px 10px}
+  .stat .v{font-size:17px}
+  .item{grid-template-columns:1fr auto auto}
+  .btn{flex:1 1 auto;justify-content:center}
+}
+@media (prefers-reduced-motion:reduce){.pbar i{transition:none}}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header class="top">
+    <div><div class="logo"><span class="logo-mark">€</span>Bonwise</div><div class="tagline">Scan a receipt. Pay less next time.</div></div>
+    <span class="month" id="monthLabel">September 2026</span>
+  </header>
+
+  <!-- 1 · Budget -->
+  <section class="card" aria-labelledby="bH">
+    <div class="card-h">
+      <h2 id="bH">Monthly spending</h2>
+      <label class="budget-edit" for="budget">Monthly <input id="budget" type="number" inputmode="decimal" min="0" step="10" value="300"> €</label>
+    </div>
+    <div class="budget-top">
+      <div class="left-big num" id="leftBig">€300 <small>left this month</small></div>
+      <span class="status good" id="paceChip">On track</span>
+    </div>
+    <p class="with-swaps" id="withSwaps" hidden></p>
+    <div class="meter" aria-hidden="true"><i class="spent" id="mSpent"></i><i class="pending" id="mPending"></i><span class="today" id="mToday"></span></div>
+    <div class="meter-legend">
+      <span><i style="background:var(--ink-2)"></i>Saved receipts</span>
+      <span id="lgPending" hidden><i style="background:var(--accent)"></i>This receipt</span>
+      <span><i style="background:var(--warn);width:3px"></i>Today</span>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="v num" id="stSpent">€0</div><div class="k">Spent so far</div></div>
+      <div class="stat"><div class="v num" id="stDaily">€0</div><div class="k">Per day left</div></div>
+      <div class="stat"><div class="v num" id="stSaved" style="color:var(--accent)">€0</div><div class="k">Could save this month</div></div>
+    </div>
+  </section>
+
+  <!-- 2 · Scan -->
+  <section class="card" aria-labelledby="sH">
+    <div class="card-h"><h2 id="sH">Scan a receipt</h2></div>
+    <p class="reader"><span class="pill" id="readerPill">Checking reader…</span><span id="readerNote"></span></p>
+    <div class="scan-actions">
+      <button class="btn" id="pickBtn" type="button">Upload receipt photo</button>
+      <button class="btn line" id="sampleBtn" type="button">Try a sample receipt</button>
+    </div>
+    <input type="file" id="file" accept="image/*" hidden>
+    <div class="drop" id="drop">…or drop a photo here</div>
+    <p class="hint">No photo handy? <button class="linkbtn" id="pasteToggle" type="button">Paste the receipt text instead</button></p>
+    <div class="paste" id="pasteBox" hidden>
+      <label class="label" for="pasteText">Receipt lines</label>
+      <textarea id="pasteText" placeholder="Bio Eier 10er 2,79&#10;Roggenbrot 500g 2,19&#10;Coca Cola 1,5L 1,89&#10;Summe 6,87"></textarea>
+      <div class="row"><button class="btn small" id="pasteGo" type="button">Read these lines</button></div>
+    </div>
+
+
+    <div class="progress" id="progress" hidden>
+      <img id="thumb" alt="">
+      <div>
+        <div class="stage" id="stage">Reading your receipt…</div>
+        <div class="sub" id="stageSub"></div>
+        <div class="pbar"><i id="pbar"></i></div>
+        <button class="linkbtn" id="skipAi" type="button" hidden style="margin-top:8px">Use the quick reader instead</button>
+      </div>
+    </div>
+    <div class="notice bad" id="scanErr" hidden></div>
+    <div class="notice ok" id="aiStatus" hidden></div>
+  </section>
+
+  <!-- 3 · Savings -->
+  <section class="card save-hero" id="saveCard" aria-live="polite" hidden>
+    <div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline"><span class="label" id="svLabel">You could save on this shop</span><button class="linkbtn" id="clearBtn" type="button">✕ Remove this receipt</button></div>
+    <div class="save-top">
+      <div class="save-big num" id="svBig">€0.00<small>by making the swaps below</small></div>
+      <span class="pct-badge" id="svPct">0% less</span>
+    </div>
+    <div class="compare" aria-hidden="true">
+      <div class="cmp"><span>You paid</span><div class="bar"><i id="cbPaid"></i></div><span class="v" id="cvPaid">€0.00</span></div>
+      <div class="cmp after" id="cmpAfter"><span>With swaps</span><div class="bar"><i id="cbSwap"></i></div><span class="v" id="cvSwap">€0.00</span></div>
+    </div>
+    <div class="facts">
+      <div class="fact"><b class="num" id="fMonth">€0</b><span>a month, if this is your weekly shop</span></div>
+      <div class="fact"><b class="num" id="fYear">€0</b><span>a year</span></div>
+      <div class="fact" id="fWeekBox"><b class="num" id="fWeek">0%</b><span id="fWeekTxt">of your weekly allowance</span></div>
+    </div>
+    <p class="coverage" id="coverage"></p>
+  </section>
+
+  <section class="card" id="swapCard" aria-labelledby="swH" hidden>
+    <div class="card-h"><h2 id="swH">Swaps for your next shop</h2><span class="label" id="swCount"></span></div>
+    <ul class="swaps" id="swaps"></ul>
+    <div class="plan-bar"><span id="planHint">Tick the swaps you’ll make next time</span><b class="num" id="planPick">€0 / month</b></div>
+  </section>
+
+  <!-- 4 · Receipt -->
+  <section class="card" id="receiptCard" aria-labelledby="rH" hidden>
+    <div class="card-h"><h2 id="rH">Receipt details</h2><span class="src" id="srcChip">Built-in price guide</span></div>
+    <div class="r-head"><span class="r-store" id="rStore">Store</span><span class="r-date" id="rDate"></span></div>
+    <ul class="items" id="items"></ul>
+    <div class="notice warn" id="sumWarn" hidden></div>
+    <div class="r-foot">
+      <div class="line big"><span>Total</span><span class="num" id="rTotal">€0.00</span></div>
+      <div class="line save"><span>Could save with swaps</span><span class="num" id="rSave">€0.00</span></div>
+    </div>
+    <div class="r-actions">
+      <button class="btn" id="addBtn" type="button">Add to this month</button>
+      <button class="btn line" id="discardBtn" type="button">Discard</button>
+    </div>
+  </section>
+
+  <!-- 4 · Recommendations -->
+  <section class="card" id="recCard" aria-labelledby="recH" hidden>
+    <div class="card-h"><h2 id="recH">Staying within your budget</h2></div>
+    <ul class="recs" id="recs"></ul>
+    <div class="ai-box" id="aiBox" hidden>
+      <span class="label" id="aiLabel">Claude’s tips for this shop</span>
+      <ul id="aiTips"></ul>
+    </div>
+  </section>
+
+  <!-- 6 · Savings plan -->
+  <section class="card" id="planCard" aria-labelledby="pH" hidden>
+    <div class="card-h"><h2 id="pH">My savings plan</h2><span class="label">shopping list</span></div>
+    <ul class="plan-list" id="planList"></ul>
+    <div class="plan-bar"><span id="planSum">Following this plan</span><b class="num" id="planMonth">€0 / month</b></div>
+  </section>
+
+  <!-- Price check -->
+  <section class="card" aria-labelledby="pcH">
+    <div class="card-h"><h2 id="pcH">Check a price before you buy</h2><span class="label">sneakers</span></div>
+    <div class="pc-search"><input id="pcQ" type="search" placeholder="e.g. Samba, Air Force 1, Palermo" aria-label="Search a product" list="pcNames" autocomplete="off"><datalist id="pcNames"></datalist></div>
+    <ul class="pc-list" id="pcList"></ul>
+    <p class="pc-note" id="pcNote"></p>
+  </section>
+
+  <!-- 7 · History -->
+  <section class="card" aria-labelledby="hH">
+    <div class="card-h"><h2 id="hH">This month’s receipts</h2><span><button class="linkbtn" id="resetBtn" type="button" hidden>Clear month</button> <button class="linkbtn" id="wipeBtn" type="button" style="margin-left:10px">Start fresh</button></span></div>
+    <ul class="hist" id="hist"></ul>
+    <p class="empty" id="histEmpty">No receipts saved yet. Scan one above, check it, then press “Add to this month”.</p>
+  </section>
+
+  <p class="foot">Test version. Receipt photos are sent to this Bonwise server, which asks an open-source AI model on Hugging Face to read them (Tesseract OCR is the backup). Photos aren’t stored. “Real price” comparisons use ALDI SÜD shelf prices (aldi-sued.de) and sneaker prices from günstiger.de, billiger.de and the brands’ shops, all checked 23 Sep 2026. Prices vary by region, size and colour, and change over time. Other swaps are estimates. Your budget and receipts are saved in this browser only.</p>
+</div>
+<script src="/static/app.js"></script>
+</body>
+</html>

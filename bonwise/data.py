@@ -1,0 +1,181 @@
+"""Price data.
+
+MARKET: real shelf prices read from the ALDI SÜD online range (aldi-sued.de),
+        23 September 2026. own = ALDI's own brand, bio = organic.
+        size is in g, ml or pieces (fam "g" | "ml" | "st").
+SPORTS: sneaker prices checked 23 September 2026. list = the brand's own shop
+        price; best = cheapest offer on günstiger.de / billiger.de, with shipping.
+GUIDE:  typical store-brand / discounter prices in Germany (approximate), used
+        when a product type isn't in MARKET.
+"""
+
+MARKET_STORE = "ALDI SÜD"
+MARKET_SOURCE = "aldi-sued.de"
+MARKET_CHECKED = "23 Sep 2026"
+
+
+def _p(mk, name, size, fam, price, own=0, bio=0):
+    return {"mk": mk, "name": name, "size": size, "fam": fam, "price": price, "own": bool(own), "bio": bool(bio)}
+
+
+MARKET = [
+    _p("milk", "MILSANI Frische Vollmilch 3,5 %", 1000, "ml", 0.95, 1),
+    _p("milk", "MILSANI Frische Milch 1,5 %", 1000, "ml", 0.85, 1),
+    _p("milk", "MILSANI H-Milch 1,5 %", 1000, "ml", 0.85, 1),
+    _p("milk", "BÄRENMARKE Vollmilch 3,8 %", 1000, "ml", 0.88),
+    _p("milk", "LANDLIEBE Haltbare Milch 3,5 %", 1000, "ml", 0.95),
+    _p("milk", "WEIHENSTEPHAN H-Milch 3,5 %", 1000, "ml", 1.59),
+    _p("milk", "BIO Frische Bio-Vollmilch 3,8 %", 1000, "ml", 1.35, 1, 1),
+
+    _p("butter", "MILSANI Deutsche Markenbutter", 250, "g", 1.19, 1),
+    _p("butter", "LANDLIEBE Butter", 250, "g", 1.29),
+    _p("butter", "WEIHENSTEPHAN Butter", 250, "g", 1.29),
+    _p("butter", "MEGGLE Feine Butter", 250, "g", 1.39),
+    _p("butter", "ARLA Kærgården Butter", 250, "g", 1.39),
+    _p("butter", "BIO Bio-Butter", 250, "g", 2.69, 1, 1),
+
+    _p("eggs", "Eier aus Freilandhaltung, 10er", 10, "st", 2.99, 1),
+    _p("eggs", "Eier aus Bodenhaltung, 18er", 18, "st", 4.19, 1),
+    _p("eggs", "Bio-Eier, 10er", 10, "st", 3.99, 1, 1),
+
+    _p("cheese", "Gouda Scheiben", 400, "g", 2.45, 1),
+    _p("cheese", "Butterkäse Scheiben", 400, "g", 2.45, 1),
+    _p("cheese", "Edamer Scheiben", 400, "g", 2.45, 1),
+    _p("cheese", "Maasdamer Scheiben", 300, "g", 2.39, 1),
+    _p("cheese", "LEERDAMMER Original", 360, "g", 3.99),
+
+    _p("bread", "Bauernschnitten Roggen", 500, "g", 0.99, 1),
+    _p("bread", "Das Milde", 500, "g", 0.99, 1),
+    _p("bread", "Paderborner", 500, "g", 1.19, 1),
+    _p("bread", "Bio-Roggenvollkornbrot", 375, "g", 0.99, 1, 1),
+
+    _p("toast", "Buttertoast", 500, "g", 0.89, 1),
+    _p("toast", "Vollkorntoast", 500, "g", 0.89, 1),
+    _p("toast", "Weizen-Sandwichtoast", 750, "g", 1.19, 1),
+
+    _p("pasta", "Spaghetti", 500, "g", 0.69, 1),
+    _p("pasta", "Penne", 500, "g", 0.69, 1),
+    _p("pasta", "Fusilli", 500, "g", 0.69, 1),
+    _p("pasta", "Farfalle", 500, "g", 0.69, 1),
+    _p("pasta", "Bio-Vollkorn Farfalle", 500, "g", 0.85, 1, 1),
+
+    _p("rice", "Parboiled Reis", 1000, "g", 1.39, 1),
+    _p("rice", "Jasmin Reis", 1000, "g", 1.99, 1),
+    _p("rice", "Basmati Reis", 1000, "g", 2.49, 1),
+
+    _p("coffee", "BARISSIMO Gemahlener Kaffee Gold", 500, "g", 5.49, 1),
+    _p("coffee", "BARISSIMO Mahlkaffee Mild", 500, "g", 5.49, 1),
+    _p("coffee", "BARISSIMO Espresso Classico (beans)", 1000, "g", 9.99, 1),
+    _p("coffee", "DALLMAYR Crema d'Oro (beans)", 1000, "g", 14.99),
+    _p("coffee", "LAVAZZA Crema e Aroma (beans)", 1000, "g", 17.99),
+
+    _p("spread", "Nuss-Nougat-Creme", 400, "g", 1.99, 1),
+    _p("spread", "NUTELLA", 450, "g", 3.99),
+
+    _p("juice-orange", "Orangensaft", 1000, "ml", 2.49, 1),
+    _p("juice-orange", "Fruchtsaft Orange", 2000, "ml", 1.99, 1),
+    _p("juice-apple", "Apfelsaft", 1000, "ml", 1.29, 1),
+
+    _p("cola", "RIVER Cola Classic", 1500, "ml", 0.65, 1),
+    _p("cola", "Cola Mix", 1500, "ml", 0.65, 1),
+    _p("cola", "COCA-COLA Regular", 2000, "ml", 1.29),
+    _p("cola", "PEPSI", 1250, "ml", 1.49),
+
+    _p("chips", "Chips Paprika", 200, "g", 0.99, 1),
+    _p("chips", "Chips Salz", 200, "g", 0.99, 1),
+    _p("chips", "FUNNY-FRISCH Chipsfrisch", 150, "g", 1.99),
+
+    _p("chocolate", "Vollmilch Schokolade", 100, "g", 0.79, 1),
+    _p("chocolate", "MOSER ROTH Premium Vollmilch", 125, "g", 2.19, 1),
+    _p("chocolate", "MILKA Alpenmilch", 90, "g", 1.99),
+
+    _p("showergel", "LACURA Duschgel", 400, "ml", 0.69, 1),
+    _p("showergel", "DUSCHDAS Duschgel", 675, "ml", 2.99),
+    _p("showergel", "AXE 3-in-1 Duschgel", 400, "ml", 3.75),
+
+    _p("shampoo", "LACURA Anti-Schuppen Shampoo", 300, "ml", 1.35, 1),
+    _p("shampoo", "HEAD & SHOULDERS Classic", 500, "ml", 6.95),
+    _p("shampoo", "PANTENE PRO-V Repair & Care", 500, "ml", 5.95),
+]
+
+
+SPORTS_CHECKED = "23 Sep 2026"
+
+
+def _s(brand, model, keys, list_price, list_src, price, ship, shop, src):
+    return {
+        "brand": brand, "model": model, "keys": keys, "list": list_price, "listSrc": list_src,
+        "best": {"price": price, "ship": ship, "total": round(price + ship, 2), "shop": shop, "src": src},
+    }
+
+
+SPORTS = [
+    _s("adidas", "Samba OG", ["samba"], 120, "adidas.de", 67.00, 4.99, "Street-Sport (via Kaufland)", "günstiger.de"),
+    _s("adidas", "Gazelle", ["gazelle"], 110, "adidas.de", 57.99, 5.95, "baur.de", "günstiger.de"),
+    _s("adidas", "Stan Smith", ["stan smith", "stansmith"], 110, "adidas.de", 27.55, 7.99, "timsport (via Kaufland)", "günstiger.de"),
+    _s("adidas", "Ultraboost 5", ["ultraboost", "ultra boost"], 180, "adidas.de", 89.90, 4.95, "Hardloop", "günstiger.de"),
+    _s("Nike", "Air Force 1 '07", ["air force", "af1", "airforce"], 119.99, "nike.com", 75.47, 0, "Amazon", "günstiger.de"),
+    _s("Nike", "Dunk Low Retro", ["dunk low", "dunk"], 119.99, "nike.com", 79.95, 0, "kpr-sports (via eBay)", "günstiger.de"),
+    _s("Nike", "Air Max 90", ["air max 90", "airmax 90", "am90"], 149.99, "list price (billiger.de)", 100.00, 0, "Snipes", "billiger.de"),
+    _s("PUMA", "Palermo", ["palermo"], 89.95, "eu.puma.com", 31.27, 0, "Amazon", "günstiger.de"),
+    _s("PUMA", "Suede Classic", ["suede classic", "suede", "classic+ suede"], 89.95, "eu.puma.com", 33.79, 0, "sportonline.gmbh", "günstiger.de"),
+    _s("New Balance", "530", ["530", "nb530", "nb 530"], 120, "list price (retailer listings)", 68.99, 5.95, "baur.de", "günstiger.de"),
+]
+
+
+def _g(k, en, cat, qty, unit, price, alt, mk=None):
+    return {"k": k, "mk": mk, "en": en, "cat": cat, "qty": qty, "unit": unit, "price": price, "alt": alt}
+
+
+GUIDE = [
+    _g(["vollmilch", "h-milch", "hmilch", "fettarme milch", "milch", "milk"], "Milk", "Dairy", 1, "l", 0.99, "store-brand milk (Milsani, ja!, Milbona)", "milk"),
+    _g(["butter"], "Butter", "Dairy", 250, "g", 1.79, "store-brand butter", "butter"),
+    _g(["gouda", "edamer", "kaese", "kase", "emmentaler", "scheiben kase", "butterkaese", "butterkase", "cheese"], "Cheese slices", "Dairy", 400, "g", 2.49, "store-brand cheese slices", "cheese"),
+    _g(["mozzarella"], "Mozzarella", "Dairy", 125, "g", 0.79, "store-brand mozzarella"),
+    _g(["joghurt", "jogurt", "yoghurt", "yogurt"], "Yoghurt", "Dairy", 500, "g", 0.89, "store-brand yoghurt"),
+    _g(["quark"], "Quark", "Dairy", 500, "g", 1.19, "store-brand quark"),
+    _g(["sahne", "schlagsahne", "whipping cream"], "Cream", "Dairy", 200, "g", 0.99, "store-brand cream"),
+    _g(["bio eier", "eier bio", "organic eggs"], "Organic eggs", "Dairy", 10, "st", 3.29, "discounter organic eggs", "eggs"),
+    _g(["eier", "eggs"], "Eggs", "Dairy", 10, "st", 2.29, "discounter free-range eggs", "eggs"),
+    _g(["roggenbrot", "vollkornbrot", "mischbrot", "brot", "bread"], "Bread", "Bakery", 500, "g", 1.29, "packaged bread from the discounter", "bread"),
+    _g(["toast"], "Toast bread", "Bakery", 500, "g", 1.09, "store-brand toast", "toast"),
+    _g(["broetchen", "brotchen", "semmel", "bread rolls"], "Bread rolls", "Bakery", 1, "st", 0.25, "bake-off rolls at the discounter"),
+    _g(["bananen", "banane", "banana"], "Bananas", "Fruit & veg", 1, "kg", 1.29, "loose bananas at Aldi or Lidl"),
+    _g(["aepfel", "apfel", "apples"], "Apples", "Fruit & veg", 1, "kg", 1.99, "loose apples at the discounter"),
+    _g(["tomaten", "tomate", "tomato"], "Tomatoes", "Fruit & veg", 500, "g", 1.49, "loose tomatoes at the discounter"),
+    _g(["kartoffeln", "kartoffel", "potato"], "Potatoes", "Fruit & veg", 2.5, "kg", 2.49, "a 2.5 kg bag at the discounter"),
+    _g(["zwiebeln", "zwiebel", "onion"], "Onions", "Fruit & veg", 1, "kg", 0.99, "a net of onions at the discounter"),
+    _g(["gurke", "salatgurke", "cucumber"], "Cucumber", "Fruit & veg", 1, "st", 0.69, "cucumber at the discounter"),
+    _g(["paprika", "bell pepper"], "Peppers", "Fruit & veg", 500, "g", 1.99, "peppers in a multi-pack"),
+    _g(["nudeln", "penne", "spaghetti", "spagh", "fusilli", "farfalle", "pasta", "maccaroni", "makkaroni", "macaroni", "noodles"], "Pasta", "Pantry", 500, "g", 0.79, "store-brand pasta (ja!, Combino, Cucina)", "pasta"),
+    _g(["reis", "basmati", "rice"], "Rice", "Pantry", 1, "kg", 1.69, "store-brand rice", "rice"),
+    _g(["mehl", "flour"], "Flour", "Pantry", 1, "kg", 0.69, "store-brand flour"),
+    _g(["zucker", "sugar"], "Sugar", "Pantry", 1, "kg", 0.99, "store-brand sugar"),
+    _g(["sonnenblumenoel", "sonnenblumenol", "rapsoel", "rapsol", "sunflower oil", "cooking oil"], "Cooking oil", "Pantry", 1, "l", 1.79, "store-brand oil"),
+    _g(["kaffee", "caffe", "espresso", "coffee"], "Coffee", "Pantry", 500, "g", 5.99, "store-brand ground coffee", "coffee"),
+    _g(["nutella", "nuss-nougat", "nussnougat", "hazelnut spread", "nut nougat"], "Hazelnut spread", "Pantry", 450, "g", 2.19, "store-brand nut-nougat spread", "spread"),
+    _g(["muesli", "musli", "cornflakes", "haferflocken", "cereal", "oats"], "Cereal", "Pantry", 500, "g", 1.29, "store-brand cereal or oats"),
+    _g(["ketchup"], "Ketchup", "Pantry", 500, "ml", 0.99, "store-brand ketchup"),
+    _g(["orangensaft", "o-saft", "osaft", "orange juice", "saft", "juice"], "Orange juice", "Drinks", 1, "l", 1.49, "store-brand juice", "juice-orange"),
+    _g(["apfelsaft", "apple juice", "apfelschorle"], "Apple juice", "Drinks", 1, "l", 1.29, "store-brand apple juice", "juice-apple"),
+    _g(["coca cola", "coca-cola", "cola", "pepsi", "fanta", "sprite", "limonade", "soft drink", "soda"], "Soft drink", "Drinks", 1.5, "l", 0.65, "store-brand cola or lemonade", "cola"),
+    _g(["mineralwasser", "wasser", "sprudel", "water"], "Water", "Drinks", 1.5, "l", 0.25, "discounter mineral water"),
+    _g(["chips", "pringles", "crunchips", "crisps", "sour cream chips", "chipsfrisch"], "Crisps", "Snacks", 175, "g", 0.99, "store-brand crisps", "chips"),
+    _g(["schokolade", "schoko", "milka", "alpenmilch", "ritter sport", "lindt", "tafel", "chocolate"], "Chocolate", "Snacks", 100, "g", 0.79, "store-brand chocolate", "chocolate"),
+    _g(["gummibaerchen", "haribo", "fruchtgummi"], "Gummy sweets", "Snacks", 200, "g", 0.89, "store-brand gummies"),
+    _g(["toilettenpapier", "klopapier", "toilet paper"], "Toilet paper", "Household", 8, "st", 2.99, "store-brand toilet paper"),
+    _g(["weichspueler", "weichspuler", "lenor", "fabric softener"], "Fabric softener", "Household", 1, "l", 1.49, "store-brand fabric softener"),
+    _g(["waschmittel", "persil", "ariel", "detergent"], "Laundry detergent", "Household", 20, "wl", 2.99, "store-brand detergent"),
+    _g(["spuelmittel", "spulmittel", "pril", "fairy", "dish soap", "washing-up"], "Washing-up liquid", "Household", 500, "ml", 0.65, "store-brand washing-up liquid"),
+    _g(["zahnpasta", "zahncreme", "colgate", "elmex", "toothpaste"], "Toothpaste", "Drugstore", 75, "ml", 0.65, "dm Dontodent or Rossmann Perlodent"),
+    _g(["duschgel", "dusch", "shower gel", "body wash"], "Shower gel", "Drugstore", 250, "ml", 0.75, "dm Balea or Rossmann Isana", "showergel"),
+    _g(["shampoo"], "Shampoo", "Drugstore", 300, "ml", 0.95, "dm Balea or Rossmann Isana", "shampoo"),
+]
+
+BRANDS = ["barilla", "coca", "pepsi", "milka", "nutella", "lenor", "ariel", "persil", "pringles", "haribo",
+          "kinder", "oetker", "kellogg", "nivea", "colgate", "tempo", "zewa", "jacobs", "tchibo", "dallmayr", "hohes c",
+          "ehrmann", "muller", "mueller", "philadelphia", "bonne maman", "heinz", "knorr", "maggi", "red bull", "lindt",
+          "ritter sport", "lays", "funny frisch", "bahlsen", "leibniz", "danone", "alpro", "lavazza", "melitta", "elmex"]
+
+STORES = ["rewe", "edeka", "lidl", "aldi", "kaufland", "penny", "netto", "norma", "rossmann", "globus",
+          "tegut", "marktkauf", "famila", "real", "budni", "denns", "alnatura", "dm-drogerie", "dm drogerie", "hit"]
