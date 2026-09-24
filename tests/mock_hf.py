@@ -19,6 +19,20 @@ RECEIPT = {
     "tips": ["Buy store-brand butter to save about €1 a week."],
 }
 
+# The adidas employee-sale receipt: (name, price before discount, price paid, employee-discount amount)
+ADIDAS_LINES = [("VL COURT 2.0 FTW", 45.00, 22.05, 9.45), ("VL COURT 2.0 CREW", 45.00, 22.05, 9.45),
+                ("3S TEE DKB", 23.00, 11.27, 4.83), ("M 3S SJ T WHI", 19.00, 9.31, 3.99),
+                ("M 3S FT SHO LEG", 21.00, 10.29, 4.41), ("SST TT BLA", 52.00, 25.48, 10.92),
+                ("ESS PANTS FT BLA", 38.00, 18.62, 7.98), ("NEU C HD BLA", 52.00, 25.48, 10.92)]
+
+
+def adidas(correct):
+    items = [{"raw": n, "en": n, "price": paid if correct else disc, "original": orig if correct else None,
+              "deposit": False, "category": "Clothing & shoes"} for n, orig, paid, disc in ADIDAS_LINES]
+    items.append({"raw": "Paper Bag", "en": "Paper bag", "price": 0.30, "deposit": False, "category": "Other"})
+    return {"store": "adidas Herzogenaurach", "date": "05.09.2026", "currency": "EUR", "total": 144.85, "items": items, "tips": []}
+
+
 calls = []
 
 
@@ -39,7 +53,8 @@ class H(BaseHTTPRequestHandler):
         model = req["model"]
         parts = req["messages"][-1]["content"]
         has_image = isinstance(parts, list) and any(p.get("type") == "image_url" for p in parts)
-        calls.append({"model": model, "auth": self.headers.get("Authorization"), "image": has_image})
+        calls.append({"model": model, "auth": self.headers.get("Authorization"), "image": has_image,
+                      "check": "printed total on the receipt is" in json.dumps(req["messages"][-1])})
         if "bad-key" in model:
             return self._reply(401, {"error": "Invalid credentials in Authorization header"})
         if "no-credit" in model:
@@ -51,6 +66,10 @@ class H(BaseHTTPRequestHandler):
         if "slow" in model:
             time.sleep(3)
         text = json.dumps(RECEIPT)
+        asked_to_check = "printed total on the receipt is" in json.dumps(req["messages"][-1])
+        if "adidas" in model:
+            # "adidas-learns": wrong first, right after the self-check; "adidas-stubborn": always wrong
+            text = json.dumps(adidas(asked_to_check and "learns" in model))
         if "junk" in model:
             text = "Sorry, I cannot help with that."
         elif "fenced" in model:

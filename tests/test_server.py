@@ -105,6 +105,16 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(j["receipt"]["reader"], "text")
         self.assertIn("isn't set up", j["notice"])
 
+    def test_discounted_receipt_end_to_end(self):
+        config.MODELS = ["adidas-learns"]
+        try:
+            s, j = self.post("/api/scan", {"image": self.image})
+        finally:
+            config.MODELS = ["ok-model"]
+        r = j["receipt"]
+        self.assertEqual(r["itemTotal"], 144.85)
+        self.assertEqual(r["discounts"], 150.45)  # matches "Total discounts 150,45" on the receipt
+
     def test_errors(self):
         self.assertEqual(self.post("/api/scan", {})[0], 400)
         self.assertEqual(self.post("/api/scan", {"image": "not base64!!"})[0], 400)

@@ -126,6 +126,7 @@
         '<input class="price num' + (it.price == null ? " need" : "") + '" id="price-' + i + '" type="text" inputmode="decimal" aria-label="Price of ' + esc(it.en || it.raw) + '" value="' + (it.price == null ? "" : Number(it.price).toFixed(2)) + '" placeholder="0.00">' +
         '<button class="del" type="button" data-del="' + i + '" aria-label="Remove item">×</button>' +
         (it.en && it.raw && norm(it.en) !== norm(it.raw) ? '<div class="raw">' + esc(it.raw) + '</div>' : "") +
+        (it.original != null && it.price != null && it.original > it.price ? '<div class="pricecheck">✓ <span>Discount applied: <s>' + eur(it.original) + '</s> → ' + eur(it.price) + ' (you saved ' + eur(it.original - it.price) + ')</span></div>' : "") +
         tip + '</li>';
     }).join("");
     renderTotals();
@@ -134,6 +135,8 @@
     var t = itemTotal();
     $("rTotal").textContent = eur(t);
     $("rSave").textContent = eur(itemSave());
+    var disc = r2(cur.items.reduce(function (a, it) { return a + (it.original != null && it.price != null && it.original > it.price ? it.original - it.price : 0); }, 0));
+    $("rDiscRow").hidden = !(disc > 0); $("rDisc").textContent = eur(disc);
     var w = $("sumWarn"), missing = cur.items.filter(function (it) { return it.price == null; }).length;
     if (cur.foreign) { w.hidden = false; w.textContent = "This receipt is in " + cur.currency + ". Price checks and swaps only cover German shops in euros, so they’re off for this one."; }
     else if (missing) { w.hidden = false; w.textContent = missing + " price" + (missing > 1 ? "s" : "") + " couldn’t be read — type " + (missing > 1 ? "them" : "it") + " in from your receipt."; }
@@ -192,7 +195,8 @@
       $("svPct").hidden = false; $("svPct").textContent = Math.round(s / Math.max(t, 0.01) * 100) + "% less";
     } else {
       $("svLabel").textContent = "Nice shop";
-      $("svBig").innerHTML = "No cheaper swaps found<small>These prices already look like discounter prices.</small>";
+      var dsc = r2(cur.items.reduce(function (a, it) { return a + (it.original != null && it.price != null && it.original > it.price ? it.original - it.price : 0); }, 0));
+      $("svBig").innerHTML = "No cheaper swaps found<small>" + (dsc > 0 ? "You already saved " + eur(dsc) + " with the discounts on this receipt." : "These prices already look like discounter prices.") + "</small>";
       $("svPct").hidden = true;
     }
     $("cvPaid").textContent = eur(t); $("cvSwap").textContent = eur(t - s);

@@ -25,9 +25,16 @@ INSTRUCTIONS = (
     "equivalent is commonly sold in Germany (store brand, Aldi/Lidl, dm/Rossmann own brand, or the same product from a cheaper shop or outlet), cheaper: {name, price} with its typical price in EUR for the same pack size (approximate). "
     "Omit cheaper when the price already looks like a discounter price or for deposit lines.\n"
     "Skip subtotal, tax, payment and change lines. If quantity x unit price is printed, use the line total.\n"
+    "Discounts: many receipts print a price before discount, then discount lines under the item (e.g. \"Back to School 30% off -13,50\", "
+    "\"Employee Discount -9,45\", \"Rabatt\", \"Aktion\", \"TTD (-22,95)\"). An item's price is the final amount actually paid for that item "
+    "after all its discounts (often the \"Selling Price\" / \"Verkaufspreis\" column). Never use a discount amount as an item price, and do not "
+    "list those discount lines as separate items when the item's final price already includes them. Put the price before discounts in original "
+    "(null if there was no discount). Only list a discount as its own item (with a negative price) when it applies to the whole receipt and isn't "
+    "already included in the item prices.\n"
+    "Check before answering: the item prices must add up to the printed total. If they don't, re-read the receipt and fix the prices.\n"
     "Also give tips: 2 or 3 short, concrete sentences (with approximate EUR amounts) on how this shopper could spend less on this kind of shop, given the budget context below.\n"
     "Reply with only JSON, no other text: "
-    '{"store":"","date":"","currency":"EUR","language":"","total":0,"items":[{"raw":"","en":"","price":0,"deposit":false,"category":"","cheaper":{"name":"","price":0}}],"tips":[""]}. '
+    '{"store":"","date":"","currency":"EUR","language":"","total":0,"items":[{"raw":"","en":"","price":0,"original":null,"deposit":false,"category":"","cheaper":{"name":"","price":0}}],"tips":[""]}. '
     'If this is not a receipt, reply {"notReceipt":"short reason"}.'
 )
 
@@ -225,9 +232,15 @@ def _clean(res, model):
             price = round(float(it.get("price")), 2) if it.get("price") is not None else None
         except (TypeError, ValueError):
             price = None
+        try:
+            original = round(float(it.get("original")), 2) if it.get("original") is not None else None
+        except (TypeError, ValueError):
+            original = None
+        if original is not None and (price is None or original <= price):
+            original = None
         raw = str(it.get("raw") or it.get("en"))[:120]
         items.append({
-            "raw": raw, "en": str(it.get("en") or "")[:80], "price": price,
+            "raw": raw, "en": str(it.get("en") or "")[:80], "price": price, "original": original,
             "pfand": bool(it.get("deposit")) or bool(re.search(r"pfand|deposit", raw, re.I)),
             "cat": str(it.get("category") or "")[:24],
             "cheaper": it.get("cheaper") if isinstance(it.get("cheaper"), dict) else None,
@@ -244,13 +257,37 @@ def _clean(res, model):
     }
 
 
+CHECK = ("Your item prices add up to %.2f, but the printed total on the receipt is %.2f. Look at the receipt again. "
+         "Common mistakes: using a discount amount (e.g. an employee or promotion discount) as an item price instead of the final "
+         "price paid, listing discount lines that are already included in an item's price, or missing or doubling a line. "
+         "Reply with the complete corrected JSON only.")
+
+
+def total_gap(r):
+    """How far the item prices are from the printed total (0 when no total was read)."""
+    if r.get("total") is None:
+        return 0.0
+    return abs(round(sum(it["price"] or 0 for it in r["items"]) - r["total"], 2))
+
+
+def adds_up(r):
+    return total_gap(r) <= max(0.05, 0.005 * abs(r.get("total") or 0))
+
+
 def read_receipt(image_b64=None, media_type="image/jpeg", text=None, context=None, models=None):
-    """Try each model in turn. Returns a receipt dict; raises AIError or NotReceipt."""
+    """Try each model in turn. When the item prices don't add up to the printed total, the model is shown
+    the difference and asked to check again. Returns a receipt dict; raises AIError or NotReceipt."""
     if not config.HF_TOKEN:
         raise AIError("not_configured")
     messages = _build_messages(image_b64, media_type, text, context)
     deadline = time.monotonic() + config.AI_TOTAL_TIMEOUT
-    last = AIError("upstream")
+    last, best = AIError("upstream"), None
+
+    def keep(candidate):
+        nonlocal best
+        if best is None or total_gap(candidate) < total_gap(best):
+            best = candidate
+
     for model in models or config.MODELS:
         left = deadline - time.monotonic()
         if left < 5:
@@ -260,10 +297,14 @@ def read_receipt(image_b64=None, media_type="image/jpeg", text=None, context=Non
         except AIError as e:
             last = e
             if e.code in ("bad_key", "no_credit"):
+                if best:
+                    break
                 raise  # the next model would fail the same way
             continue
         res = extract_json(reply)
         if res and res.get("notReceipt"):
+            if best:
+                break
             raise NotReceipt(str(res["notReceipt"])[:200])
         if not res or not isinstance(res.get("items"), list):
             last = AIError("bad_response", reply[:200], model)
@@ -272,5 +313,35 @@ def read_receipt(image_b64=None, media_type="image/jpeg", text=None, context=Non
         if not cleaned["items"]:
             last = AIError("no_items", "", model)
             continue
-        return cleaned
+        if adds_up(cleaned):
+            return cleaned
+        keep(cleaned)
+
+        # Self-check: show the model its sum vs the printed total and ask it to fix the prices.
+        left = deadline - time.monotonic()
+        if left < 8:
+            break
+        item_sum = sum(it["price"] or 0 for it in cleaned["items"])
+        retry = messages + [{"role": "assistant", "content": reply},
+                            {"role": "user", "content": CHECK % (item_sum, cleaned["total"])}]
+        try:
+            reply2 = call_model(model, retry, min(config.MODEL_TIMEOUT, left))
+        except AIError as e:
+            last = e
+            if e.code in ("bad_key", "no_credit"):
+                break
+            continue
+        res2 = extract_json(reply2)
+        if res2 and isinstance(res2.get("items"), list):
+            fixed = _clean(res2, model)
+            if fixed["items"]:
+                if fixed["total"] is None:
+                    fixed["total"] = cleaned["total"]
+                fixed["selfChecked"] = True
+                if adds_up(fixed):
+                    return fixed
+                keep(fixed)
+    if best:
+        best["totalMismatch"] = True
+        return best
     raise last

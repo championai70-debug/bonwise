@@ -195,7 +195,7 @@ def advise_receipt(receipt):
                             + (" + " + _eur(best["ship"]) + " shipping" if best["ship"] else " incl. shipping")
                             + " at " + best["shop"] + " (" + best["src"] + "). Brand shop price: " + _eur(sp["list"]) + ".")
         cat = "Pfand" if it.get("pfand") else ("Clothing & shoes" if sp else (it.get("cat") or a["cat"]))
-        row = {"raw": raw, "en": en or a["en"], "cat": cat, "price": price, "ocrPrice": it.get("ocrPrice"),
+        row = {"raw": raw, "en": en or a["en"], "cat": cat, "price": price, "original": it.get("original"), "ocrPrice": it.get("ocrPrice"),
                "pfand": bool(it.get("pfand")), "flag": it.get("flag") or "", "tip": a["tip"], "alt": a["alt"],
                "altPrice": a["altPrice"], "save": a["save"], "market": a["market"]}
         # AI estimate only where the real-price data and the built-in guide found nothing
@@ -215,6 +215,8 @@ def advise_receipt(receipt):
     out["items"] = rows
     out["itemTotal"] = round2(sum(r["price"] or 0 for r in rows))
     out["couldSave"] = round2(sum(r["save"] for r in rows if r["save"] and r["save"] > 0))
+    out["discounts"] = round2(sum(r["original"] - r["price"] for r in rows
+                                  if r.get("original") is not None and r["price"] is not None and r["original"] > r["price"]))
     return out
 
 

@@ -36,7 +36,7 @@ MODELS = [m.strip() for m in os.environ.get("MODELS", ",".join(DEFAULT_MODELS)).
 
 # Seconds each model gets, and the total time before falling back to Tesseract.
 MODEL_TIMEOUT = float(os.environ.get("MODEL_TIMEOUT", "45"))
-AI_TOTAL_TIMEOUT = float(os.environ.get("AI_TOTAL_TIMEOUT", "80"))
+AI_TOTAL_TIMEOUT = float(os.environ.get("AI_TOTAL_TIMEOUT", "110"))
 
 # Scans per visitor (IP address) per hour, so a shared link can't use up your credits.
 HOURLY_LIMIT = int(os.environ.get("HOURLY_LIMIT", "20"))

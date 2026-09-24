@@ -67,6 +67,24 @@ class ReadReceiptTests(unittest.TestCase):
         self.assertEqual(len(ai_reader.read_receipt(text="x", models=["cut-model"])["items"]), 4)
         self.assertEqual(len(ai_reader.read_receipt(text="x", models=["think-model"])["items"]), 5)
 
+    def test_discount_receipt_is_fixed_by_self_check(self):
+        r = ai_reader.read_receipt(image_b64="AAAA", models=["adidas-learns"])
+        self.assertTrue(r["selfChecked"])
+        self.assertEqual(round(sum(it["price"] for it in r["items"]), 2), 144.85)
+        self.assertEqual(r["items"][4]["price"], 10.29)
+        self.assertEqual(r["items"][4]["original"], 21.00)
+        self.assertEqual([c["check"] for c in mock_hf.calls], [False, True])
+
+    def test_wrong_totals_try_next_model(self):
+        r = ai_reader.read_receipt(image_b64="AAAA", models=["adidas-stubborn", "adidas-learns"])
+        self.assertEqual(r["model"], "adidas-learns")
+        self.assertNotIn("totalMismatch", r)
+
+    def test_best_effort_when_nothing_adds_up(self):
+        r = ai_reader.read_receipt(image_b64="AAAA", models=["adidas-stubborn"])
+        self.assertTrue(r["totalMismatch"])
+        self.assertEqual(len(mock_hf.calls), 2)
+
     def test_not_a_receipt(self):
         with self.assertRaises(ai_reader.NotReceipt):
             ai_reader.read_receipt(image_b64="AAAA", models=["notreceipt-model"])
