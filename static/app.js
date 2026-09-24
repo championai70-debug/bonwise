@@ -106,6 +106,7 @@
   /* ---------- receipt card ---------- */
   function flagChip(it) {
     if (it.flag === "corrected") return '<span class="chip flag">OCR read ' + eur(it.ocrPrice) + ' — check</span>';
+    if (it.flag === "from-discount") return '<span class="chip flag">worked out: ' + eur(it.original) + ' − discount</span>';
     if (it.flag === "from-total") return '<span class="chip flag">price worked out from total — check</span>';
     if (it.flag === "unreadable" || it.price == null) return '<span class="chip bad">enter price</span>';
     return "";
@@ -325,7 +326,9 @@
     return post(path, payload).then(function (res) {
       stopTimer(); setBusy(false);
       buildReceipt(res.receipt);
-      if (res.notice) aiState(res.notice, "fail");
+      var gap = cur.printedTotal != null ? r2(itemTotal() - cur.printedTotal) : 0;
+      if (Math.abs(gap) >= 0.01) aiState("Check this receipt: the prices read add up to " + eur(itemTotal()) + ", but the receipt total is " + eur(cur.printedTotal) + ". Compare the prices below with your receipt and correct the wrong line (tap a price to edit it)." + (res.notice ? " " + res.notice : ""), "fail");
+      else if (res.notice) aiState(res.notice, "fail");
       else if (res.receipt.reader === "ai" || res.receipt.reader === "ai-text") aiState("✓ Read by " + String(res.receipt.model).split("/").pop() + " in " + res.receipt.seconds + " s.", "ok");
     }).catch(function (e) {
       if (e && e.name === "AbortError") return;

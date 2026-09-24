@@ -26,9 +26,11 @@ HF_TOKEN = os.environ.get("HF_TOKEN", "").strip()
 # OpenAI-compatible endpoint of Hugging Face Inference Providers.
 HF_BASE_URL = os.environ.get("HF_BASE_URL", "https://router.huggingface.co/v1").rstrip("/")
 
-# Open multimodal models, tried in this order. Qwen3-VL is Apache-2.0 and strong at OCR.
+# Open multimodal models, tried in this order. Qwen3-VL is Apache-2.0 and strong at OCR; the larger
+# 235B model gets a turn when the first one's prices don't add up to the receipt total.
 DEFAULT_MODELS = [
     "Qwen/Qwen3-VL-30B-A3B-Instruct",
+    "Qwen/Qwen3-VL-235B-A22B-Instruct",
     "google/gemma-4-26B-A4B-it",
     "Qwen/Qwen3-VL-8B-Instruct",
 ]

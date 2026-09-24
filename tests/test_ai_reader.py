@@ -75,6 +75,14 @@ class ReadReceiptTests(unittest.TestCase):
         self.assertEqual(r["items"][4]["original"], 21.00)
         self.assertEqual([c["check"] for c in mock_hf.calls], [False, True])
 
+    def test_discount_taken_as_price_is_fixed_without_asking_again(self):
+        r = ai_reader.read_receipt(image_b64="AAAA", models=["adidas-ttd"])
+        self.assertEqual(round(sum(it["price"] for it in r["items"]), 2), 144.85)
+        sj = r["items"][3]  # M 3S SJ T: 19,00 - 9,69 = 9,31
+        self.assertEqual((sj["price"], sj["aiPrice"], sj["flag"]), (9.31, 9.69, "from-discount"))
+        self.assertEqual(r["items"][0]["flag"], "")  # already right
+        self.assertEqual(len(mock_hf.calls), 1)  # no second call needed
+
     def test_wrong_totals_try_next_model(self):
         r = ai_reader.read_receipt(image_b64="AAAA", models=["adidas-stubborn", "adidas-learns"])
         self.assertEqual(r["model"], "adidas-learns")

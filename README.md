@@ -16,30 +16,32 @@ Scan any receipt and Bonwise shows where the same things are cheaper next time
 
 - **AI reader:** an open-source multimodal model on Hugging Face reads the photo
   (any language). The default is `Qwen/Qwen3-VL-30B-A3B-Instruct` (Apache-2.0),
-  with `google/gemma-4-26B-A4B-it` and `Qwen/Qwen3-VL-8B-Instruct` as fallbacks.
+  with `Qwen/Qwen3-VL-235B-A22B-Instruct`, `google/gemma-4-26B-A4B-it` and
+  `Qwen/Qwen3-VL-8B-Instruct` as fallbacks.
+- **Checks its own reading:** on discounted lines, price before discount − discount
+  must equal the price paid; the item prices must add up to the printed total. If
+  they don't, the model is asked to re-read, then the next model tries.
 - **Backup reader:** Tesseract OCR plus a rule-based German receipt parser takes
   over when the AI is off, busy or slow.
 - **Savings:** real ALDI SÜD shelf prices and sneaker prices from price-comparison
   sites (checked 23 Sep 2026), then typical discounter prices, then the AI's own
   suggestion.
 
-## Put it online (free Hugging Face Space)
+## Put it online (free, Render)
 
-1. Create a free account at huggingface.co.
-2. **Token:** Settings → Access Tokens → Create new token → *Fine-grained* →
-   tick **Make calls to Inference Providers** → Create. Copy the token (`hf_…`).
-3. **Space:** go to huggingface.co/new-space → name `bonwise` → SDK **Docker** →
-   template **Blank** → hardware **CPU basic (free)** → Public → Create Space.
-4. **Upload the code:** in the Space, open **Files** → **Add file** → **Upload files**,
-   drag in everything from this folder (`app.py`, `Dockerfile`, `README.md`,
-   `requirements.txt` and the `bonwise`, `static`, `tests` folders) → **Commit**.
-5. **Secret:** Space **Settings** → **Variables and secrets** → **New secret** →
-   name `HF_TOKEN`, value = your token → Save. The Space restarts.
-6. When it says **Running**, your link is `https://<your-username>-bonwise.hf.space`.
+1. **Token:** on huggingface.co → Settings → Access Tokens → Create new token →
+   *Fine-grained* → tick **Make calls to Inference Providers** → Create. Copy it (`hf_…`).
+2. **Code:** put this folder in a GitHub repository (github.com/new → "uploading an
+   existing file" → drag in the files and folders → Commit).
+3. **Render:** render.com → sign up with GitHub → New + → Web Service → pick the
+   repository → Language **Docker**, Region **Frankfurt**, Instance **Free** →
+   Environment Variables: `HF_TOKEN` = your token → Deploy.
+4. Your link is `https://<service-name>.onrender.com`. Every commit to GitHub redeploys it.
 
-Free accounts get a small amount of Inference Providers credit each month (enough for
-many test scans with these small models). Each visitor can scan 20 receipts an hour,
-which you can change with the `HOURLY_LIMIT` variable.
+The free plan sleeps after 15 minutes without visitors; the next visit takes about a
+minute to wake it. Hugging Face gives free accounts a small amount of Inference Providers
+credit each month. Each visitor can scan 20 receipts an hour (`HOURLY_LIMIT`).
+The same Dockerfile also runs on a Hugging Face Docker Space (paid PRO plan).
 
 ## Run it on your computer
 

@@ -14,6 +14,7 @@ import urllib.error
 import urllib.request
 
 from . import config
+from .textutil import round2
 
 INSTRUCTIONS = (
     "You read shop receipts for a money-saving app used in Germany. The receipt can be in any language or script.\n"
@@ -26,15 +27,18 @@ INSTRUCTIONS = (
     "Omit cheaper when the price already looks like a discounter price or for deposit lines.\n"
     "Skip subtotal, tax, payment and change lines. If quantity x unit price is printed, use the line total.\n"
     "Discounts: many receipts print a price before discount, then discount lines under the item (e.g. \"Back to School 30% off -13,50\", "
-    "\"Employee Discount -9,45\", \"Rabatt\", \"Aktion\", \"TTD (-22,95)\"). An item's price is the final amount actually paid for that item "
-    "after all its discounts (often the \"Selling Price\" / \"Verkaufspreis\" column). Never use a discount amount as an item price, and do not "
-    "list those discount lines as separate items when the item's final price already includes them. Put the price before discounts in original "
-    "(null if there was no discount). Only list a discount as its own item (with a negative price) when it applies to the whole receipt and isn't "
-    "already included in the item prices.\n"
-    "Check before answering: the item prices must add up to the printed total. If they don't, re-read the receipt and fix the prices.\n"
+    "\"Employee Discount -9,45\", \"Rabatt\", \"Aktion\", \"TTD (-9,69)\"). For such an item give original (the price before discount), "
+    "discount (the item's total discount as a positive number) and price (the final amount actually paid for the item). "
+    "Example: the lines \"GL3733 50 [1] 19,00 9,31 F / M 3S SJ T WHI TTD (-9,69) / Back to School 30% off -5,70 / Employee Discount 30% -3,99\" "
+    "mean original 19.00, discount 9.69, price 9.31, because 19.00 - 9.69 = 9.31. The paid price is usually on the item's first line, in a "
+    "\"Selling Price\" / \"Verkaufspreis\" column. A number in brackets or with a minus sign is a discount, never a price. Do not list discount "
+    "lines as separate items when the item's price already includes them. Use null for original and discount when there was no discount. "
+    "Only list a discount as its own item (with a negative price) when it applies to the whole receipt and isn't already in the item prices.\n"
+    "Check before answering: for each item original - discount = price, and the item prices add up to the printed total. "
+    "If not, re-read the receipt and fix the numbers.\n"
     "Also give tips: 2 or 3 short, concrete sentences (with approximate EUR amounts) on how this shopper could spend less on this kind of shop, given the budget context below.\n"
     "Reply with only JSON, no other text: "
-    '{"store":"","date":"","currency":"EUR","language":"","total":0,"items":[{"raw":"","en":"","price":0,"original":null,"deposit":false,"category":"","cheaper":{"name":"","price":0}}],"tips":[""]}. '
+    '{"store":"","date":"","currency":"EUR","language":"","total":0,"items":[{"raw":"","en":"","price":0,"original":null,"discount":null,"deposit":false,"category":"","cheaper":{"name":"","price":0}}],"tips":[""]}. '
     'If this is not a receipt, reply {"notReceipt":"short reason"}.'
 )
 
@@ -236,11 +240,13 @@ def _clean(res, model):
             original = round(float(it.get("original")), 2) if it.get("original") is not None else None
         except (TypeError, ValueError):
             original = None
-        if original is not None and (price is None or original <= price):
-            original = None
+        try:
+            discount = abs(round(float(it.get("discount")), 2)) if it.get("discount") is not None else None
+        except (TypeError, ValueError):
+            discount = None
         raw = str(it.get("raw") or it.get("en"))[:120]
         items.append({
-            "raw": raw, "en": str(it.get("en") or "")[:80], "price": price, "original": original,
+            "raw": raw, "en": str(it.get("en") or "")[:80], "price": price, "original": original, "discount": discount, "flag": "",
             "pfand": bool(it.get("deposit")) or bool(re.search(r"pfand|deposit", raw, re.I)),
             "cat": str(it.get("category") or "")[:24],
             "cheaper": it.get("cheaper") if isinstance(it.get("cheaper"), dict) else None,
@@ -249,17 +255,59 @@ def _clean(res, model):
         total = float(res["total"]) if res.get("total") is not None else None
     except (TypeError, ValueError):
         total = None
-    return {
+    out = {
         "store": str(res.get("store") or "")[:80], "date": str(res.get("date") or "")[:20], "total": total,
         "currency": str(res.get("currency") or "EUR")[:5], "language": str(res.get("language") or "")[:30],
         "tips": [str(t)[:300] for t in (res.get("tips") or []) if t][:3] if isinstance(res.get("tips"), list) else [],
         "items": items, "reader": "ai", "model": model,
     }
+    fix_discount_lines(out)
+    for it in items:
+        if it["original"] is not None and (it["price"] is None or it["original"] <= it["price"]):
+            it["original"] = None
+    return out
+
+
+def fix_discount_lines(r):
+    """Models sometimes put an item's discount where its paid price belongs (e.g. 9.69 from "TTD (-9,69)" instead
+    of 9.31). When an item has both a price before discount and a discount, the paid price must be their
+    difference. Apply that where it brings the item prices closer to the printed total (or, with no total,
+    where the price is clearly the discount amount)."""
+    fixable = []
+    for it in r["items"]:
+        o, d, p = it.get("original"), it.get("discount"), it.get("price")
+        if o is None or not d or o - d < 0:
+            continue
+        expected = round2(o - d)
+        if p is None or abs(p - expected) > 0.02:
+            confused = p is None or abs(p - d) <= 0.02
+            fixable.append((it, expected, confused))
+    if not fixable:
+        return
+
+    def gap_with(changes):
+        prices = {id(it): e for it, e, _ in changes}
+        s = sum(prices.get(id(it), it["price"] or 0) for it in r["items"])
+        return abs(round(s - r["total"], 2))
+
+    options = [[f for f in fixable if f[2]], fixable]
+    if r.get("total") is None:
+        chosen = options[0]
+    else:
+        before = total_gap(r)
+        chosen = min((o for o in options if o), key=gap_with, default=[])
+        if not chosen or gap_with(chosen) >= before:
+            return
+    for it, expected, _ in chosen:
+        it["aiPrice"] = it["price"]
+        it["price"] = expected
+        it["flag"] = "from-discount"
 
 
 CHECK = ("Your item prices add up to %.2f, but the printed total on the receipt is %.2f. Look at the receipt again. "
-         "Common mistakes: using a discount amount (e.g. an employee or promotion discount) as an item price instead of the final "
-         "price paid, listing discount lines that are already included in an item's price, or missing or doubling a line. "
+         "Common mistakes: using a discount amount (e.g. from \"TTD (-9,69)\", an employee or promotion discount) as an item price "
+         "instead of the final price paid, listing discount lines that are already included in an item's price, or missing or "
+         "doubling a line. For every discounted item, original - discount must equal price (e.g. 19.00 - 9.69 = 9.31). "
          "Reply with the complete corrected JSON only.")
 
 

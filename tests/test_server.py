@@ -115,6 +115,17 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(r["itemTotal"], 144.85)
         self.assertEqual(r["discounts"], 150.45)  # matches "Total discounts 150,45" on the receipt
 
+    def test_real_adidas_mistake_end_to_end(self):
+        config.MODELS = ["adidas-ttd"]
+        try:
+            s, j = self.post("/api/scan", {"image": self.image})
+        finally:
+            config.MODELS = ["ok-model"]
+        r = j["receipt"]
+        self.assertEqual(r["itemTotal"], 144.85)
+        self.assertEqual(r["discounts"], 150.45)
+        self.assertEqual(r["couldSave"], 0)  # no made-up swaps on items bought at ~50% off
+
     def test_errors(self):
         self.assertEqual(self.post("/api/scan", {})[0], 400)
         self.assertEqual(self.post("/api/scan", {"image": "not base64!!"})[0], 400)

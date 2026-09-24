@@ -195,11 +195,14 @@ def advise_receipt(receipt):
                             + (" + " + _eur(best["ship"]) + " shipping" if best["ship"] else " incl. shipping")
                             + " at " + best["shop"] + " (" + best["src"] + "). Brand shop price: " + _eur(sp["list"]) + ".")
         cat = "Pfand" if it.get("pfand") else ("Clothing & shoes" if sp else (it.get("cat") or a["cat"]))
-        row = {"raw": raw, "en": en or a["en"], "cat": cat, "price": price, "original": it.get("original"), "ocrPrice": it.get("ocrPrice"),
+        row = {"raw": raw, "en": en or a["en"], "cat": cat, "price": price, "original": it.get("original"), "aiPrice": it.get("aiPrice"), "ocrPrice": it.get("ocrPrice"),
                "pfand": bool(it.get("pfand")), "flag": it.get("flag") or "", "tip": a["tip"], "alt": a["alt"],
                "altPrice": a["altPrice"], "save": a["save"], "market": a["market"]}
         # AI estimate only where the real-price data and the built-in guide found nothing
         ch = it.get("cheaper")
+        orig = it.get("original")
+        if orig and price is not None and price <= orig * 0.8:
+            ch = None  # already bought at 20%+ off: an estimated "cheaper" option isn't a real saving
         cp = _to_float(ch.get("price")) if isinstance(ch, dict) else None
         if (not foreign and not row["market"] and not row["save"] and isinstance(ch, dict) and ch.get("name")
                 and cp is not None and cp > 0 and price is not None and price - cp >= 0.2):

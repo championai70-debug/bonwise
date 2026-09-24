@@ -26,6 +26,20 @@ ADIDAS_LINES = [("VL COURT 2.0 FTW", 45.00, 22.05, 9.45), ("VL COURT 2.0 CREW", 
                 ("ESS PANTS FT BLA", 38.00, 18.62, 7.98), ("NEU C HD BLA", 52.00, 25.48, 10.92)]
 
 
+# What Qwen3-VL-30B really returned: the "TTD (-x,xx)" discount as the price for all but the first line (sum 149.85)
+TTD = [22.95, 22.95, 11.73, 9.69, 10.71, 26.52, 19.38, 26.52]
+
+
+def adidas_ttd():
+    items = []
+    for i, (n, orig, paid, _) in enumerate(ADIDAS_LINES):
+        items.append({"raw": n, "en": n, "price": paid if i == 0 else TTD[i], "original": orig,
+                      "discount": TTD[i], "deposit": False, "category": "Clothing & shoes",
+                      "cheaper": {"name": "outlet price", "price": 5.0}})
+    items.append({"raw": "Paper Bag", "en": "Paper bag", "price": 0.30, "deposit": False, "category": "Other"})
+    return {"store": "adidas", "date": "05.09.2026", "currency": "EUR", "total": 144.85, "items": items, "tips": []}
+
+
 def adidas(correct):
     items = [{"raw": n, "en": n, "price": paid if correct else disc, "original": orig if correct else None,
               "deposit": False, "category": "Clothing & shoes"} for n, orig, paid, disc in ADIDAS_LINES]
@@ -67,7 +81,9 @@ class H(BaseHTTPRequestHandler):
             time.sleep(3)
         text = json.dumps(RECEIPT)
         asked_to_check = "printed total on the receipt is" in json.dumps(req["messages"][-1])
-        if "adidas" in model:
+        if "adidas-ttd" in model:
+            text = json.dumps(adidas_ttd())
+        elif "adidas" in model:
             # "adidas-learns": wrong first, right after the self-check; "adidas-stubborn": always wrong
             text = json.dumps(adidas(asked_to_check and "learns" in model))
         if "junk" in model:
