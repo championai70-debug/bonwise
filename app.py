@@ -99,11 +99,17 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         path = urlparse(self.path).path
         if path in ("/", "/index.html"):
-            return self._file(STATIC / "index.html", cache="no-cache")
+            # Point the page at this exact version of its script and styles, so a browser or CDN
+            # never pairs a new page with an old, cached app.js after an update.
+            html = (STATIC / "index.html").read_text(encoding="utf-8")
+            for name in ("app.js",):
+                stamp = int((STATIC / name).stat().st_mtime)
+                html = html.replace('/static/%s"' % name, '/static/%s?v=%d"' % (name, stamp))
+            return self._send(200, html, "text/html; charset=utf-8", "no-cache")
         if path.startswith("/static/"):
             target = (STATIC / path[len("/static/"):]).resolve()
             if STATIC.resolve() in target.parents and target.is_file():
-                return self._file(target, cache="public, max-age=3600")
+                return self._file(target, cache="no-cache")
             return self._send(404, {"error": "not_found"})
         if path == "/api/health":
             return self._send(200, service.health())
