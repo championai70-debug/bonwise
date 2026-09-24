@@ -143,7 +143,7 @@
     else if (missing) { w.hidden = false; w.textContent = missing + " price" + (missing > 1 ? "s" : "") + " couldn’t be read — type " + (missing > 1 ? "them" : "it") + " in from your receipt."; }
     else if (cur.printedTotal != null && Math.abs(cur.printedTotal - t) >= 0.01) { w.hidden = false; w.textContent = "The items add up to " + eur(t) + " but the receipt total says " + eur(cur.printedTotal) + ". Check the prices above, or remove lines that aren’t products."; }
     else w.hidden = true;
-    renderBudget(); renderSavings(); renderRecs();
+    renderBudget(); renderSavings(); renderRecs(); renderPC();
   }
   $("items").addEventListener("input", function (e) {
     if (!e.target.classList.contains("price")) return;
@@ -174,7 +174,8 @@
     cur = null;
     if (ctl) { ctl.abort(); ctl = null; }
     stopTimer(); setBusy(false);
-    ["receiptCard", "saveCard", "swapCard", "recCard", "progress"].forEach(function (id) { $(id).hidden = true; });
+    ["receiptCard", "saveCard", "swapCard", "recCard", "progress", "pcCard"].forEach(function (id) { $(id).hidden = true; });
+    $("pcList").innerHTML = "";
     renderHistory(); renderBudget();
   }
 
@@ -372,7 +373,6 @@
     if (!/^image\//.test(file.type)) { showErr("That isn’t an image. Choose a JPEG or PNG photo of the receipt."); return; }
     // A new receipt replaces the last one: clear results, messages and the price search.
     closeReceipt(); showErr(""); aiState("");
-    $("pcQ").value = ""; renderPC();
     $("thumb").src = URL.createObjectURL(file);
     window.scrollTo({ top: 0, behavior: "smooth" });
     setBusy(true);
@@ -421,40 +421,36 @@
   fetch("/api/health").then(function (r) { return r.json(); }).then(function (h) { health = h; showReader(); })
     .catch(function () { health = null; showReader(); });
 
-  /* ---------- price check (sneakers) ---------- */
-  var sports = { checked: "", items: [] };
-  function findSport(text) {
-    var n = String(text || "").toLowerCase().replace(/[’']/g, "").replace(/\s+/g, " ");
-    var best = null, bestLen = 0;
-    sports.items.forEach(function (it) {
-      var brandHit = n.indexOf(it.brand.toLowerCase()) !== -1;
-      it.keys.forEach(function (k) {
-        if (n.indexOf(k) === -1) return;
-        if ((k === "530" || k === "suede" || k === "dunk") && !brandHit) return;
-        if (k.length > bestLen) { best = it; bestLen = k.length; }
-      });
-    });
-    return best;
-  }
+  /* ---------- price check: the items on the current receipt ---------- */
   function renderPC() {
-    if (!sports.items.length) return;
-    var q = ($("pcQ").value || "").trim();
-    var list = sports.items.slice();
-    if (q) { var hit = findSport(q); list = list.filter(function (it) { return it === hit || (it.brand + " " + it.model).toLowerCase().indexOf(q.toLowerCase()) !== -1; }); }
-    list.sort(function (a, b) { return (b.list - b.best.total) - (a.list - a.best.total); });
-    $("pcList").innerHTML = list.length ? list.map(function (it) {
-      var save = r2(it.list - it.best.total), pct = Math.round(save / it.list * 100);
-      return '<li class="pc"><span class="nm">' + esc(it.brand) + ' ' + esc(it.model) + '</span><span class="amt num">−' + eur(save, 0) + ' <small style="font-size:13px">(' + pct + '%)</small></span>' +
-        '<span class="how"><s>' + eur(it.list) + ' at ' + esc(it.listSrc) + '</s> → <span class="to">from ' + eur(it.best.price) + '</span>' + (it.best.ship ? ' + ' + eur(it.best.ship) + ' shipping' : ' incl. shipping') + ' at ' + esc(it.best.shop) + '<span class="src-tag real">Real price</span></span></li>';
-    }).join("") : '<li class="empty">Not in the price list yet. Try Samba, Gazelle, Air Force 1, Dunk, Palermo or 530.</li>';
-    $("pcNote").textContent = "Prices checked " + sports.checked + " on günstiger.de / billiger.de and the brands’ own shops. The cheapest offers are often only in some sizes or colours.";
+    var card = $("pcCard");
+    if (!cur) { card.hidden = true; $("pcList").innerHTML = ""; return; }
+    var list = cur.items.filter(function (it) { return !it.pfand && it.price != null && it.price > 0; });
+    card.hidden = !list.length;
+    // Biggest savings first, then items with a known good price, then the rest.
+    var rank = function (it) { return it.save > 0 ? 3 : it.market ? 2 : (it.original != null && it.original > it.price) ? 1 : 0; };
+    list = list.slice().sort(function (a, b) { return rank(b) - rank(a) || (b.save || 0) - (a.save || 0); });
+    $("pcCount").textContent = list.length + " item" + (list.length === 1 ? "" : "s");
+    $("pcList").innerHTML = list.map(function (it) {
+      var name = esc(it.en || it.raw), amt = "", how;
+      if (it.save > 0 && it.altPrice != null) {
+        var real = !!(it.market && it.save);
+        amt = '−' + eur(it.save) + ' <small style="font-size:13px">(' + Math.round(it.save / it.price * 100) + '%)</small>';
+        how = '<s>' + eur(it.price) + '</s> → <span class="to">' + (real ? "" : "~") + eur(it.altPrice) + '</span> · ' + esc(it.alt || "cheaper option") +
+          '<span class="src-tag ' + (real ? 'real">Real price' : 'est">Estimate') + '</span>';
+      } else if (it.market) {
+        how = '✓ Good price: ' + eur(it.price) + '. ' + (it.market.sport ? 'Cheapest online is from ' + eur(it.market.forYours) + ' at ' + esc(it.market.store)
+          : esc(it.market.store) + ' charges ' + eur(it.market.forYours) + ' for ' + esc(it.market.yourSize)) + '<span class="src-tag real">Real price</span>';
+      } else if (it.original != null && it.original > it.price) {
+        how = '✓ Already discounted: <s>' + eur(it.original) + '</s> → ' + eur(it.price) + ' (' + Math.round((1 - it.price / it.original) * 100) + '% off)';
+      } else {
+        how = 'Paid ' + eur(it.price) + '. No comparison price for this item yet.';
+      }
+      return '<li class="pc"><span class="nm">' + name + '</span><span class="amt num">' + amt + '</span><span class="how">' + how + '</span></li>';
+    }).join("");
+    $("pcNote").textContent = "Real prices: ALDI SÜD shelf prices and sneaker offers on günstiger.de / billiger.de, checked " + (marketInfo.checked || "23 Sep 2026") + ". Estimates are typical discounter prices.";
   }
-  $("pcQ").addEventListener("input", renderPC);
-  fetch("/api/prices").then(function (r) { return r.json(); }).then(function (p) {
-    sports = p.sports; marketInfo = p.market;
-    $("pcNames").innerHTML = sports.items.map(function (it) { return '<option value="' + esc(it.brand + " " + it.model) + '">'; }).join("");
-    renderPC();
-  }).catch(function () {});
+  fetch("/api/prices").then(function (r) { return r.json(); }).then(function (p) { marketInfo = p.market; }).catch(function () {});
 
   renderBudget(); renderHistory(); renderPlan();
 })();

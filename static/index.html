@@ -359,10 +359,9 @@ button,input,textarea{font:inherit;color:inherit}
     <div class="plan-bar"><span id="planSum">Following this plan</span><b class="num" id="planMonth">€0 / month</b></div>
   </section>
 
-  <!-- Price check -->
-  <section class="card" aria-labelledby="pcH">
-    <div class="card-h"><h2 id="pcH">Check a price before you buy</h2><span class="label">sneakers</span></div>
-    <div class="pc-search"><input id="pcQ" type="search" placeholder="e.g. Samba, Air Force 1, Palermo" aria-label="Search a product" list="pcNames" autocomplete="off"><datalist id="pcNames"></datalist></div>
+  <!-- Price check for the current receipt -->
+  <section class="card" id="pcCard" aria-labelledby="pcH" hidden>
+    <div class="card-h"><h2 id="pcH">Price check for this receipt</h2><span class="label" id="pcCount"></span></div>
     <ul class="pc-list" id="pcList"></ul>
     <p class="pc-note" id="pcNote"></p>
   </section>
