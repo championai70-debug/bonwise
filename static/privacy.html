@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bonwise privacy policy</title>
+<meta name="theme-color" content="#0E7A52">
+<link rel="icon" href="/static/favicon.png">
+<style>
+  :root{--ground:#EEF2EE;--surface:#FFFFFF;--ink:#14201A;--ink-2:#4A5A51;--accent:#0E7A52;--line:#D5DDD7}
+  @media (prefers-color-scheme:dark){:root{--ground:#0F1512;--surface:#18201C;--ink:#E7EFEA;--ink-2:#A3B5AA;--accent:#3CC48E;--line:#2C3832}}
+  body{margin:0;background:var(--ground);color:var(--ink);font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif}
+  main{max-width:680px;margin:0 auto;padding:24px 16px 48px}
+  .card{background:var(--surface);border-radius:18px;padding:24px 22px}
+  h1{font-size:26px;line-height:1.2;margin:0 0 4px}
+  h2{font-size:18px;margin:26px 0 6px}
+  p,li{color:var(--ink-2)}
+  p{margin:0 0 10px}
+  ul{margin:0 0 10px;padding-left:20px}
+  a{color:var(--accent);font-weight:600}
+  .date{font-size:14px;margin-bottom:18px}
+</style>
+</head>
+<body>
+<main><div class="card">
+  <h1>Bonwise privacy policy</h1>
+  <p class="date">Last updated: 24 September 2026</p>
+
+  <p>Bonwise reads photos of shop receipts and shows where the same things are cheaper. This page explains what happens to your data.</p>
+
+  <h2>Receipt photos and text</h2>
+  <p>When you scan a receipt, the photo (or the text you paste) is sent over an encrypted connection to the Bonwise server. The server sends it to an AI model on Hugging Face Inference Providers (huggingface.co), run by Hugging Face or one of its hosting partners, which reads the lines and prices and sends them back. If the AI is unavailable, the server reads the photo itself with Tesseract OCR.</p>
+  <p>Bonwise does not store your photos or receipt contents on its server; they are processed and then discarded. Receipts can contain personal details such as a card’s last digits or a cashier’s name. Crop those out before scanning if you prefer.</p>
+
+  <h2>Data on your phone</h2>
+  <p>Your monthly budget, the receipts you add to a month and your savings plan are saved only on your device, in the app’s local storage. They are never uploaded. “Start fresh” in the app deletes them, and so does uninstalling the app or clearing its data.</p>
+
+  <h2>What the server keeps</h2>
+  <ul>
+    <li>Your IP address is kept in memory for up to one hour to limit how many scans one device can make. It is not written to disk.</li>
+    <li>The server log records the time and the page or feature used (for example “POST /api/scan 200”), without photos, receipt contents or IP addresses.</li>
+  </ul>
+
+  <h2>What Bonwise does not do</h2>
+  <ul>
+    <li>No accounts, no ads, no analytics or tracking.</li>
+    <li>No selling or sharing of your data, other than sending receipts to the AI service to be read, as described above.</li>
+  </ul>
+
+  <h2>Other services</h2>
+  <p>The app loads its fonts from Google Fonts, which receives your IP address when the fonts load. The server is hosted by Render (render.com).</p>
+
+  <h2>Children</h2>
+  <p>Bonwise is not directed at children under 16.</p>
+
+  <h2>Contact</h2>
+  <p>Questions or requests about your data: {{CONTACT}}</p>
+</div></main>
+</body>
+</html>

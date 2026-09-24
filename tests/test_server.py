@@ -49,12 +49,31 @@ class ServerTests(unittest.TestCase):
         s, ct, body = self.get("/")
         self.assertEqual(s, 200)
         self.assertIn("text/html", ct)
-        self.assertIn(b"/static/app.js", body)
+        self.assertRegex(body.decode(), r'/static/app\.js\?v=\d+"')
+        self.assertEqual(ct, "text/html; charset=utf-8")
         self.assertEqual(self.get("/static/app.js")[0], 200)
         self.assertEqual(self.get("/static/sample-receipt.jpg")[1], "image/jpeg")
         with self.assertRaises(urllib.error.HTTPError) as cm:
             self.get("/static/../app.py")
         self.assertEqual(cm.exception.code, 404)
+
+    def test_installable_app_files(self):
+        s, ct, body = self.get("/manifest.webmanifest")
+        self.assertEqual(ct, "application/manifest+json")
+        m = json.loads(body)
+        self.assertEqual(m["display"], "standalone")
+        for icon in m["icons"] + m["screenshots"]:
+            self.assertEqual(self.get(icon["src"])[0], 200)
+        self.assertIn("javascript", self.get("/sw.js")[1])
+        self.assertIn(b"offline", self.get("/offline.html")[2])
+        self.assertIn(b"privacy policy", self.get("/privacy")[2].lower())
+        self.assertEqual(json.loads(self.get("/.well-known/assetlinks.json")[2]), [])
+        config.ANDROID_PACKAGE, config.ANDROID_SHA256 = "com.example.bonwise", ["AA:BB"]
+        try:
+            links = json.loads(self.get("/.well-known/assetlinks.json")[2])
+        finally:
+            config.ANDROID_PACKAGE, config.ANDROID_SHA256 = "", []
+        self.assertEqual(links[0]["target"]["package_name"], "com.example.bonwise")
 
     def test_health_and_prices(self):
         h = json.loads(self.get("/api/health")[2])

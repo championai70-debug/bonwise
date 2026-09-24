@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bonwise · offline</title>
+<meta name="theme-color" content="#0E7A52">
+<style>
+  :root{--ground:#EEF2EE;--surface:#FFFFFF;--ink:#14201A;--ink-2:#4A5A51;--accent:#0E7A52;--accent-ink:#FFFFFF}
+  @media (prefers-color-scheme:dark){:root{--ground:#0F1512;--surface:#18201C;--ink:#E7EFEA;--ink-2:#A3B5AA;--accent:#3CC48E;--accent-ink:#06140D}}
+  body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--ground);color:var(--ink);font:16px/1.5 system-ui,sans-serif;padding:16px}
+  .card{max-width:380px;background:var(--surface);border-radius:18px;padding:28px 24px;text-align:center}
+  img{width:72px;height:72px;border-radius:16px}
+  h1{font-size:21px;margin:14px 0 6px}
+  p{margin:0 0 18px;color:var(--ink-2)}
+  button{font:inherit;font-weight:700;border:0;border-radius:12px;padding:12px 20px;background:var(--accent);color:var(--accent-ink);cursor:pointer}
+</style>
+</head>
+<body>
+  <div class="card">
+    <img src="/static/icons/icon-192.png" alt="">
+    <h1>You’re offline</h1>
+    <p>Bonwise needs the internet to read receipts. Your budget and saved receipts are safe on this phone.</p>
+    <button onclick="location.reload()">Try again</button>
+  </div>
+</body>
+</html>

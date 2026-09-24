@@ -453,4 +453,9 @@
   fetch("/api/prices").then(function (r) { return r.json(); }).then(function (p) { marketInfo = p.market; }).catch(function () {});
 
   renderBudget(); renderHistory(); renderPlan();
+
+  // Installable app: the service worker adds an offline page and lets Android install Bonwise.
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function () { navigator.serviceWorker.register("/sw.js").catch(function () {}); });
+  }
 })();

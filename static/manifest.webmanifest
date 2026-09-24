@@ -1,0 +1,23 @@
+{
+  "id": "/",
+  "name": "Bonwise: scan receipts, pay less",
+  "short_name": "Bonwise",
+  "description": "Scan any receipt and see where the same things are cheaper next time. Keeps your monthly budget on track.",
+  "start_url": "/?source=app",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#EEF2EE",
+  "theme_color": "#0E7A52",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": ["finance", "shopping", "productivity"],
+  "icons": [
+    { "src": "/static/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/static/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/static/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "screenshots": [
+    { "src": "/static/screenshots/phone-1.png", "sizes": "1080x1920", "type": "image/png", "form_factor": "narrow", "label": "Savings on a scanned receipt" }
+  ]
+}

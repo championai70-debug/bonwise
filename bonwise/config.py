@@ -47,3 +47,13 @@ HOST = os.environ.get("HOST", "0.0.0.0")
 PORT = int(os.environ.get("PORT", "7860"))
 
 MAX_BODY = 12 * 1024 * 1024
+
+# Android app (Trusted Web Activity) verification, served at /.well-known/assetlinks.json.
+# Either paste the whole assetlinks.json from PWABuilder into ASSETLINKS_JSON, or set the
+# package name and the signing key's SHA-256 fingerprint(s) (comma-separated).
+ASSETLINKS_JSON = os.environ.get("ASSETLINKS_JSON", "").strip()
+ANDROID_PACKAGE = os.environ.get("ANDROID_PACKAGE", "").strip()
+ANDROID_SHA256 = [f.strip() for f in os.environ.get("ANDROID_SHA256", "").split(",") if f.strip()]
+
+# Shown on the privacy page (/privacy) as the contact for data questions.
+CONTACT_EMAIL = os.environ.get("CONTACT_EMAIL", "").strip()

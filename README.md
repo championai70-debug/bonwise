@@ -43,6 +43,20 @@ minute to wake it. Hugging Face gives free accounts a small amount of Inference 
 credit each month. Each visitor can scan 20 receipts an hour (`HOURLY_LIMIT`).
 The same Dockerfile also runs on a Hugging Face Docker Space (paid PRO plan).
 
+## Android app (APK and Google Play)
+
+Bonwise is an installable web app (manifest, icons, service worker, offline page), so
+it can be packaged as an Android app with [PWABuilder](https://www.pwabuilder.com):
+
+1. Enter the site's URL on pwabuilder.com → **Package for stores** → **Android** →
+   **Generate package** (keep "Signing key: create new").
+2. The download contains an `.apk` to install on phones, an `.aab` for Google Play, the
+   signing key (keep it safe: every update must be signed with it) and `assetlinks.json`.
+3. Paste the contents of `assetlinks.json` into the Render environment variable
+   `ASSETLINKS_JSON` (or set `ANDROID_PACKAGE` and `ANDROID_SHA256`). The app then opens
+   full-screen without a browser bar.
+4. Set `CONTACT_EMAIL` so the privacy page (`/privacy`) shows a contact address.
+
 ## Run it on your computer
 
 ```bash

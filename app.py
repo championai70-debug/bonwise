@@ -8,6 +8,7 @@ bonwise/config.py and can be set as environment variables or in a .env file.
 """
 
 import json
+from html import escape as html_escape
 import mimetypes
 import threading
 import time
@@ -44,6 +45,22 @@ class RateLimiter:
 
 
 limiter = RateLimiter(config.HOURLY_LIMIT)
+
+
+def assetlinks():
+    """Digital Asset Links: lets the Android app open this site full-screen, without a browser bar."""
+    if config.ASSETLINKS_JSON:
+        try:
+            return json.loads(config.ASSETLINKS_JSON)
+        except ValueError:
+            print("ASSETLINKS_JSON is not valid JSON; ignoring it", flush=True)
+    if config.ANDROID_PACKAGE and config.ANDROID_SHA256:
+        return [{
+            "relation": ["delegate_permission/common.handle_all_urls"],
+            "target": {"namespace": "android_app", "package_name": config.ANDROID_PACKAGE,
+                       "sha256_cert_fingerprints": config.ANDROID_SHA256},
+        }]
+    return []
 
 
 def prices_payload():
@@ -106,6 +123,23 @@ class Handler(BaseHTTPRequestHandler):
                 stamp = int((STATIC / name).stat().st_mtime)
                 html = html.replace('/static/%s"' % name, '/static/%s?v=%d"' % (name, stamp))
             return self._send(200, html, "text/html; charset=utf-8", "no-cache")
+        if path == "/manifest.webmanifest":
+            return self._send(200, (STATIC / "manifest.webmanifest").read_bytes(), "application/manifest+json", "no-cache")
+        if path == "/sw.js":
+            # Served from the root so the service worker controls the whole app.
+            return self._send(200, (STATIC / "sw.js").read_bytes(), "application/javascript; charset=utf-8", "no-cache")
+        if path == "/offline.html":
+            return self._file(STATIC / "offline.html", cache="no-cache")
+        if path in ("/privacy", "/privacy.html"):
+            contact = html_escape(config.CONTACT_EMAIL) if config.CONTACT_EMAIL else "the app owner, via the Google Play store listing"
+            if config.CONTACT_EMAIL:
+                contact = '<a href="mailto:%s">%s</a>' % (contact, contact)
+            page = (STATIC / "privacy.html").read_text(encoding="utf-8").replace("{{CONTACT}}", contact)
+            return self._send(200, page, "text/html; charset=utf-8", "no-cache")
+        if path == "/.well-known/assetlinks.json":
+            return self._send(200, assetlinks(), cache="public, max-age=300")
+        if path == "/favicon.ico":
+            return self._file(STATIC / "favicon.png", cache="public, max-age=86400")
         if path.startswith("/static/"):
             target = (STATIC / path[len("/static/"):]).resolve()
             if STATIC.resolve() in target.parents and target.is_file():

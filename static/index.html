@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Bonwise</title>
 <meta name="description" content="Scan any receipt and see where the same things are cheaper: groceries, drugstore and sneakers.">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#0E7A52">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Bonwise">
+<link rel="icon" type="image/png" href="/static/favicon.png">
+<link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Figtree:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -373,7 +380,7 @@ button,input,textarea{font:inherit;color:inherit}
     <p class="empty" id="histEmpty">No receipts saved yet. Scan one above, check it, then press “Add to this month”.</p>
   </section>
 
-  <p class="foot">Test version. Receipt photos are sent to this Bonwise server, which asks an open-source AI model on Hugging Face to read them (Tesseract OCR is the backup). Photos aren’t stored. “Real price” comparisons use ALDI SÜD shelf prices (aldi-sued.de) and sneaker prices from günstiger.de, billiger.de and the brands’ shops, all checked 23 Sep 2026. Prices vary by region, size and colour, and change over time. Other swaps are estimates. Your budget and receipts are saved in this browser only.</p>
+  <p class="foot">Test version. Receipt photos are sent to this Bonwise server, which asks an open-source AI model on Hugging Face to read them (Tesseract OCR is the backup). Photos aren’t stored. “Real price” comparisons use ALDI SÜD shelf prices (aldi-sued.de) and sneaker prices from günstiger.de, billiger.de and the brands’ shops, all checked 23 Sep 2026. Prices vary by region, size and colour, and change over time. Other swaps are estimates. Your budget and receipts are saved in this browser only. <a href="/privacy">Privacy policy</a></p>
 </div>
 <script src="/static/app.js"></script>
 </body>
