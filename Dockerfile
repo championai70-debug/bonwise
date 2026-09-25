@@ -13,6 +13,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY --chown=user . .
+RUN mkdir -p /home/user/app/data && chown -R user:user /home/user/app
 USER user
 
 ENV PORT=7860 PYTHONUNBUFFERED=1

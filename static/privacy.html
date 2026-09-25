@@ -24,7 +24,7 @@
 <body>
 <main><div class="card">
   <h1>Bonwise privacy policy</h1>
-  <p class="date">Last updated: 24 September 2026</p>
+  <p class="date">Last updated: 25 September 2026</p>
 
   <p>Bonwise reads photos of shop receipts and shows where the same things are cheaper. This page explains what happens to your data.</p>
 
@@ -33,18 +33,28 @@
   <p>Bonwise does not store your photos or receipt contents on its server; they are processed and then discarded. Receipts can contain personal details such as a card’s last digits or a cashier’s name. Crop those out before scanning if you prefer.</p>
 
   <h2>Data on your phone</h2>
-  <p>Your monthly budget, the receipts you add to a month and your savings plan are saved only on your device, in the app’s local storage. They are never uploaded. “Start fresh” in the app deletes them, and so does uninstalling the app or clearing its data.</p>
+  <p>Your monthly budget, the receipts you save (shop, date, items and prices), your shopping list and your savings plan are saved on your device, in the app’s local storage. “Start fresh” in the app deletes them, and so does uninstalling the app or clearing its data.</p>
+
+  <h2>Household sharing (optional)</h2>
+  <p>If you create or join a household, a copy of those receipts, the shopping list, the savings plan and the budget is stored on the Bonwise server so the phones in your household see the same data. It is linked only to the household code; the server stores a scrambled (hashed) form of the code, not the code itself. Anyone who has the code can see and change this data, so share it only with people you trust. “Delete household data” in Settings removes the copy from the server.</p>
+
+  <h2>Community prices</h2>
+  <p>When you add a receipt to your month, Bonwise sends the product names (in English), their prices, the shop chain (for example “LIDL”) and the date to the server, without any name, account, household code, device ID or IP address. These anonymous prices show all users where the same product was cheaper. You can switch this off in Settings.</p>
+
+  <h2>Your location</h2>
+  <p>Only when you tap “Find shops near me” does the app ask for your location. It is rounded to about 100 metres and sent to OpenStreetMap’s Overpass service (overpass-api.de) to find nearby shops. The server keeps the result in memory for up to one hour to answer repeat searches and never stores your location.</p>
 
   <h2>What the server keeps</h2>
   <ul>
-    <li>Your IP address is kept in memory for up to one hour to limit how many scans one device can make. It is not written to disk.</li>
-    <li>The server log records the time and the page or feature used (for example “POST /api/scan 200”), without photos, receipt contents or IP addresses.</li>
+    <li>Household data and anonymous community prices, as described above.</li>
+    <li>Your IP address is kept in memory for up to one hour to limit how many requests one device can make. It is not written to disk.</li>
+    <li>The server log records the time and the feature used (for example “POST /api/scan 200”), without photos, receipt contents, locations or IP addresses.</li>
   </ul>
 
   <h2>What Bonwise does not do</h2>
   <ul>
     <li>No accounts, no ads, no analytics or tracking.</li>
-    <li>No selling or sharing of your data, other than sending receipts to the AI service to be read, as described above.</li>
+    <li>No selling of your data. Data is shared only as described above: receipts with the AI service to be read, and your rounded location with OpenStreetMap when you search for shops.</li>
   </ul>
 
   <h2>Other services</h2>
@@ -53,8 +63,11 @@
   <h2>Children</h2>
   <p>Bonwise is not directed at children under 16.</p>
 
+  <h2>Your rights</h2>
+  <p>Under the GDPR you can ask what data is stored about you and have it corrected or deleted. Because Bonwise has no accounts, most data is only on your phone; household data can be deleted in the app. For anything else, contact us below. You can also complain to a data protection authority.</p>
+
   <h2>Contact</h2>
-  <p>Questions or requests about your data: {{CONTACT}}</p>
+  <p>Questions or requests about your data: {{CONTACT}}. Legal notice: <a href="/impressum">Impressum</a>.</p>
 </div></main>
 </body>
 </html>

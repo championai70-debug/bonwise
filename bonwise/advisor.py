@@ -13,6 +13,11 @@ from . import data
 from .textutil import norm, pack_size, pretty_size, round2, size_label
 
 
+EN_DE = {"whole": "voll", "ground": "gemahl", "wholegrain": "vollkorn", "wholemeal": "vollkorn", "organic": "bio",
+         "sandwich": "sandwich", "butter": "butter", "slices": "scheiben", "rye": "roggen", "orange": "orange",
+         "apple": "apfel", "paprika": "paprika", "salted": "salz", "salt": "salz", "dandruff": "schuppen"}
+
+
 def lookup(name):
     n = " " + norm(name) + " "
     best, best_len = None, 0
@@ -73,6 +78,8 @@ def market_match(g, item, size, bio):
         pool = same_pack
     toks = [t for t in norm((item.get("name") or "") + " " + (item.get("en") or "")).split(" ")
             if len(t) >= 4 and not re.search(r"\d", t)]
+    # English names from the AI -> the German words on ALDI's labels
+    toks += [EN_DE[t] for t in toks if t in EN_DE]
     named = [p for p in pool if any(t in norm(p["name"]) for t in toks)]
     if named:
         pool = named
@@ -168,8 +175,27 @@ def _eur(n):
     return "€" + f"{abs(n):.2f}"
 
 
-def advise_receipt(receipt):
+def _community_offer(row, community, chain, key_fn):
+    """Cheapest price other Bonwise users paid for the same product at another shop chain."""
+    if not community or row["pfand"] or row["price"] is None or row["price"] <= 0 or not row.get("en"):
+        return None
+    entry = community.get(key_fn(row["en"]))
+    if not entry:
+        return None
+    others = {c: p for c, p in entry.get("byChain", {}).items() if c != chain}
+    if not others:
+        return None
+    best_chain = min(others, key=others.get)
+    best = others[best_chain]
+    diff = round2(row["price"] - best)
+    if diff >= 0.2 and diff / row["price"] >= 0.08:
+        return best_chain, best, diff
+    return None
+
+
+def advise_receipt(receipt, community=None, chain="", key_fn=None):
     """receipt: {store, date, total, currency, items: [{raw, en?, price, pfand?, cat?, flag?, ocrPrice?, cheaper?}]}
+    community: optional {price_key: {byChain: {CHAIN: price}}} from other users' receipts.
     Returns the same receipt with every item advised, plus summary numbers."""
     currency = str(receipt.get("currency") or "EUR").upper()
     foreign = currency != "EUR"
@@ -210,6 +236,13 @@ def advise_receipt(receipt):
             row["save"] = round2(price - cp)
             row["alt"] = str(ch["name"])[:80]
             row["tip"] = "Try " + row["alt"] + " — typically about " + _eur(cp)
+        # Real prices other users paid elsewhere beat estimates (but not our checked shop prices)
+        offer = None if foreign or not key_fn else _community_offer(row, community, chain, key_fn)
+        if offer and not row["market"]:
+            c_chain, c_price, c_diff = offer
+            row.update(altPrice=c_price, save=c_diff, alt="same product at " + c_chain,
+                       tip="Bonwise users paid " + _eur(c_price) + " for this at " + c_chain + " recently",
+                       market={"community": True, "store": c_chain, "forYours": c_price, "yourSize": ""})
         rows.append(row)
 
     out = dict(receipt)

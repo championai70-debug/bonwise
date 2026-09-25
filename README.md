@@ -24,8 +24,16 @@ Scan any receipt and Bonwise shows where the same things are cheaper next time
 - **Backup reader:** Tesseract OCR plus a rule-based German receipt parser takes
   over when the AI is off, busy or slow.
 - **Savings:** real ALDI SÜD shelf prices and sneaker prices from price-comparison
-  sites (checked 23 Sep 2026), then typical discounter prices, then the AI's own
-  suggestion.
+  sites (checked 23 Sep 2026), prices other users paid (community prices), then typical
+  discounter prices, then the AI's own suggestion.
+- **Receipt vault:** every saved receipt with its items, return window and 2-year
+  warranty date, plus "Coming up" reminders with an "Add to calendar" link.
+- **Shopping list:** "Buy again" from past receipts, best known price per item, share
+  the list to WhatsApp or anywhere.
+- **Shops near you:** supermarkets, discounters and drugstores from OpenStreetMap,
+  with distance, "open now" and directions.
+- **Household sharing:** a code (BW-XXXX-XXXX-XXXX) shares receipts, the list, the
+  savings plan and the budget between phones. No accounts.
 
 ## Put it online (free, Render)
 
@@ -37,6 +45,15 @@ Scan any receipt and Bonwise shows where the same things are cheaper next time
    repository → Language **Docker**, Region **Frankfurt**, Instance **Free** →
    Environment Variables: `HF_TOKEN` = your token → Deploy.
 4. Your link is `https://<service-name>.onrender.com`. Every commit to GitHub redeploys it.
+
+**Data:** household data and community prices are stored in SQLite in `DATA_DIR`
+(default `./data`). On Render's free plan the disk is wiped on every restart: phones
+put household data back on their next sync, but community prices start over. For
+launch, use a paid instance with a persistent disk mounted at `/home/user/app/data`
+(the app's default data folder, so no extra setting is needed).
+
+**Legal (Germany):** set `IMPRESSUM` (name, postal address, email; use `\n` for new
+lines) and `CONTACT_EMAIL`. The pages are `/impressum` and `/privacy`.
 
 The free plan sleeps after 15 minutes without visitors; the next visit takes about a
 minute to wake it. Hugging Face gives free accounts a small amount of Inference Providers
@@ -86,6 +103,8 @@ The tests use a fake Hugging Face server, so they need no token or internet.
 | `bonwise/advisor.py` | Finds cheaper like-for-like options and the savings |
 | `bonwise/data.py` | Price data: ALDI SÜD, sneakers, typical discounter prices |
 | `bonwise/service.py` | The scan pipeline: AI → backup → savings |
+| `bonwise/storage.py` | SQLite: household sharing and anonymous community prices |
+| `bonwise/places.py` | Nearby shops from OpenStreetMap, "open now" from opening hours |
 | `static/` | The browser app (budget, swaps, savings plan, price check) |
 
 ## API
@@ -93,4 +112,7 @@ The tests use a fake Hugging Face server, so they need no token or internet.
 - `POST /api/scan` with `{"image": "<base64 JPEG>", "context": {"budget": 300}}`
 - `POST /api/scan-text` with `{"text": "Butter 250g 2,29"}`
 - `POST /api/test-ai` checks that each AI model answers
+- `POST /api/household/new`, `POST /api/household/sync`, `POST /api/household/delete`
+- `POST /api/prices/report` (anonymous), `POST /api/list/prices`
+- `GET /api/shops?lat=&lon=&dow=&min=`
 - `GET /api/health`, `GET /api/prices`

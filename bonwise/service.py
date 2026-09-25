@@ -5,7 +5,7 @@ import base64
 import binascii
 import time
 
-from . import ai_reader, config, ocr
+from . import ai_reader, config, ocr, storage
 from .advisor import advise_receipt
 from .parser import parse_receipt
 
@@ -28,7 +28,16 @@ def _from_parsed(parsed, reader):
 
 
 def _finish(receipt, started, notice=""):
-    out = advise_receipt(receipt)
+    community, chain = {}, ""
+    try:
+        chain = storage.chain_of(receipt.get("store") or "")
+        # Advise once to get each item's plain-English name (the OCR reader has none), then look those up
+        names = [it.get("en") or "" for it in advise_receipt(receipt)["items"]]
+        community = storage.best_prices(names)
+    except Exception as e:  # noqa: BLE001 - community prices are a bonus; never fail a scan over them
+        print("community prices unavailable:", repr(e), flush=True)
+    out = advise_receipt(receipt, community=community, chain=chain, key_fn=storage.price_key)
+    out["chain"] = chain
     out["seconds"] = round(time.monotonic() - started, 1)
     return {"receipt": out, "notice": notice}
 
@@ -102,4 +111,5 @@ def health():
         "models": config.MODELS,
         "backupReader": ocr.available(),
         "ocrLanguages": ocr.languages() if ocr.available() else "",
+        "contact": config.CONTACT_EMAIL,
     }

@@ -242,6 +242,78 @@ button,input,textarea{font:inherit;color:inherit}
   .btn{flex:1 1 auto;justify-content:center}
 }
 @media (prefers-reduced-motion:reduce){.pbar i{transition:none}}
+
+/* ---------- app shell: views + bottom tab bar ---------- */
+body{padding-bottom:calc(72px + env(safe-area-inset-bottom))}
+.view{display:flex;flex-direction:column;gap:14px}
+.view[hidden]{display:none!important}
+.tabbar{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--surface);border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(5,1fr);padding-bottom:env(safe-area-inset-bottom)}
+.tabbar button{background:none;border:0;padding:8px 2px 9px;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11.5px;font-weight:600;color:var(--ink-2);cursor:pointer;position:relative}
+.tabbar svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.tabbar button[aria-current="page"]{color:var(--accent)}
+.tabbar button[aria-current="page"]::before{content:"";position:absolute;top:0;left:30%;right:30%;height:3px;border-radius:0 0 3px 3px;background:var(--accent)}
+.tabbar .dot{position:absolute;top:6px;left:calc(50% + 8px);min-width:16px;height:16px;border-radius:8px;background:var(--bad);color:#fff;font-size:10px;line-height:16px;padding:0 4px}
+.view-title{font-family:var(--display);font-size:24px;font-weight:800;letter-spacing:-.02em;padding:4px 2px 0}
+.field{width:100%;min-width:0;font:inherit;font-size:15px;background:var(--sunk);border:1.5px solid var(--line);border-radius:12px;padding:11px 12px;color:var(--ink)}
+.field:focus{border-color:var(--accent);outline:none}
+.row2{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.row2 .field{flex:1 1 180px}
+.muted{font-size:13.5px;color:var(--ink-2)}
+/* reminders */
+.remind{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.remind li{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;align-items:center;padding:12px;border-radius:14px;background:var(--warn-soft)}
+.remind li.soft{background:var(--sunk)}
+.remind .ic{grid-row:span 2;font-size:20px}
+.remind b{font-size:14.5px}
+.remind span{font-size:13px;color:var(--ink-2)}
+.remind a{font-weight:600;color:var(--accent)}
+/* receipt vault */
+.vault{list-style:none;margin:0;padding:0}
+.vault .mhead{font-family:var(--mono);font-size:11.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-2);padding:14px 0 4px;display:flex;justify-content:space-between}
+.vault details{border-bottom:1px solid var(--line)}
+.vault summary{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:11px 0;cursor:pointer;list-style:none;font-size:14.5px}
+.vault summary::-webkit-details-marker{display:none}
+.vault .d{font-family:var(--mono);font-size:12.5px;color:var(--ink-2)}
+.vault .s{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.vault .body{padding:0 0 14px;display:grid;gap:10px}
+.vault .lines{list-style:none;margin:0;padding:10px 12px;background:var(--sunk);border-radius:12px;font-size:13.5px;display:grid;gap:3px}
+.vault .lines li{display:flex;justify-content:space-between;gap:10px}
+.vault .tags{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:13px}
+.pill2{display:inline-flex;align-items:center;gap:6px;border-radius:99px;padding:3px 10px;background:var(--accent-soft);color:var(--accent);font-weight:600;font-size:12.5px}
+.pill2.warn{background:var(--warn-soft);color:var(--warn)}
+.pill2.grey{background:var(--sunk);color:var(--ink-2)}
+/* shopping list */
+.slist{list-style:none;margin:10px 0 0;padding:0}
+.slist li{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+.slist li:last-child{border-bottom:0}
+.slist input[type=checkbox]{width:20px;height:20px;accent-color:var(--accent)}
+.slist .nm{font-weight:600;font-size:15px}
+.slist .bp{display:block;font-size:12.5px;color:var(--ink-2);font-weight:500}
+.slist .bp b{color:var(--accent)}
+.slist li.done .nm{text-decoration:line-through;color:var(--ink-3)}
+.sugg{display:flex;flex-wrap:wrap;gap:8px}
+.sugg button{border:1.5px solid var(--line);background:var(--surface);color:var(--ink);border-radius:99px;padding:7px 12px;font-size:13.5px;font-weight:600;cursor:pointer}
+.sugg button:hover{border-color:var(--accent)}
+.sugg small{color:var(--ink-3);font-weight:500;margin-left:4px}
+/* shops */
+.shops{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:8px}
+.shops li{border:1.5px solid var(--line);border-radius:14px;padding:12px;display:grid;grid-template-columns:1fr auto;gap:3px 10px}
+.shops .nm{font-weight:700}
+.shops .dist{font-family:var(--mono);font-size:13px;color:var(--ink-2);text-align:right}
+.shops .meta{grid-column:1/-1;font-size:13px;color:var(--ink-2);display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.shops .go{grid-column:1/-1;font-size:13.5px;font-weight:600;color:var(--accent)}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chips button{border:1.5px solid var(--line);background:var(--surface);color:var(--ink-2);border-radius:99px;padding:6px 12px;font-size:13px;font-weight:600;cursor:pointer}
+.chips button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+/* settings */
+.setting{display:grid;gap:8px;padding:12px 0;border-bottom:1px solid var(--line)}
+.setting:last-child{border-bottom:0}
+.setting h3{font-size:15.5px;font-family:var(--body);font-weight:700}
+.switch{display:flex;gap:12px;align-items:flex-start;font-size:14px;color:var(--ink-2)}
+.switch input{width:20px;height:20px;accent-color:var(--accent);flex:none;margin-top:2px}
+.code{font-family:var(--mono);font-size:20px;font-weight:600;letter-spacing:.06em;background:var(--sunk);border-radius:12px;padding:10px 14px;text-align:center;user-select:all}
+.links{display:flex;gap:16px;flex-wrap:wrap;font-size:14px}
+.links a{color:var(--accent);font-weight:600}
 </style>
 </head>
 <body>
@@ -251,6 +323,13 @@ button,input,textarea{font:inherit;color:inherit}
     <div><div class="logo"><span class="logo-mark">€</span>Bonwise</div><div class="tagline">Scan a receipt. Pay less next time.</div></div>
     <span class="month" id="monthLabel">September 2026</span>
   </header>
+
+  <div class="view" id="view-home">
+  <!-- Reminders: returns and warranties coming up -->
+  <section class="card" id="remindCard" aria-labelledby="remH" hidden>
+    <div class="card-h"><h2 id="remH">Coming up</h2><span class="label">returns &amp; warranty</span></div>
+    <ul class="remind" id="remindList"></ul>
+  </section>
 
   <!-- 1 · Budget -->
   <section class="card" aria-labelledby="bH">
@@ -373,15 +452,123 @@ button,input,textarea{font:inherit;color:inherit}
     <p class="pc-note" id="pcNote"></p>
   </section>
 
-  <!-- 7 · History -->
-  <section class="card" aria-labelledby="hH">
-    <div class="card-h"><h2 id="hH">This month’s receipts</h2><span><button class="linkbtn" id="resetBtn" type="button" hidden>Clear month</button> <button class="linkbtn" id="wipeBtn" type="button" style="margin-left:10px">Start fresh</button></span></div>
-    <ul class="hist" id="hist"></ul>
-    <p class="empty" id="histEmpty">No receipts saved yet. Scan one above, check it, then press “Add to this month”.</p>
-  </section>
+  <p class="foot">Test version. Receipt photos are sent to this Bonwise server, which asks an open-source AI model on Hugging Face to read them (Tesseract OCR is the backup). Photos aren’t stored. “Real price” comparisons use ALDI SÜD shelf prices (aldi-sued.de) and sneaker prices from günstiger.de, billiger.de and the brands’ shops, all checked 23 Sep 2026. Prices vary by region, size and colour, and change over time. Other swaps are estimates. Your data stays on this phone unless you turn on household sharing. <a href="/privacy">Privacy policy</a></p>
+  </div><!-- /view-home -->
 
-  <p class="foot">Test version. Receipt photos are sent to this Bonwise server, which asks an open-source AI model on Hugging Face to read them (Tesseract OCR is the backup). Photos aren’t stored. “Real price” comparisons use ALDI SÜD shelf prices (aldi-sued.de) and sneaker prices from günstiger.de, billiger.de and the brands’ shops, all checked 23 Sep 2026. Prices vary by region, size and colour, and change over time. Other swaps are estimates. Your budget and receipts are saved in this browser only. <a href="/privacy">Privacy policy</a></p>
+  <!-- ===== Receipts ===== -->
+  <div class="view" id="view-receipts" hidden>
+    <h1 class="view-title">Receipts</h1>
+    <section class="card" aria-labelledby="hH">
+      <div class="card-h"><h2 id="hH">Your receipts</h2><button class="linkbtn" id="resetBtn" type="button" hidden>Clear this month</button></div>
+      <p class="muted" style="margin-bottom:6px">Tap a receipt to see its items, return window and warranty.</p>
+      <ul class="vault" id="hist"></ul>
+      <p class="empty" id="histEmpty">No receipts saved yet. Scan one on Home, check it, then press “Add to this month”.</p>
+    </section>
+  </div>
+
+  <!-- ===== Shopping list ===== -->
+  <div class="view" id="view-list" hidden>
+    <h1 class="view-title">Shopping list</h1>
+    <section class="card" aria-labelledby="lH">
+      <div class="card-h"><h2 id="lH">To buy</h2><button class="linkbtn" id="shareList" type="button">Share list</button></div>
+      <form class="row2" id="listForm" autocomplete="off">
+        <input class="field" id="listInput" type="text" placeholder="Add an item, e.g. Butter 250 g" aria-label="Add an item">
+        <button class="btn small" type="submit">Add</button>
+      </form>
+      <ul class="slist" id="slist"></ul>
+      <p class="empty" id="slistEmpty" style="margin-top:10px">Your list is empty. Add items above or tap “Buy again” below.</p>
+      <div class="row2" style="margin-top:10px;justify-content:space-between">
+        <span class="muted" id="listTotal"></span>
+        <button class="linkbtn" id="clearDone" type="button" hidden>Remove ticked items</button>
+      </div>
+    </section>
+    <section class="card" id="againCard" aria-labelledby="aH" hidden>
+      <div class="card-h"><h2 id="aH">Buy again</h2><span class="label">from your receipts</span></div>
+      <div class="sugg" id="again"></div>
+    </section>
+    <p class="foot">Best prices: ALDI SÜD shelf prices (checked 23 Sep 2026) and prices other Bonwise users paid in the last 90 days.</p>
+  </div>
+
+  <!-- ===== Nearby shops ===== -->
+  <div class="view" id="view-shops" hidden>
+    <h1 class="view-title">Shops near you</h1>
+    <section class="card" aria-labelledby="shH">
+      <div class="card-h"><h2 id="shH">Nearby</h2><span class="label" id="shopCount"></span></div>
+      <p class="muted" id="shopIntro">Find supermarkets, discounters and drugstores around you, with opening hours. Discounters like Aldi, Lidl and Penny are usually cheapest for basics.</p>
+      <div class="row2" style="margin-top:12px">
+        <button class="btn" id="findShops" type="button">Find shops near me</button>
+      </div>
+      <div class="chips" id="shopFilter" style="margin-top:12px" hidden>
+        <button type="button" data-f="all" aria-pressed="true">All</button>
+        <button type="button" data-f="disc" aria-pressed="false">Discounters</button>
+        <button type="button" data-f="open" aria-pressed="false">Open now</button>
+        <button type="button" data-f="drug" aria-pressed="false">Drugstores</button>
+      </div>
+      <div class="notice bad" id="shopErr" hidden></div>
+      <ul class="shops" id="shops"></ul>
+    </section>
+    <p class="foot">Shop data © OpenStreetMap contributors. Opening hours can be out of date; check before you go.</p>
+  </div>
+
+  <!-- ===== More / settings ===== -->
+  <div class="view" id="view-more" hidden>
+    <h1 class="view-title">More</h1>
+    <section class="card" aria-labelledby="hhH">
+      <div class="card-h"><h2 id="hhH">Household sharing</h2><span class="label" id="syncState"></span></div>
+      <div id="hhOff">
+        <p class="muted">Share receipts, the shopping list and the budget with your partner or flatmates, or move them to a new phone. Everyone with the code sees the same data.</p>
+        <div class="row2" style="margin-top:12px"><button class="btn small" id="hhCreate" type="button">Create a household</button></div>
+        <form class="row2" id="hhJoinForm" style="margin-top:12px" autocomplete="off">
+          <input class="field" id="hhJoinCode" type="text" placeholder="BW-XXXX-XXXX-XXXX" aria-label="Household code" autocapitalize="characters">
+          <button class="btn small line" type="submit">Join</button>
+        </form>
+      </div>
+      <div id="hhOn" hidden>
+        <p class="muted">Your household code. Share it only with people you trust:</p>
+        <div class="code" id="hhCode" style="margin-top:8px"></div>
+        <div class="row2" style="margin-top:12px">
+          <button class="btn small" id="hhShare" type="button">Share code</button>
+          <button class="btn small line" id="hhSync" type="button">Sync now</button>
+        </div>
+        <div class="row2" style="margin-top:12px">
+          <button class="linkbtn" id="hhLeave" type="button">Leave on this phone</button>
+          <button class="linkbtn" id="hhDelete" type="button" style="color:var(--bad)">Delete household data</button>
+        </div>
+      </div>
+      <div class="notice" id="hhMsg" hidden></div>
+    </section>
+    <section class="card" aria-labelledby="stH">
+      <div class="card-h"><h2 id="stH">Settings</h2></div>
+      <div class="setting">
+        <label class="switch"><input type="checkbox" id="setShare"><span><b style="color:var(--ink)">Share prices anonymously</b><br>When you add a receipt, product prices and the shop chain (no name, no account, no location) help everyone find cheaper shops.</span></label>
+      </div>
+      <div class="setting">
+        <h3>Return window</h3>
+        <p class="muted">Many German shops let you return items within 14–30 days (online orders: 14 days by law). Bonwise reminds you before it ends.</p>
+        <div class="row2"><input class="field" id="setReturn" type="number" min="0" max="365" inputmode="numeric" style="max-width:110px"><span class="muted">days after purchase (for clothes, shoes, electronics and household goods)</span></div>
+      </div>
+      <div class="setting">
+        <h3>Start fresh</h3>
+        <p class="muted">Deletes all receipts, the savings plan and the shopping list on this phone.</p>
+        <div><button class="linkbtn" id="wipeBtn" type="button" style="color:var(--bad)">Start fresh</button></div>
+      </div>
+    </section>
+    <section class="card">
+      <div class="links"><a href="/privacy">Privacy policy</a><a href="/impressum">Impressum</a><a href="mailto:" id="feedbackLink">Send feedback</a></div>
+      <p class="muted" style="margin-top:10px" id="aboutLine">Bonwise · reads receipts with open-source AI · prices checked 23 Sep 2026</p>
+    </section>
+  </div>
+
+
 </div>
+
+<nav class="tabbar" aria-label="Main">
+  <button type="button" data-tab="home" aria-current="page"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>Home</button>
+  <button type="button" data-tab="receipts"><svg viewBox="0 0 24 24"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg>Receipts<span class="dot" id="remDot" hidden></span></button>
+  <button type="button" data-tab="list"><svg viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></svg>List</button>
+  <button type="button" data-tab="shops"><svg viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>Shops</button>
+  <button type="button" data-tab="more"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></svg>More</button>
+</nav>
 <script src="/static/app.js"></script>
 </body>
 </html>

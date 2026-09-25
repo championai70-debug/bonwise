@@ -15,9 +15,9 @@ import time
 from collections import defaultdict, deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
-from bonwise import ai_reader, config, data, service
+from bonwise import advisor, ai_reader, config, data, places, service, storage
 
 STATIC = Path(__file__).resolve().parent / "static"
 
@@ -45,6 +45,8 @@ class RateLimiter:
 
 
 limiter = RateLimiter(config.HOURLY_LIMIT)
+api_limiter = RateLimiter(300)        # syncs, list prices, shop searches
+household_limiter = RateLimiter(5)    # new household codes per visitor per hour
 
 
 def assetlinks():
@@ -61,6 +63,24 @@ def assetlinks():
                        "sha256_cert_fingerprints": config.ANDROID_SHA256},
         }]
     return []
+
+
+def list_prices(names):
+    """Best known price for each shopping-list item: our ALDI SÜD shelf prices and community prices."""
+    names = [str(n).strip()[:80] for n in (names or []) if str(n).strip()][:100]
+    community = storage.best_prices(names)
+    out = []
+    for n in names:
+        entry = {"name": n, "aldi": None, "community": None}
+        a = advisor.advise_item({"name": n, "en": n, "price": None})
+        m = a.get("market")
+        if m and not m.get("sport"):
+            entry["aldi"] = {"price": m["forYours"], "product": m["name"], "size": m["yourSize"], "store": m["store"]}
+        c = community.get(storage.price_key(n))
+        if c:
+            entry["community"] = {"price": c["price"], "chain": c["chain"], "day": c["day"], "reports": c["reports"]}
+        out.append(entry)
+    return out
 
 
 def prices_payload():
@@ -145,6 +165,26 @@ class Handler(BaseHTTPRequestHandler):
             if STATIC.resolve() in target.parents and target.is_file():
                 return self._file(target, cache="no-cache")
             return self._send(404, {"error": "not_found"})
+        if path in ("/impressum", "/imprint"):
+            text = html_escape(config.IMPRESSUM).replace("\\n", "\n").replace("\n", "<br>") if config.IMPRESSUM else (
+                "<em>The app owner hasn’t filled in the legal notice yet (set IMPRESSUM on the server).</em>")
+            page = (STATIC / "impressum.html").read_text(encoding="utf-8").replace("{{IMPRESSUM}}", text)
+            return self._send(200, page, "text/html; charset=utf-8", "no-cache")
+        if path == "/api/shops":
+            q = parse_qs(urlparse(self.path).query)
+            if not api_limiter.allow(self._client()):
+                return self._send(429, {"error": "too_many", "message": "Too many searches. Try again in a while."})
+            try:
+                lat, lon = float(q["lat"][0]), float(q["lon"][0])
+                dow = int(q["dow"][0]) if "dow" in q else None
+                minute = int(q["min"][0]) if "min" in q else None
+                radius = int(q.get("radius", ["1500"])[0])
+            except (KeyError, ValueError, IndexError):
+                return self._send(400, {"error": "bad_request", "message": "Your location couldn't be read."})
+            try:
+                return self._send(200, {"shops": places.nearby(lat, lon, radius, dow, minute)})
+            except places.PlacesError:
+                return self._send(502, {"error": "places", "message": "The map service didn’t answer. Try again in a minute."})
         if path == "/api/health":
             return self._send(200, service.health())
         if path == "/api/prices":
@@ -153,7 +193,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = urlparse(self.path).path
-        if path not in ("/api/scan", "/api/scan-text", "/api/test-ai"):
+        if path not in ("/api/scan", "/api/scan-text", "/api/test-ai", "/api/household/new", "/api/household/sync", "/api/household/delete",
+                        "/api/prices/report", "/api/list/prices"):
             return self._send(404, {"error": "not_found"})
         origin = self.headers.get("Origin")
         hosts = {h.strip() for h in (self.headers.get("Host", ""), self.headers.get("X-Forwarded-Host", "")) if h}
@@ -163,6 +204,8 @@ class Handler(BaseHTTPRequestHandler):
             body = self._json_body() or {}
             if path == "/api/test-ai":
                 return self._send(200, self._test_ai())
+            if path.startswith(("/api/household/", "/api/prices/", "/api/list/")):
+                return self._data_api(path, body)
             if not limiter.allow(self._client()):
                 return self._send(429, {"error": "too_many", "message":
                                         "That's the scan limit for this hour (%d). Try again later." % config.HOURLY_LIMIT})
@@ -180,6 +223,26 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as e:  # noqa: BLE001 - never leak a stack trace to the browser
             print("error:", repr(e), flush=True)
             return self._send(500, {"error": "server", "message": "Something went wrong on the server. Try again."})
+
+    def _data_api(self, path, body):
+        client = self._client()
+        if not api_limiter.allow(client):
+            return self._send(429, {"error": "too_many", "message": "Too many requests. Try again in a while."})
+        try:
+            if path == "/api/household/new":
+                if not household_limiter.allow(client):
+                    return self._send(429, {"error": "too_many", "message": "Too many new households. Try again later."})
+                return self._send(200, {"code": storage.new_household()})
+            if path == "/api/household/sync":
+                return self._send(200, {"state": storage.sync_household(body.get("code"), body.get("state"),
+                                                                        create=body.get("recreate") is True)})
+            if path == "/api/household/delete":
+                return self._send(200, {"deleted": storage.delete_household(body.get("code"))})
+            if path == "/api/prices/report":
+                return self._send(200, {"kept": storage.report_prices(body.get("store"), body.get("day"), body.get("items"))})
+            return self._send(200, {"items": list_prices(body.get("items"))})
+        except storage.HouseholdError as e:
+            return self._send(e.status, {"error": e.code, "message": e.message})
 
     def _test_ai(self):
         if not config.HF_TOKEN:

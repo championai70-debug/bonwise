@@ -1,6 +1,6 @@
 /* Bonwise service worker: makes the app installable and shows a friendly page when offline.
    Receipts and prices always come fresh from the server; nothing personal is cached. */
-const CACHE = "bonwise-v1";
+const CACHE = "bonwise-v2";
 const SHELL = ["/offline.html", "/static/icons/icon-192.png", "/static/favicon.png"];
 
 self.addEventListener("install", (e) => {

@@ -57,3 +57,14 @@ ANDROID_SHA256 = [f.strip() for f in os.environ.get("ANDROID_SHA256", "").split(
 
 # Shown on the privacy page (/privacy) as the contact for data questions.
 CONTACT_EMAIL = os.environ.get("CONTACT_EMAIL", "").strip()
+
+# Where the SQLite database lives. On Render, attach a persistent disk and set DATA_DIR=/data;
+# without one, the data is rebuilt from the phones after a restart.
+DATA_DIR = os.environ.get("DATA_DIR", str(ROOT / "data"))
+
+# Legal notice (Impressum), required for commercial apps and websites in Germany.
+# Multi-line text: name, postal address, email (and phone if you have one).
+IMPRESSUM = os.environ.get("IMPRESSUM", "").strip()
+
+# Nearby shops come from OpenStreetMap's free Overpass API.
+OVERPASS_URL = os.environ.get("OVERPASS_URL", "https://overpass-api.de/api/interpreter")

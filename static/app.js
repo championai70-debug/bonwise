@@ -10,7 +10,24 @@
     get: function (k, d) { try { var v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
     set: function (k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
   };
-  var mem = { budget: store.get("bonwise.budget", 300), receipts: store.get("bonwise.receipts", []), plan: store.get("bonwise.plan", []) };
+  var mem = {
+    budget: store.get("bonwise.budget", 300), budgetAt: store.get("bonwise.budgetAt", 0),
+    receipts: store.get("bonwise.receipts", []), plan: store.get("bonwise.plan", []), list: store.get("bonwise.list", []),
+    tomb: store.get("bonwise.tomb", { receipts: {}, plan: {}, list: {} }),
+    settings: Object.assign({ sharePrices: true, returnDays: 14 }, store.get("bonwise.settings", {})),
+    household: store.get("bonwise.household", null)
+  };
+  ["receipts", "plan", "list"].forEach(function (k) { if (!mem.tomb[k]) mem.tomb[k] = {}; });
+  mem.receipts.forEach(function (r) { if (!r.updated) r.updated = r.at || 1; });
+  mem.plan.forEach(function (x) { if (!x.updated) x.updated = 1; });
+  // Save one part of the data on this phone, then share it with the household (if any).
+  function persist() {
+    store.set("bonwise.budget", mem.budget); store.set("bonwise.budgetAt", mem.budgetAt);
+    store.set("bonwise.receipts", mem.receipts); store.set("bonwise.plan", mem.plan); store.set("bonwise.list", mem.list);
+    store.set("bonwise.tomb", mem.tomb); store.set("bonwise.settings", mem.settings);
+    if (typeof scheduleSync === "function") scheduleSync();
+  }
+  function stamp(o) { o.updated = Date.now(); return o; }
 
   /* ---------- helpers ---------- */
   function eur(n, dec) { n = Number(n) || 0; return (n < 0 ? "−" : "") + "€" + Math.abs(n).toFixed(dec === 0 ? 0 : 2); }
@@ -71,36 +88,30 @@
   $("budget").addEventListener("input", function () {
     var v = Number($("budget").value);
     if (!isFinite(v) || v < 0) return;
-    mem.budget = v; store.set("bonwise.budget", v); renderBudget(); if (cur) renderRecs();
+    mem.budget = v; mem.budgetAt = Date.now(); persist(); renderBudget(); if (cur) renderRecs();
   });
 
-  /* ---------- history ---------- */
-  function renderHistory() {
-    var list = monthReceipts().slice().sort(function (a, b) { return b.at - a.at; });
-    $("histEmpty").hidden = list.length > 0;
-    $("hist").innerHTML = list.map(function (r) {
-      return '<li><span class="d">' + esc(r.date || "") + '</span><span class="s">' + esc(r.store || "Receipt") + '</span><span class="num">' + eur(r.total) + '</span><button class="del" type="button" data-id="' + esc(r.id) + '" aria-label="Remove receipt">×</button></li>';
-    }).join("");
+  /* ---------- receipts: delete, clear month, start fresh ---------- */
+  function dropReceipts(test) {
+    mem.receipts = mem.receipts.filter(function (r) { if (test(r)) { mem.tomb.receipts[r.id] = Date.now(); return false; } return true; });
   }
-  $("hist").addEventListener("click", function (e) {
-    var b = e.target.closest("button[data-id]"); if (!b) return;
-    mem.receipts = mem.receipts.filter(function (r) { return r.id !== b.dataset.id; });
-    store.set("bonwise.receipts", mem.receipts); renderHistory(); renderBudget(); if (cur) renderRecs();
-  });
   var wipeArmed = false;
   $("wipeBtn").addEventListener("click", function () {
-    if (!wipeArmed) { wipeArmed = true; $("wipeBtn").textContent = "Tap again: delete all receipts and the savings plan"; setTimeout(function () { wipeArmed = false; $("wipeBtn").textContent = "Start fresh"; }, 4000); return; }
+    if (!wipeArmed) { wipeArmed = true; $("wipeBtn").textContent = "Tap again: delete all receipts, the plan and the list"; setTimeout(function () { wipeArmed = false; $("wipeBtn").textContent = "Start fresh"; }, 4000); return; }
     wipeArmed = false; $("wipeBtn").textContent = "Start fresh";
-    mem.receipts = []; mem.plan = []; store.set("bonwise.receipts", []); store.set("bonwise.plan", []);
+    dropReceipts(function () { return true; });
+    mem.plan.forEach(function (x) { mem.tomb.plan[x.key] = Date.now(); }); mem.plan = [];
+    mem.list.forEach(function (x) { mem.tomb.list[x.id] = Date.now(); }); mem.list = [];
+    persist();
     closeReceipt(); showErr(""); aiState(""); $("thumb").removeAttribute("src");
-    renderHistory(); renderPlan(); renderBudget();
+    renderAll();
   });
   var resetArmed = false;
   $("resetBtn").addEventListener("click", function () {
-    if (!resetArmed) { resetArmed = true; $("resetBtn").textContent = "Tap again to clear"; setTimeout(function () { resetArmed = false; $("resetBtn").textContent = "Clear month"; }, 3000); return; }
-    mem.receipts = mem.receipts.filter(function (r) { return r.month !== monthKey; });
-    store.set("bonwise.receipts", mem.receipts); resetArmed = false; $("resetBtn").textContent = "Clear month";
-    renderHistory(); renderBudget(); if (cur) renderRecs();
+    if (!resetArmed) { resetArmed = true; $("resetBtn").textContent = "Tap again to clear " + monthName; setTimeout(function () { resetArmed = false; $("resetBtn").textContent = "Clear this month"; }, 3000); return; }
+    dropReceipts(function (r) { return r.month === monthKey; });
+    persist(); resetArmed = false; $("resetBtn").textContent = "Clear this month";
+    renderAll(); if (cur) renderRecs();
   });
 
   /* ---------- receipt card ---------- */
@@ -164,9 +175,17 @@
   $("addBtn").addEventListener("click", function () {
     if (!cur) return;
     if (cur.items.some(function (it) { return it.price == null; })) { var f = document.querySelector(".price.need"); if (f) f.focus(); return; }
-    mem.receipts.push({ id: String(Date.now()), at: Date.now(), month: monthKey, date: cur.date || now.toLocaleDateString("de-DE"), store: cur.store || "Receipt", total: itemTotal(), save: itemSave() });
-    store.set("bonwise.receipts", mem.receipts);
-    closeReceipt(); aiState(""); $("thumb").removeAttribute("src");
+    var rec = stamp({
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7), at: Date.now(), month: monthKey,
+      date: cur.date || now.toLocaleDateString("de-DE"), store: cur.store || "Receipt", total: itemTotal(), save: itemSave(),
+      items: cur.items.map(function (it) { return { n: String(it.en || it.raw).slice(0, 60), p: it.price, c: it.cat || "Other", d: !!it.pfand }; }).slice(0, 150),
+      returnDays: needsReturn({ items: cur.items.map(function (it) { return { c: it.cat }; }) }) ? mem.settings.returnDays : null
+    });
+    mem.receipts.push(rec);
+    persist();
+    reportPrices(cur);
+    closeReceipt(); aiState("✓ Saved to " + monthName + ". Find it under Receipts.", "ok"); $("thumb").removeAttribute("src");
+    renderAll();
   });
   $("discardBtn").addEventListener("click", function () { closeReceipt(); aiState(""); });
   $("clearBtn").addEventListener("click", function () { closeReceipt(); aiState(""); showErr(""); $("thumb").removeAttribute("src"); window.scrollTo({ top: 0, behavior: "smooth" }); });
@@ -176,7 +195,7 @@
     stopTimer(); setBusy(false);
     ["receiptCard", "saveCard", "swapCard", "recCard", "progress", "pcCard"].forEach(function (id) { $(id).hidden = true; });
     $("pcList").innerHTML = "";
-    renderHistory(); renderBudget();
+    renderBudget();
   }
 
   /* ---------- savings hero + swaps + plan ---------- */
@@ -239,8 +258,9 @@
     var cb = e.target; if (!cb.dataset || cb.dataset.sw == null) return;
     var it = cur.items[Number(cb.dataset.sw)], k = planKey(it);
     mem.plan = mem.plan.filter(function (x) { return x.key !== k; });
-    if (cb.checked) mem.plan.push({ key: k, name: it.en || it.raw, from: it.price, altPrice: it.altPrice, alt: it.alt || "cheaper option", save: it.save });
-    store.set("bonwise.plan", mem.plan);
+    if (cb.checked) { mem.plan.push(stamp({ key: k, name: it.en || it.raw, from: it.price, altPrice: it.altPrice, alt: it.alt || "cheaper option", save: it.save })); delete mem.tomb.plan[k]; }
+    else mem.tomb.plan[k] = Date.now();
+    persist();
     cb.closest(".swap").classList.toggle("on", cb.checked);
     renderPickTotal(); renderPlan(); renderBudget();
   });
@@ -255,7 +275,7 @@
   }
   $("planList").addEventListener("click", function (e) {
     var b = e.target.closest("button[data-plan]"); if (!b) return;
-    mem.plan.splice(Number(b.dataset.plan), 1); store.set("bonwise.plan", mem.plan);
+    var gone = mem.plan.splice(Number(b.dataset.plan), 1)[0]; if (gone) mem.tomb.plan[gone.key] = Date.now(); persist();
     renderPlan(); renderBudget(); if (cur) renderSavings();
   });
 
@@ -418,7 +438,11 @@
       note.textContent = "The AI isn’t switched on for this server yet, so receipts are read with Tesseract OCR.";
     }
   }
-  fetch("/api/health").then(function (r) { return r.json(); }).then(function (h) { health = h; showReader(); })
+  fetch("/api/health").then(function (r) { return r.json(); }).then(function (h) {
+    health = h; showReader();
+    if (h.contact) $("feedbackLink").href = "mailto:" + h.contact + "?subject=" + encodeURIComponent("Bonwise feedback");
+    else $("feedbackLink").hidden = true;
+  })
     .catch(function () { health = null; showReader(); });
 
   /* ---------- price check: the items on the current receipt ---------- */
@@ -452,7 +476,375 @@
   }
   fetch("/api/prices").then(function (r) { return r.json(); }).then(function (p) { marketInfo = p.market; }).catch(function () {});
 
-  renderBudget(); renderHistory(); renderPlan();
+
+  /* =====================================================================
+     Phase 1: tabs, receipt vault, reminders, shopping list, shops, household
+     ===================================================================== */
+  function api(path, body) {
+    return fetch(path, body === undefined ? {} : { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })
+      .then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (j) {
+          if (!r.ok || j.error) throw { status: r.status, code: j.error || "server", message: j.message || "The server didn’t answer. Try again." };
+          return j;
+        });
+      }, function () { throw { code: "network", message: "No connection to the Bonwise server. Check your internet and try again." }; });
+  }
+
+  /* ---------- tabs ---------- */
+  var TABS = ["home", "receipts", "list", "shops", "more"];
+  function showTab(name) {
+    if (TABS.indexOf(name) < 0) name = "home";
+    TABS.forEach(function (t) { $("view-" + t).hidden = t !== name; });
+    document.querySelectorAll(".tabbar button").forEach(function (b) {
+      if (b.dataset.tab === name) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
+    });
+    if (name === "list") refreshListPrices();
+    window.scrollTo(0, 0);
+    try { history.replaceState(null, "", name === "home" ? location.pathname + location.search : "#" + name); } catch (e) {}
+  }
+  document.querySelector(".tabbar").addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-tab]"); if (b) showTab(b.dataset.tab);
+  });
+
+  /* ---------- dates ---------- */
+  var DAY = 86400000;
+  function today0() { var d = new Date(); d.setHours(0, 0, 0, 0); return d; }
+  function purchaseDate(r) {
+    var m = String(r.date || "").match(/(\d{1,2})[.\/](\d{1,2})[.\/](\d{2,4})/);
+    if (m) { var y = Number(m[3]); if (y < 100) y += 2000; var d = new Date(y, Number(m[2]) - 1, Number(m[1])); if (!isNaN(d)) return d; }
+    var a = new Date(r.at || Date.now()); a.setHours(0, 0, 0, 0); return a;
+  }
+  function addDays(d, n) { var x = new Date(d); x.setDate(x.getDate() + n); return x; }
+  function daysUntil(d) { return Math.round((d - today0()) / DAY); }
+  function fmtDay(d) { var o = { day: "numeric", month: "short" }; if (d.getFullYear() !== new Date().getFullYear()) o.year = "numeric"; return d.toLocaleDateString("en-GB", o); }
+  function ymd(d) { return d.getFullYear() + String(d.getMonth() + 1).padStart(2, "0") + String(d.getDate()).padStart(2, "0"); }
+  function isoDay(dateStr) { var d = purchaseDate({ date: dateStr, at: Date.now() }); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+  function inDays(n) { return n === 0 ? "today" : n === 1 ? "tomorrow" : "in " + n + " days"; }
+
+  /* ---------- returns & warranty ---------- */
+  var RETURN_CATS = ["Clothing & shoes", "Electronics", "Household"];
+  function needsReturn(r) { return (r.items || []).some(function (it) { return RETURN_CATS.indexOf(it.c) >= 0; }); }
+  function returnBy(r) { return r.returnDays != null && needsReturn(r) ? addDays(purchaseDate(r), Number(r.returnDays)) : null; }
+  function warrantyUntil(r) { return needsReturn(r) ? addDays(purchaseDate(r), 730) : null; }  // 2-year legal warranty (Gewährleistung)
+  function calLink(title, d, details) {
+    return "https://calendar.google.com/calendar/render?action=TEMPLATE&text=" + encodeURIComponent(title) +
+      "&dates=" + ymd(d) + "/" + ymd(addDays(d, 1)) + "&details=" + encodeURIComponent(details);
+  }
+  function reminders() {
+    var out = [];
+    mem.receipts.forEach(function (r) {
+      var rb = returnBy(r), wu = warrantyUntil(r);
+      if (rb) { var n = daysUntil(rb); if (n >= 0 && n <= 7) out.push({ r: r, kind: "return", d: rb, n: n }); }
+      if (wu) { var w = daysUntil(wu); if (w >= 0 && w <= 30) out.push({ r: r, kind: "warranty", d: wu, n: w }); }
+    });
+    return out.sort(function (a, b) { return a.n - b.n; });
+  }
+  function renderReminders() {
+    var list = reminders(), urgent = list.filter(function (x) { return x.kind === "return"; }).length;
+    $("remindCard").hidden = !list.length;
+    $("remDot").hidden = !urgent; $("remDot").textContent = urgent;
+    $("remindList").innerHTML = list.map(function (x) {
+      var what = x.kind === "return" ? "Return window ends " + inDays(x.n) : "Warranty ends " + inDays(x.n);
+      var title = (x.kind === "return" ? "Last day to return: " : "Warranty ends: ") + (x.r.store || "receipt");
+      return '<li class="' + (x.kind === "return" ? "" : "soft") + '"><span class="ic">' + (x.kind === "return" ? "↩" : "🛡") + '</span>' +
+        '<b>' + esc(what) + '</b><span>' + esc(x.r.store || "Receipt") + ' · bought ' + esc(fmtDay(purchaseDate(x.r))) + ' · ' + eur(x.r.total) +
+        ' · <a href="' + calLink(title, x.d, "Bonwise reminder for your receipt from " + (x.r.store || "") + " (" + (x.r.date || "") + ").") + '" target="_blank" rel="noopener">Add to calendar</a></span></li>';
+    }).join("");
+  }
+
+  /* ---------- receipt vault ---------- */
+  var openReceipt = null, delArmed = null;
+  function renderVault() {
+    var list = mem.receipts.slice().sort(function (a, b) { return purchaseDate(b) - purchaseDate(a) || b.at - a.at; });
+    $("histEmpty").hidden = list.length > 0;
+    $("resetBtn").hidden = monthReceipts().length === 0;
+    var html = "", lastMonth = "";
+    list.forEach(function (r) {
+      var mk = r.month || "";
+      if (mk !== lastMonth) {
+        lastMonth = mk;
+        var tot = r2(list.filter(function (x) { return x.month === mk; }).reduce(function (a, x) { return a + x.total; }, 0));
+        var label = mk ? new Date(Number(mk.slice(0, 4)), Number(mk.slice(5, 7)) - 1, 1).toLocaleDateString("en-GB", { month: "long", year: "numeric" }) : "Earlier";
+        html += '<li class="mhead"><span>' + esc(label) + '</span><span>' + eur(tot) + '</span></li>';
+      }
+      var rb = returnBy(r), wu = warrantyUntil(r), tags = [];
+      if (r.save > 0) tags.push('<span class="pill2">Could have saved ' + eur(r.save) + '</span>');
+      if (rb) {
+        var n = daysUntil(rb);
+        tags.push(n < 0 ? '<span class="pill2 grey">Return window ended ' + esc(fmtDay(rb)) + '</span>'
+          : '<span class="pill2 warn">Return by ' + esc(fmtDay(rb)) + ' (' + inDays(n) + ')</span> <a class="muted" href="' + calLink("Last day to return: " + (r.store || "receipt"), rb, "Bonwise reminder") + '" target="_blank" rel="noopener">Add to calendar</a>');
+      }
+      if (wu) tags.push('<span class="pill2 grey">Warranty until ' + esc(fmtDay(wu)) + '</span>');
+      var lines = (r.items && r.items.length) ? '<ul class="lines">' + r.items.map(function (it) {
+        return '<li><span>' + esc(it.n) + '</span><span class="num">' + (it.p == null ? "–" : eur(it.p)) + '</span></li>';
+      }).join("") + '</ul>' : '<p class="muted">Items weren’t saved for this receipt (it was added before this update).</p>';
+      var retEdit = needsReturn(r) ? '<label class="row2 muted">Return window <input class="field" type="number" min="0" max="365" data-ret="' + esc(r.id) + '" value="' + (r.returnDays == null ? "" : r.returnDays) + '" style="max-width:90px;padding:6px 8px"> days</label>' : "";
+      html += '<li><details data-id="' + esc(r.id) + '"' + (openReceipt === r.id ? " open" : "") + '><summary><span class="d">' + esc(r.date || "") + '</span><span class="s">' + esc(r.store || "Receipt") + '</span><span class="num">' + eur(r.total) + '</span></summary>' +
+        '<div class="body">' + lines + (tags.length ? '<div class="tags">' + tags.join(" ") + '</div>' : "") + retEdit +
+        '<div><button class="linkbtn" type="button" data-del-r="' + esc(r.id) + '" style="color:var(--bad)">' + (delArmed === r.id ? "Tap again to delete" : "Delete receipt") + '</button></div></div></details></li>';
+    });
+    $("hist").innerHTML = html;
+  }
+  $("hist").addEventListener("toggle", function (e) { if (e.target.open) openReceipt = e.target.dataset.id; else if (openReceipt === e.target.dataset.id) openReceipt = null; }, true);
+  $("hist").addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-del-r]"); if (!b) return;
+    var id = b.dataset.delR;
+    if (delArmed !== id) { delArmed = id; renderVault(); setTimeout(function () { if (delArmed === id) { delArmed = null; renderVault(); } }, 3000); return; }
+    delArmed = null; dropReceipts(function (r) { return r.id === id; }); persist(); renderAll(); if (cur) renderRecs();
+  });
+  $("hist").addEventListener("change", function (e) {
+    var id = e.target.dataset && e.target.dataset.ret; if (!id) return;
+    var v = Math.max(0, Math.min(365, Math.round(Number(e.target.value) || 0)));
+    mem.receipts.forEach(function (r) { if (r.id === id) { r.returnDays = v; stamp(r); } });
+    persist(); renderVault(); renderReminders();
+  });
+
+  /* ---------- community prices ---------- */
+  function reportPrices(receipt) {
+    if (!mem.settings.sharePrices || !receipt || receipt.foreign) return;
+    var items = receipt.items.filter(function (it) { return !it.pfand && it.price != null && it.price > 0; })
+      .map(function (it) { return { en: it.en || it.raw, price: it.price }; });
+    if (items.length) api("/api/prices/report", { store: receipt.store || "", day: isoDay(receipt.date), items: items }).catch(function () {});
+  }
+
+  /* ---------- shopping list ---------- */
+  var priceCache = {};
+  function listKey(n) { return norm(n); }
+  function renderList() {
+    var items = mem.list.slice().sort(function (a, b) { return (a.done - b.done) || (a.created || 0) - (b.created || 0); });
+    $("slistEmpty").hidden = items.length > 0;
+    $("clearDone").hidden = !items.some(function (x) { return x.done; });
+    var total = 0, priced = 0, open = 0;
+    $("slist").innerHTML = items.map(function (x) {
+      var p = priceCache[listKey(x.name)], best = bestOf(p), bp = "";
+      if (!x.done) { open++; if (best) { total += best.price; priced++; } }
+      if (best) bp = '<span class="bp">Best: <b>' + eur(best.price) + '</b> at ' + esc(best.where) + (best.note ? ' · ' + esc(best.note) : "") + '</span>';
+      else if (p) bp = '<span class="bp">No price yet</span>';
+      return '<li class="' + (x.done ? "done" : "") + '"><input type="checkbox" data-li="' + esc(x.id) + '"' + (x.done ? " checked" : "") + ' aria-label="Bought ' + esc(x.name) + '">' +
+        '<span><span class="nm">' + esc(x.name) + '</span>' + bp + '</span><button class="del" type="button" data-rm="' + esc(x.id) + '" aria-label="Remove ' + esc(x.name) + '">×</button></li>';
+    }).join("");
+    $("listTotal").textContent = open ? (priced ? "Cheapest known prices: " + eur(r2(total)) + " for " + priced + " of " + open + " item" + (open > 1 ? "s" : "") : open + " item" + (open > 1 ? "s" : "") + " to buy") : "";
+    renderAgain();
+  }
+  function bestOf(p) {
+    if (!p) return null;
+    var c = [];
+    if (p.aldi) c.push({ price: p.aldi.price, where: p.aldi.store, note: p.aldi.product });
+    if (p.community) c.push({ price: p.community.price, where: p.community.chain, note: "paid by Bonwise users" });
+    return c.sort(function (a, b) { return a.price - b.price; })[0] || null;
+  }
+  function refreshListPrices() {
+    var need = mem.list.filter(function (x) { return !x.done && !priceCache[listKey(x.name)]; }).map(function (x) { return x.name; });
+    if (!need.length) return renderList();
+    api("/api/list/prices", { items: need }).then(function (j) {
+      (j.items || []).forEach(function (e) { priceCache[listKey(e.name)] = e; });
+      renderList();
+    }).catch(function () {});
+  }
+  function addToList(name) {
+    name = String(name || "").trim().slice(0, 80); if (!name) return;
+    if (mem.list.some(function (x) { return !x.done && listKey(x.name) === listKey(name); })) return;
+    var item = stamp({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name: name, done: false, created: Date.now() });
+    mem.list.push(item); delete mem.tomb.list[item.id];
+    persist(); renderList(); refreshListPrices();
+  }
+  $("listForm").addEventListener("submit", function (e) { e.preventDefault(); addToList($("listInput").value); $("listInput").value = ""; $("listInput").focus(); });
+  $("slist").addEventListener("change", function (e) {
+    var id = e.target.dataset && e.target.dataset.li; if (!id) return;
+    mem.list.forEach(function (x) { if (x.id === id) { x.done = e.target.checked; stamp(x); } });
+    persist(); renderList();
+  });
+  $("slist").addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-rm]"); if (!b) return;
+    mem.list = mem.list.filter(function (x) { if (x.id === b.dataset.rm) { mem.tomb.list[x.id] = Date.now(); return false; } return true; });
+    persist(); renderList();
+  });
+  $("clearDone").addEventListener("click", function () {
+    mem.list = mem.list.filter(function (x) { if (x.done) { mem.tomb.list[x.id] = Date.now(); return false; } return true; });
+    persist(); renderList();
+  });
+  $("shareList").addEventListener("click", function () {
+    var open = mem.list.filter(function (x) { return !x.done; });
+    if (!open.length) { $("listInput").focus(); return; }
+    var text = "Shopping list (Bonwise)\n" + open.map(function (x) {
+      var b = bestOf(priceCache[listKey(x.name)]);
+      return "• " + x.name + (b ? " (" + eur(b.price) + " at " + b.where + ")" : "");
+    }).join("\n");
+    shareText(text, $("shareList"));
+  });
+  function shareText(text, btn) {
+    if (navigator.share) { navigator.share({ text: text }).catch(function () {}); return; }
+    var done = function () { var t = btn.textContent; btn.textContent = "Copied"; setTimeout(function () { btn.textContent = t; }, 1500); };
+    if (navigator.clipboard) navigator.clipboard.writeText(text).then(done, function () {}); 
+  }
+  function renderAgain() {
+    var counts = {}, inList = {};
+    mem.list.forEach(function (x) { if (!x.done) inList[listKey(x.name)] = 1; });
+    mem.receipts.forEach(function (r) {
+      (r.items || []).forEach(function (it) {
+        if (it.d || !it.n || it.c === "Pfand" || it.c === "Clothing & shoes" || it.c === "Electronics" || /paper bag|tragetasche|tüte/i.test(it.n)) return;
+        var k = listKey(it.n); if (inList[k]) return;
+        var c = counts[k] || (counts[k] = { name: it.n, n: 0, last: 0 });
+        c.n++; c.last = Math.max(c.last, r.at || 0);
+      });
+    });
+    var top = Object.keys(counts).map(function (k) { return counts[k]; })
+      .sort(function (a, b) { return b.n - a.n || b.last - a.last; }).slice(0, 12);
+    $("againCard").hidden = !top.length;
+    $("again").innerHTML = top.map(function (c) {
+      return '<button type="button" data-again="' + esc(c.name) + '">+ ' + esc(c.name) + (c.n > 1 ? '<small>×' + c.n + '</small>' : "") + '</button>';
+    }).join("");
+  }
+  $("again").addEventListener("click", function (e) { var b = e.target.closest("button[data-again]"); if (b) addToList(b.dataset.again); });
+
+  /* ---------- nearby shops ---------- */
+  var shopsData = [], shopFilter = "all";
+  function renderShops() {
+    var list = shopsData.filter(function (x) {
+      return shopFilter === "all" || (shopFilter === "disc" && x.discounter) || (shopFilter === "open" && x.open === true) || (shopFilter === "drug" && x.kind === "Drugstore");
+    });
+    $("shopCount").textContent = shopsData.length ? list.length + " shown" : "";
+    $("shops").innerHTML = list.length ? list.map(function (x) {
+      var dist = x.distance < 1000 ? x.distance + " m" : (x.distance / 1000).toFixed(1) + " km";
+      var open = x.open === true ? '<span class="pill2">Open now</span>' : x.open === false ? '<span class="pill2 grey">Closed now</span>' : "";
+      return '<li><span class="nm">' + esc(x.name) + '</span><span class="dist">' + dist + '</span>' +
+        '<span class="meta">' + esc(x.kind) + (x.discounter ? ' <span class="pill2 warn">Discounter</span>' : "") + ' ' + open + (x.address ? ' · ' + esc(x.address) : "") + '</span>' +
+        (x.hours ? '<span class="meta">' + esc(x.hours) + '</span>' : "") +
+        '<a class="go" href="https://www.google.com/maps/dir/?api=1&destination=' + x.lat + "," + x.lon + '" target="_blank" rel="noopener">Directions →</a></li>';
+    }).join("") : (shopsData.length ? '<li class="muted">No shops match this filter.</li>' : "");
+  }
+  $("findShops").addEventListener("click", function () {
+    var btn = $("findShops"), err = $("shopErr");
+    err.hidden = true;
+    if (!navigator.geolocation) { err.hidden = false; err.textContent = "This phone doesn’t share its location with apps."; return; }
+    btn.disabled = true; btn.textContent = "Finding your location…";
+    navigator.geolocation.getCurrentPosition(function (pos) {
+      var d = new Date(), q = "lat=" + pos.coords.latitude.toFixed(4) + "&lon=" + pos.coords.longitude.toFixed(4) + "&dow=" + ((d.getDay() + 6) % 7) + "&min=" + (d.getHours() * 60 + d.getMinutes());
+      btn.textContent = "Looking for shops…";
+      api("/api/shops?" + q).then(function (j) {
+        shopsData = j.shops || []; $("shopFilter").hidden = !shopsData.length;
+        if (!shopsData.length) { err.hidden = false; err.className = "notice warn"; err.textContent = "No shops found within 1.5 km."; }
+        renderShops();
+      }).catch(function (e) { err.hidden = false; err.className = "notice bad"; err.textContent = e.message; })
+        .then(function () { btn.disabled = false; btn.textContent = "Search again"; });
+    }, function (e) {
+      btn.disabled = false; btn.textContent = "Find shops near me";
+      err.hidden = false; err.className = "notice bad";
+      err.textContent = e.code === 1 ? "Bonwise isn’t allowed to use your location. Allow location for Bonwise in your phone’s settings, then try again." : "Your location couldn’t be found. Check that location is switched on, then try again.";
+    }, { enableHighAccuracy: false, timeout: 15000, maximumAge: 300000 });
+  });
+  $("shopFilter").addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-f]"); if (!b) return;
+    shopFilter = b.dataset.f;
+    $("shopFilter").querySelectorAll("button").forEach(function (x) { x.setAttribute("aria-pressed", x === b ? "true" : "false"); });
+    renderShops();
+  });
+
+  /* ---------- settings ---------- */
+  function renderSettings() {
+    $("setShare").checked = !!mem.settings.sharePrices;
+    $("setReturn").value = mem.settings.returnDays;
+    var on = !!(mem.household && mem.household.code);
+    $("hhOn").hidden = !on; $("hhOff").hidden = on;
+    if (on) $("hhCode").textContent = mem.household.code;
+  }
+  $("setShare").addEventListener("change", function () { mem.settings.sharePrices = $("setShare").checked; persist(); });
+  $("setReturn").addEventListener("change", function () {
+    mem.settings.returnDays = Math.max(0, Math.min(365, Math.round(Number($("setReturn").value) || 0))); persist(); renderSettings();
+  });
+
+  /* ---------- household sharing ---------- */
+  var syncTimer = null, syncing = false, syncAgain = false;
+  function hhMsg(text, kind) { var m = $("hhMsg"); m.hidden = !text; m.className = "notice " + (kind || "ok"); m.textContent = text || ""; }
+  function syncLabel(t) { $("syncState").textContent = t || ""; }
+  function buildState() {
+    var st = { receipts: {}, plan: {}, list: {}, budget: { value: mem.budget, updated: mem.budgetAt || 0 } };
+    mem.receipts.forEach(function (r) { st.receipts[r.id] = r; });
+    mem.plan.forEach(function (x) { st.plan[x.key] = x; });
+    mem.list.forEach(function (x) { st.list[x.id] = x; });
+    ["receipts", "plan", "list"].forEach(function (part) {
+      Object.keys(mem.tomb[part]).forEach(function (id) {
+        var live = st[part][id];
+        if (!live || (live.updated || 0) < mem.tomb[part][id]) st[part][id] = { id: id, key: id, deleted: true, updated: mem.tomb[part][id] };
+      });
+    });
+    return st;
+  }
+  function applyState(st) {
+    ["receipts", "plan", "list"].forEach(function (part) {
+      var live = [], tomb = {};
+      Object.keys(st[part] || {}).forEach(function (id) {
+        var x = st[part][id]; if (!x || typeof x !== "object") return;
+        if (x.deleted) tomb[id] = x.updated || Date.now(); else live.push(x);
+      });
+      mem[part] = live; mem.tomb[part] = tomb;
+    });
+    if (st.budget && typeof st.budget.value === "number" && (st.budget.updated || 0) >= (mem.budgetAt || 0)) {
+      mem.budget = st.budget.value; mem.budgetAt = st.budget.updated || 0; $("budget").value = mem.budget;
+    }
+    store.set("bonwise.budget", mem.budget); store.set("bonwise.budgetAt", mem.budgetAt);
+    store.set("bonwise.receipts", mem.receipts); store.set("bonwise.plan", mem.plan); store.set("bonwise.list", mem.list); store.set("bonwise.tomb", mem.tomb);
+    renderAll();
+  }
+  function scheduleSync() {
+    if (!mem.household || !mem.household.code) return;
+    clearTimeout(syncTimer); syncTimer = setTimeout(syncNow, 1200);
+  }
+  function syncNow(manual) {
+    if (!mem.household || !mem.household.code) return Promise.resolve();
+    if (syncing) { syncAgain = true; return Promise.resolve(); }
+    syncing = true; syncLabel("Syncing…");
+    return api("/api/household/sync", { code: mem.household.code, state: buildState(), recreate: true }).then(function (j) {
+      applyState(j.state);
+      syncLabel("Synced " + new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }));
+      if (manual) hhMsg("Everything is up to date.", "ok");
+    }).catch(function (e) {
+      syncLabel("Not synced"); if (manual) hhMsg(e.message, "bad");
+    }).then(function () { syncing = false; if (syncAgain) { syncAgain = false; scheduleSync(); } });
+  }
+  function joinHousehold(code, isNew) {
+    return api("/api/household/sync", { code: code, state: buildState() }).then(function (j) {
+      mem.household = { code: code }; store.set("bonwise.household", mem.household);
+      applyState(j.state); renderSettings();
+      syncLabel("Synced " + new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }));
+      hhMsg(isNew ? "Household created. Share the code with the people you shop with." : "You joined the household. Receipts, list and budget are now shared.", "ok");
+    });
+  }
+  $("hhCreate").addEventListener("click", function () {
+    var b = $("hhCreate"); b.disabled = true; hhMsg("");
+    api("/api/household/new", {}).then(function (j) { return joinHousehold(j.code, true); })
+      .catch(function (e) { hhMsg(e.message, "bad"); }).then(function () { b.disabled = false; });
+  });
+  $("hhJoinForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var raw = $("hhJoinCode").value.toUpperCase().replace(/[^A-Z0-9]/g, "").replace(/^BW/, "");
+    if (raw.length !== 12) { hhMsg("A household code looks like BW-XXXX-XXXX-XXXX.", "warn"); return; }
+    var code = "BW-" + raw.slice(0, 4) + "-" + raw.slice(4, 8) + "-" + raw.slice(8);
+    joinHousehold(code, false).then(function () { $("hhJoinCode").value = ""; }).catch(function (e) { hhMsg(e.message, "bad"); });
+  });
+  $("hhShare").addEventListener("click", function () {
+    shareText("Join my Bonwise household with this code: " + mem.household.code + "\nOpen Bonwise → More → Household sharing → Join.", $("hhShare"));
+  });
+  $("hhSync").addEventListener("click", function () { syncNow(true); });
+  $("hhLeave").addEventListener("click", function () {
+    mem.household = null; try { localStorage.removeItem("bonwise.household"); } catch (e) {}
+    renderSettings(); syncLabel(""); hhMsg("This phone left the household. Its own copy of your data stays here.", "ok");
+  });
+  var hhDelArmed = false;
+  $("hhDelete").addEventListener("click", function () {
+    if (!hhDelArmed) { hhDelArmed = true; $("hhDelete").textContent = "Tap again to delete it from the server"; setTimeout(function () { hhDelArmed = false; $("hhDelete").textContent = "Delete household data"; }, 4000); return; }
+    hhDelArmed = false; $("hhDelete").textContent = "Delete household data";
+    api("/api/household/delete", { code: mem.household.code }).then(function () {
+      mem.household = null; try { localStorage.removeItem("bonwise.household"); } catch (e) {}
+      renderSettings(); syncLabel(""); hhMsg("The household’s data was deleted from the server. This phone keeps its own copy.", "ok");
+    }).catch(function (e) { hhMsg(e.message, "bad"); });
+  });
+  document.addEventListener("visibilitychange", function () { if (!document.hidden) { syncNow(); renderReminders(); } });
+
+  function renderAll() { renderBudget(); renderVault(); renderReminders(); renderPlan(); renderList(); renderSettings(); }
+  renderAll();
+  showTab((location.hash || "").slice(1) || "home");
+  syncNow();
 
   // Installable app: the service worker adds an offline page and lets Android install Bonwise.
   if ("serviceWorker" in navigator) {
