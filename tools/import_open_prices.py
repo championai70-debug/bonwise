@@ -66,7 +66,14 @@ def size(product):
         return None
     if unit in ("kg", "l"):
         q, unit = q * 1000, "g" if unit == "kg" else "ml"
-    return [round(q, 1), unit] if unit in ("g", "ml") else None
+    if unit in ("", "st", "stk", "pcs", "piece", "pieces", "stück") and q == int(q) and q <= 100:
+        unit = "st"  # eggs, rolls, bags
+    return [round(q, 1), unit] if unit in ("g", "ml", "st") else None
+
+
+def categories(product):
+    """Open Food Facts categories, e.g. ["milks", "whole-milks"], so milk never matches soap."""
+    return [t[3:] for t in (product.get("categories_tags") or []) if t.startswith("en:")][-12:]
 
 
 def main():
@@ -102,7 +109,7 @@ def main():
                 if prod.get("code") and prod.get("product_name"):
                     entry = products.setdefault(prod["code"], {
                         "n": str(prod["product_name"])[:80], "b": str(prod.get("brands") or "")[:60],
-                        "s": size(prod), "p": {}})
+                        "s": size(prod), "c": categories(prod), "p": {}})
                 elif p.get("category_tag") and p.get("price_per") in ("KILOGRAM", "UNIT"):
                     entry = cats.setdefault(p["category_tag"], {"per": "kg" if p["price_per"] == "KILOGRAM" else "unit", "p": {}})
                 else:
