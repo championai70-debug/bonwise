@@ -29,7 +29,14 @@ for url in servers:
 config.OVERPASS_URL, config.OVERPASS_FALLBACKS = saved
 places._cache.clear()
 
-r = trip.plan("milk, crackers, vegetables, shampoo", lat=LAT, lon=LON, dow=0, minute=600)
-best = r["shops"][r["best"]] if r["best"] is not None else None
-print("Plan: notice=%r, best stop=%s" % (r["notice"], best and "%s (%d m, ~€%.2f)" % (best["name"], best["distance"], best["total"])))
-sys.exit(0 if ok and best else 1)
+# What the app really does: all servers together, three times at different spots (no cache hits).
+good = 0
+for i in range(3):
+    t0 = time.time()
+    r = trip.plan("milk, crackers, vegetables, shampoo", lat=LAT + i / 100, lon=LON, dow=0, minute=600)
+    best = r["shops"][r["best"]] if r["best"] is not None else None
+    good += bool(best)
+    print("Plan %d in %.1f s: notice=%r, best stop=%s" % (i + 1, time.time() - t0, r["notice"],
+          best and "%s (%d m, ~€%.2f)" % (best["name"], best["distance"], best["total"])))
+print("%d of %d servers answered on their own; %d of 3 plans found shops" % (ok, len(servers), good))
+sys.exit(0 if good == 3 else 1)

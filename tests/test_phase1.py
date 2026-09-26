@@ -1,6 +1,7 @@
 import json
 import tempfile
 import threading
+import time
 import unittest
 import urllib.error
 import urllib.parse
@@ -51,6 +52,8 @@ class BusyOverpass(BaseHTTPRequestHandler):
             self.wfile.flush()
             self.connection.shutdown(2)
             return
+        if BusyOverpass.mode == "slow":
+            time.sleep(2)
         if BusyOverpass.mode == "remark":
             body = json.dumps({"elements": [], "remark": "runtime error: Query timed out"}).encode()
             self.send_response(200)
@@ -160,6 +163,18 @@ class MapServerFallbackTests(unittest.TestCase):
             BusyOverpass.mode = mode
             shops = places.nearby(52.531 + i / 1000, 13.41, 1500, 0, 480)  # a new position each time, so no cache hit
             self.assertIn("ALDI Nord", [x["name"] for x in shops], mode)
+
+    def test_slow_main_server_lets_a_mirror_answer_first(self):
+        BusyOverpass.mode = "slow"
+        config.OVERPASS_URL, config.OVERPASS_FALLBACKS = self.url(self.busy), [self.url(self.good)]
+        saved, places.HEAD_START = places.HEAD_START, 0.2
+        try:
+            t0 = time.monotonic()
+            shops = places.nearby(52.539, 13.41, 1500, 0, 480)
+        finally:
+            places.HEAD_START = saved
+        self.assertIn("ALDI Nord", [x["name"] for x in shops])
+        self.assertLess(time.monotonic() - t0, 1.5)  # didn't wait for the slow server
 
     def test_every_server_down(self):
         BusyOverpass.mode = "429"

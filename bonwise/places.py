@@ -7,6 +7,7 @@ for an hour in memory and never stored.
 import http.client
 import json
 import math
+import queue
 import re
 import threading
 import time
@@ -22,6 +23,8 @@ DISCOUNTERS = ("aldi", "lidl", "penny", "netto", "norma", "kaufland")
 DAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"]
 
 _cache, _lock = {}, threading.Lock()
+SERVER_TIMEOUT = 25  # seconds; busy public servers can take 15-20 s
+HEAD_START = 3       # seconds the main server gets before the mirrors are asked too
 
 
 class PlacesError(Exception):
@@ -109,25 +112,49 @@ def _query(lat, lon, radius):
     q = ('[out:json][timeout:20][bbox:%.4f,%.4f,%.4f,%.4f];(node[shop~"^(%s)$"];way[shop~"^(%s)$"];);out center tags;'
          % (_bbox(lat, lon, radius) + (kinds, kinds)))
     body = urllib.parse.urlencode({"data": q}).encode()
-    errors = []
-    for url in _servers():
-        req = urllib.request.Request(url, data=body, headers={
-            "User-Agent": "Bonwise/1.0 (receipt savings app; https://bonwise.onrender.com)",
-            "Accept": "application/json"})
+    # The main server gets a head start; if it hasn't answered after HEAD_START seconds (or
+    # fails sooner), the mirrors are asked too, all at once. The first good answer wins.
+    servers, answers = _servers(), queue.Queue()
+    for url in servers[:1]:
+        threading.Thread(target=_ask, args=(url, body, answers), daemon=True).start()
+    started, errors = 1, []
+    deadline = time.monotonic() + SERVER_TIMEOUT + HEAD_START + 2
+    while len(errors) < len(servers):
+        wait = HEAD_START if started < len(servers) else deadline - time.monotonic()
         try:
-            with urllib.request.urlopen(req, timeout=15) as res:
-                raw = json.loads(res.read().decode("utf-8", "replace"))
-            if not isinstance(raw, dict) or "elements" not in raw:
-                raise ValueError("no elements in the answer")
-            if not raw["elements"] and "remark" in raw:  # e.g. "runtime error: Query timed out"
-                raise ValueError(str(raw["remark"])[:120])
-            return raw
-        except (OSError, http.client.HTTPException, ValueError) as e:  # URLError, timeouts, dropped connections
-            reason = "HTTP %s" % e.code if isinstance(e, urllib.error.HTTPError) else (repr(e)[:160])
-            errors.append("%s: %s" % (urllib.parse.urlparse(url).netloc, reason))
+            url, raw, err = answers.get(timeout=max(0.05, wait))
+            if raw is not None:
+                return raw
+            errors.append(err)
+        except queue.Empty:
+            if started == len(servers):
+                errors.append("no answer in %d s" % SERVER_TIMEOUT)
+                break
+        if started < len(servers):
+            for url in servers[started:]:
+                threading.Thread(target=_ask, args=(url, body, answers), daemon=True).start()
+            started = len(servers)
     # Logged without the position, so the server log never holds a location.
     print("shop search failed on every map server: " + "; ".join(errors), flush=True)
     raise PlacesError("; ".join(errors)[:300])
+
+
+def _ask(url, body, answers):
+    """One Overpass server -> answers.put((url, raw or None, error or None))."""
+    req = urllib.request.Request(url, data=body, headers={
+        "User-Agent": "Bonwise/1.0 (receipt savings app; https://bonwise.onrender.com)",
+        "Accept": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=SERVER_TIMEOUT) as res:
+            raw = json.loads(res.read().decode("utf-8", "replace"))
+        if not isinstance(raw, dict) or "elements" not in raw:
+            raise ValueError("no elements in the answer")
+        if not raw["elements"] and "remark" in raw:  # e.g. "runtime error: Query timed out"
+            raise ValueError(str(raw["remark"])[:120])
+        answers.put((url, raw, None))
+    except (OSError, http.client.HTTPException, ValueError) as e:  # URLError, timeouts, dropped connections
+        reason = "HTTP %s" % e.code if isinstance(e, urllib.error.HTTPError) else repr(e)[:160]
+        answers.put((url, None, "%s: %s" % (urllib.parse.urlparse(url).netloc, reason)))
 
 
 def nearby(lat, lon, radius=1500, dow=None, minute=None):
