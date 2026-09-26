@@ -76,8 +76,9 @@ def main():
     for city, lat, lon in CITIES:
         n_city = 0
         for page in range(1, MAX_PAGES + 1):
-            d = get({"lat": lat, "lon": lon, "radius_km": 30, "currency": "EUR", "date__gte": since,
-                     "price_is_discounted": "false", "order_by": "-date", "size": 100, "page": page})
+            # Date and special-offer filters are applied below: many prices leave those fields empty.
+            d = get({"lat": lat, "lon": lon, "radius_km": 30, "currency": "EUR", "order_by": "-created",
+                     "size": 100, "page": page})
             if not d or not d.get("items"):
                 break
             for p in d["items"]:
@@ -95,6 +96,8 @@ def main():
                 if not c or not (0.05 <= price <= 500) or p.get("price_is_discounted"):
                     continue
                 day = str(p.get("date") or p.get("created") or "")[:10]
+                if day < since:
+                    continue
                 prod = p.get("product") or {}
                 if prod.get("code") and prod.get("product_name"):
                     entry = products.setdefault(prod["code"], {
@@ -111,7 +114,7 @@ def main():
                 n_city += 1
             if page >= (d.get("pages") or 0):
                 break
-        print("%-12s %5d prices" % (city, n_city), flush=True)
+        print("%-12s %5d prices kept (%d pages)" % (city, n_city, page), flush=True)
     out = {
         "source": "Open Prices by Open Food Facts (prices.openfoodfacts.org), ODbL",
         "generated": datetime.date.today().isoformat(), "since": since, "prices": kept,
