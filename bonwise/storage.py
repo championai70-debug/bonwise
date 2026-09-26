@@ -174,12 +174,15 @@ def delete_household(code):
 
 # ---------- community prices ----------
 
+CHAIN_NAMES = {"budnikowsky": "BUDNI", "muller": "MUELLER", "hol ab": "HOL AB"}
+
+
 def chain_of(store):
     """'REWE Markt GmbH Berlin' -> 'REWE'. Unknown shops return ''."""
     n = " " + norm(store) + " "
     for s in data.STORES:
         if re.search(r"\b" + re.escape(s) + r"\b", n):
-            return "dm" if s.startswith("dm") else s.upper()
+            return "dm" if s.startswith("dm") else CHAIN_NAMES.get(s, s.upper())
     return ""
 
 

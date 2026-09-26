@@ -178,7 +178,8 @@ BRANDS = ["barilla", "coca", "pepsi", "milka", "nutella", "lenor", "ariel", "per
           "ritter sport", "lays", "funny frisch", "bahlsen", "leibniz", "danone", "alpro", "lavazza", "melitta", "elmex"]
 
 STORES = ["rewe", "edeka", "lidl", "aldi", "kaufland", "penny", "netto", "norma", "rossmann", "globus",
-          "tegut", "marktkauf", "famila", "real", "budni", "denns", "alnatura", "dm-drogerie", "dm drogerie", "hit"]
+          "tegut", "marktkauf", "famila", "real", "budni", "budnikowsky", "denns", "alnatura", "dm-drogerie", "dm drogerie",
+          "hit", "mueller", "muller", "nahkauf", "combi", "wasgau", "bunting", "v-markt", "hol ab"]
 
 
 # ---------- Plan my shop (before shopping) ----------
