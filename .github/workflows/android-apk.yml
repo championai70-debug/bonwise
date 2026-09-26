@@ -1,0 +1,97 @@
+# Builds the Bonwise Android app (APK) and publishes it at
+# https://github.com/<owner>/<repo>/releases/tag/android-preview
+# so testers can download and install it. The app shows the live site, so
+# website changes reach it without a new APK.
+#
+# Signing: add these repository secrets to sign every build with the same key
+# (needed so testers can install updates over an older version):
+#   ANDROID_KEYSTORE_BASE64  base64 of a .jks keystore
+#   ANDROID_KEYSTORE_PASSWORD
+#   ANDROID_KEY_ALIAS        (optional, default "bonwise")
+# Without them each build gets a new temporary key.
+name: Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["android/**", ".github/workflows/android-apk.yml"]
+  pull_request:
+    paths: ["android/**", ".github/workflows/android-apk.yml"]
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Signing key
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KS_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS || 'bonwise' }}
+        run: |
+          KEYSTORE="$RUNNER_TEMP/bonwise.jks"
+          if [ -n "$KS" ]; then
+            echo "$KS" | base64 -d > "$KEYSTORE"
+            PASS="$KS_PASS"; ALIAS="$KS_ALIAS"; KIND="the saved key (repository secrets)"
+          else
+            PASS=$(openssl rand -hex 16); ALIAS=bonwise; KIND="a new temporary key"
+            keytool -genkeypair -keystore "$KEYSTORE" -storepass "$PASS" -keypass "$PASS" -alias "$ALIAS" \
+              -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Bonwise, C=DE"
+            echo "::warning::Signed with a temporary key. Add the ANDROID_KEYSTORE_* secrets so testers can install updates."
+          fi
+          echo "::add-mask::$PASS"
+          {
+            echo "BW_KEYSTORE=$KEYSTORE"
+            echo "BW_STORE_PASS=$PASS"
+            echo "BW_KEY_PASS=$PASS"
+            echo "BW_KEY_ALIAS=$ALIAS"
+          } >> "$GITHUB_ENV"
+          SHA=$(keytool -list -v -keystore "$KEYSTORE" -storepass "$PASS" -alias "$ALIAS" | grep -m1 "SHA256:" | awk '{print $2}')
+          {
+            echo "### Signing"
+            echo "Signed with $KIND."
+            echo ""
+            echo "To open full screen (no address bar), add this fingerprint to \`ANDROID_SHA256\` on Render"
+            echo "(comma-separated with any others) for package \`com.onrender.bonwise.preview\`:"
+            echo ""
+            echo "\`$SHA\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Build APK
+        run: gradle -p android assembleRelease -PbonwiseVersionCode=${{ github.run_number }} --no-daemon
+
+      - name: Collect APK
+        run: cp android/app/build/outputs/apk/release/app-release.apk bonwise.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bonwise-apk
+          path: bonwise.apk
+
+      - name: Publish for testers
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          NOTES="Test version of the Bonwise Android app (build ${{ github.run_number }}, $(date -u +%Y-%m-%d)).
+          Download bonwise.apk on an Android phone, open it and allow installing from this source.
+          The app shows https://bonwise.onrender.com, so it always has the newest features."
+          gh release view android-preview >/dev/null 2>&1 || \
+            gh release create android-preview --prerelease --title "Bonwise Android (test version)" --notes "$NOTES" --target "$GITHUB_SHA"
+          gh release edit android-preview --notes "$NOTES"
+          gh release upload android-preview bonwise.apk --clobber
+          echo "Download: https://github.com/${{ github.repository }}/releases/download/android-preview/bonwise.apk" >> "$GITHUB_STEP_SUMMARY"

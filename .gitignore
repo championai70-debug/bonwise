@@ -2,3 +2,7 @@ __pycache__/
 *.pyc
 data/
 .env
+android/.gradle/
+android/build/
+android/app/build/
+*.jks
