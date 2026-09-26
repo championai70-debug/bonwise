@@ -1,0 +1,41 @@
+name: Price data diagnostic
+on:
+  pull_request:
+    paths: [".github/workflows/data-diag.yml"]
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Open Prices API (Open Food Facts)
+        run: |
+          set +e
+          UA="Bonwise/1.0 (https://bonwise.onrender.com)"
+          curl -s -m 30 -A "$UA" https://prices.openfoodfacts.org/api/openapi.json -o openapi.json
+          python3 - <<'PY'
+          import json
+          d = json.load(open("openapi.json"))
+          for path in ("/api/v1/prices", "/api/v1/locations", "/api/v1/products"):
+              op = d["paths"].get(path, {}).get("get", {})
+              print(path, [p["name"] for p in op.get("parameters", [])])
+          PY
+          echo "== German prices, newest"
+          curl -s -m 30 -A "$UA" "https://prices.openfoodfacts.org/api/v1/prices?currency=EUR&location__osm_address_country=Deutschland&order_by=-date&size=5" | python3 -c "
+          import sys,json; d=json.load(sys.stdin); print('total', d.get('total'), 'keys', list(d.keys()))
+          for p in d.get('items', [])[:5]:
+              pr = p.get('product') or {}; lo = p.get('location') or {}
+              print(p.get('date'), p.get('price'), p.get('price_per'), p.get('category_tag'), '|', pr.get('product_name'), pr.get('brands'), pr.get('product_quantity'), pr.get('product_quantity_unit'), '|', lo.get('osm_brand'), lo.get('osm_name'), lo.get('osm_address_city'), lo.get('osm_address_country'))
+          "
+          for c in Germany DE Deutschland; do
+            echo "== country=$c total:"; curl -s -m 30 -A "$UA" "https://prices.openfoodfacts.org/api/v1/prices?currency=EUR&location__osm_address_country=$c&size=1" | python3 -c "import sys,json; print(json.load(sys.stdin).get('total'))"
+          done
+          echo "== locations brand counts (DE, first 100)"
+          curl -s -m 30 -A "$UA" "https://prices.openfoodfacts.org/api/v1/locations?osm_address_country=Deutschland&size=100&order_by=-price_count" | python3 -c "
+          import sys,json,collections; d=json.load(sys.stdin); print('total locations', d.get('total'))
+          c=collections.Counter()
+          for l in d.get('items',[]): c[(l.get('osm_brand') or l.get('osm_name') or '?')] += l.get('price_count') or 0
+          print(c.most_common(25))
+          "
+          echo "== one price full json"
+          curl -s -m 30 -A "$UA" "https://prices.openfoodfacts.org/api/v1/prices?currency=EUR&location__osm_address_country=Deutschland&order_by=-date&size=1" | head -c 2500; echo
+          echo "== timing for a page of 100"
+          curl -s -m 60 -A "$UA" -o /tmp/p.json -w "%{http_code} %{time_total}s %{size_download}B\n" "https://prices.openfoodfacts.org/api/v1/prices?currency=EUR&location__osm_address_country=Deutschland&order_by=-date&size=100"
