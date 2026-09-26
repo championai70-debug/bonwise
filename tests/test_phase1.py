@@ -54,6 +54,19 @@ class BusyOverpass(BaseHTTPRequestHandler):
             return
         if BusyOverpass.mode == "slow":
             time.sleep(2)
+        if BusyOverpass.mode == "flaky":  # busy once, then a normal answer
+            BusyOverpass.mode = "ok"
+            self.send_response(504)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        if BusyOverpass.mode == "ok":
+            body = json.dumps(OVERPASS).encode()
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         if BusyOverpass.mode == "remark":
             body = json.dumps({"elements": [], "remark": "runtime error: Query timed out"}).encode()
             self.send_response(200)
@@ -147,12 +160,20 @@ class MapServerFallbackTests(unittest.TestCase):
         for srv in (cls.busy, cls.good):
             threading.Thread(target=srv.serve_forever, daemon=True).start()
         cls.saved = (config.OVERPASS_URL, config.OVERPASS_FALLBACKS)
+        cls.timing = (places.BUDGET, places.HEAD_START, places.RETRY_WAIT)
+        places.BUDGET, places.HEAD_START, places.RETRY_WAIT = 4, 0.3, 0.1  # keep the tests quick
 
     @classmethod
     def tearDownClass(cls):
         cls.busy.shutdown()
         cls.good.shutdown()
         config.OVERPASS_URL, config.OVERPASS_FALLBACKS = cls.saved
+        places.BUDGET, places.HEAD_START, places.RETRY_WAIT = cls.timing
+
+    def test_busy_main_server_is_tried_again(self):
+        BusyOverpass.mode = "flaky"
+        config.OVERPASS_URL, config.OVERPASS_FALLBACKS = self.url(self.busy), []
+        self.assertIn("ALDI Nord", [x["name"] for x in places.nearby(52.536, 13.41, 1500, 0, 480)])
 
     def url(self, srv):
         return "http://127.0.0.1:%d/api/interpreter" % srv.server_address[1]
@@ -167,12 +188,8 @@ class MapServerFallbackTests(unittest.TestCase):
     def test_slow_main_server_lets_a_mirror_answer_first(self):
         BusyOverpass.mode = "slow"
         config.OVERPASS_URL, config.OVERPASS_FALLBACKS = self.url(self.busy), [self.url(self.good)]
-        saved, places.HEAD_START = places.HEAD_START, 0.2
-        try:
-            t0 = time.monotonic()
-            shops = places.nearby(52.539, 13.41, 1500, 0, 480)
-        finally:
-            places.HEAD_START = saved
+        t0 = time.monotonic()
+        shops = places.nearby(52.539, 13.41, 1500, 0, 480)
         self.assertIn("ALDI Nord", [x["name"] for x in shops])
         self.assertLess(time.monotonic() - t0, 1.5)  # didn't wait for the slow server
 

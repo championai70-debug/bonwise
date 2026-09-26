@@ -1,7 +1,8 @@
 """Nearby shops from OpenStreetMap (Overpass API, free, no key).
 
 The phone sends its position; it is rounded to about 100 m before it is used, cached
-for an hour in memory and never stored.
+in memory for up to six hours (so repeat searches don't hit the map servers) and never
+stored.
 """
 
 import http.client
@@ -23,8 +24,10 @@ DISCOUNTERS = ("aldi", "lidl", "penny", "netto", "norma", "kaufland")
 DAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"]
 
 _cache, _lock = {}, threading.Lock()
-SERVER_TIMEOUT = 25  # seconds; busy public servers can take 15-20 s
-HEAD_START = 3       # seconds the main server gets before the mirrors are asked too
+BUDGET = 28         # seconds a shop search may take in all
+HEAD_START = 3      # seconds the main server gets before the mirrors are asked too
+RETRY_WAIT = 1.5    # seconds between tries when the main server is busy
+CACHE_SECONDS = 6 * 3600  # shops rarely move; "open now" is worked out fresh on every request
 
 
 class PlacesError(Exception):
@@ -112,49 +115,64 @@ def _query(lat, lon, radius):
     q = ('[out:json][timeout:20][bbox:%.4f,%.4f,%.4f,%.4f];(node[shop~"^(%s)$"];way[shop~"^(%s)$"];);out center tags;'
          % (_bbox(lat, lon, radius) + (kinds, kinds)))
     body = urllib.parse.urlencode({"data": q}).encode()
-    # The main server gets a head start; if it hasn't answered after HEAD_START seconds (or
-    # fails sooner), the mirrors are asked too, all at once. The first good answer wins.
+    # The main server is often "busy" (HTTP 504) for a moment, so it is retried until the
+    # time budget runs out. After HEAD_START seconds the mirrors are asked too; the first
+    # good answer wins.
     servers, answers = _servers(), queue.Queue()
-    for url in servers[:1]:
-        threading.Thread(target=_ask, args=(url, body, answers), daemon=True).start()
+    deadline = time.monotonic() + BUDGET
+    threading.Thread(target=_ask, args=(servers[0], body, answers, deadline, True), daemon=True).start()
     started, errors = 1, []
-    deadline = time.monotonic() + SERVER_TIMEOUT + HEAD_START + 2
     while len(errors) < len(servers):
-        wait = HEAD_START if started < len(servers) else deadline - time.monotonic()
+        left = deadline - time.monotonic()
+        wait = min(HEAD_START, left) if started < len(servers) else left
         try:
             url, raw, err = answers.get(timeout=max(0.05, wait))
             if raw is not None:
                 return raw
             errors.append(err)
         except queue.Empty:
-            if started == len(servers):
-                errors.append("no answer in %d s" % SERVER_TIMEOUT)
+            if started == len(servers) or time.monotonic() >= deadline:
+                errors.append("no answer in %d s" % BUDGET)
                 break
         if started < len(servers):
             for url in servers[started:]:
-                threading.Thread(target=_ask, args=(url, body, answers), daemon=True).start()
+                threading.Thread(target=_ask, args=(url, body, answers, deadline, False), daemon=True).start()
             started = len(servers)
     # Logged without the position, so the server log never holds a location.
     print("shop search failed on every map server: " + "; ".join(errors), flush=True)
     raise PlacesError("; ".join(errors)[:300])
 
 
-def _ask(url, body, answers):
-    """One Overpass server -> answers.put((url, raw or None, error or None))."""
-    req = urllib.request.Request(url, data=body, headers={
-        "User-Agent": "Bonwise/1.0 (receipt savings app; https://bonwise.onrender.com)",
-        "Accept": "application/json"})
-    try:
-        with urllib.request.urlopen(req, timeout=SERVER_TIMEOUT) as res:
-            raw = json.loads(res.read().decode("utf-8", "replace"))
-        if not isinstance(raw, dict) or "elements" not in raw:
-            raise ValueError("no elements in the answer")
-        if not raw["elements"] and "remark" in raw:  # e.g. "runtime error: Query timed out"
-            raise ValueError(str(raw["remark"])[:120])
-        answers.put((url, raw, None))
-    except (OSError, http.client.HTTPException, ValueError) as e:  # URLError, timeouts, dropped connections
-        reason = "HTTP %s" % e.code if isinstance(e, urllib.error.HTTPError) else repr(e)[:160]
-        answers.put((url, None, "%s: %s" % (urllib.parse.urlparse(url).netloc, reason)))
+RETRY = (429, 502, 503, 504)
+
+
+def _ask(url, body, answers, deadline, retry):
+    """One Overpass server -> answers.put((url, raw or None, error or None)).
+    With retry, a busy answer or a timeout is tried again while time is left."""
+    host, tries = urllib.parse.urlparse(url).netloc, 0
+    while True:
+        tries += 1
+        left = deadline - time.monotonic()
+        req = urllib.request.Request(url, data=body, headers={
+            "User-Agent": "Bonwise/1.0 (receipt savings app; https://bonwise.onrender.com)",
+            "Accept": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=max(1, left)) as res:
+                raw = json.loads(res.read().decode("utf-8", "replace"))
+            if not isinstance(raw, dict) or "elements" not in raw:
+                raise ValueError("no elements in the answer")
+            if not raw["elements"] and "remark" in raw:  # e.g. "runtime error: Query timed out"
+                raise ValueError(str(raw["remark"])[:120])
+            answers.put((url, raw, None))
+            return
+        except (OSError, http.client.HTTPException, ValueError) as e:  # URLError, timeouts, dropped connections
+            code = e.code if isinstance(e, urllib.error.HTTPError) else None
+            reason = "HTTP %s" % code if code else repr(e)[:160]
+            busy = code in RETRY or code is None and not isinstance(e, ValueError) or "timed out" in str(e)
+            if not (retry and busy and deadline - time.monotonic() > RETRY_WAIT + 3):
+                answers.put((url, None, "%s: %s%s" % (host, reason, " (%d tries)" % tries if tries > 1 else "")))
+                return
+            time.sleep(RETRY_WAIT)
 
 
 def nearby(lat, lon, radius=1500, dow=None, minute=None):
@@ -165,7 +183,7 @@ def nearby(lat, lon, radius=1500, dow=None, minute=None):
     key = (lat, lon, radius)
     with _lock:
         hit = _cache.get(key)
-        if hit and time.time() - hit[0] < 3600:
+        if hit and time.time() - hit[0] < CACHE_SECONDS:
             raw = hit[1]
         else:
             raw = None
