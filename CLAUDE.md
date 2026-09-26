@@ -29,18 +29,21 @@ python3 -m unittest discover -s tests -t .   # all tests, no network or token ne
 | `bonwise/ai_reader.py` | Hugging Face chat-completions call, prompt, JSON repair, model fallback, total self-check, discount-line fix |
 | `bonwise/ocr.py`, `bonwise/parser.py` | Tesseract backup reader and rule-based German receipt parser |
 | `bonwise/advisor.py` | Savings logic: ALDI SÜD prices → sneakers → community prices → guide estimate → AI suggestion |
-| `bonwise/data.py` | Price data (ALDI SÜD, sneakers, typical discounter prices) |
+| `bonwise/data.py` | Price data (ALDI SÜD, sneakers, typical discounter prices), word aliases, shop price levels, clothing brand tips (`FASHION`, tips only, never prices) |
+| `bonwise/openprices.py`, `bonwise/open_prices.json` | Real prices per chain (REWE, EDEKA, Lidl, Kaufland, Netto, Penny, dm, Rossmann…) from Open Prices by Open Food Facts (ODbL). Strict matching: Open Food Facts category + same pack size + organic only with organic; specific/brand words compare that product only. Refreshed weekly by `tools/import_open_prices.py` ("Open Prices data" workflow). Tests use `tests/fixtures/open_prices.json` |
 | `bonwise/storage.py` | SQLite: households (hashed codes, merge by `updated`) and anonymous community prices |
 | `bonwise/places.py` | Nearby shops from OpenStreetMap: Overpass (has opening hours), then Photon by komoot as backup (`PHOTON_URL`). The phone fetches them itself (`osmShops` in `app.js`; Render's shared IP gets refused) and sends them as `osm`; the server's own lookup is the fallback. Opening-hours parser. Live checks: "Map servers check" workflow (`tools/check_map_servers.py`, `tools/check_browser_map.mjs`). Tests keep Photon off (`tests/__init__.py`) |
 | `bonwise/trip.py` | "Going shopping?": typed list (any language) → cheapest shops nearby (`POST /api/trip`) |
 | `bonwise/service.py` | Scan pipeline (AI → OCR fallback → advice) |
-| `static/index.html`, `static/app.js` | Front end, vanilla JS, no build step. Tabs: Home, Receipts, List, Shops, More. `body.simple` (Simple view, on by default) hides `.adv` elements |
+| `static/index.html`, `static/app.js` | Front end, vanilla JS, no build step. One screen: greeting + budget, one search box and four big buttons always on top; below them one panel (home results, list, shops, receipts, settings via ⚙), switched by `showTab`. Searching or scanning switches to home by itself. `body.simple` (Simple view, on by default) hides `.adv` elements |
 | `static/sw.js`, `static/manifest.webmanifest` | PWA / Android app shell |
 | `android/`, `.github/workflows/android-apk.yml` | Test APK (Trusted Web Activity, package `com.onrender.bonwise.preview`), built by GitHub Actions and published at the `android-preview` release |
 | `store-kit/` | Google Play listing texts, graphics, data-safety answers, marketing plan |
 
 ## Rules
 
+- **Prices are real or labelled:** "Real price" only for checked data (ALDI SÜD, Open Prices, users' receipts,
+  sneakers); everything else says "Estimate" or "Tip". Never invent prices (e.g. for clothing).
 - **Money logic must stay verifiable:** item prices should add up to the printed total;
   discounted lines satisfy original − discount = price. Keep those checks.
 - **Privacy:** photos are never stored; community prices carry no user/household id;

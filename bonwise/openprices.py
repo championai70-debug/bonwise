@@ -26,14 +26,14 @@ KINDS = {
     "Milk": {"milks"}, "Butter": {"butters"}, "Cheese slices": {"cheeses"}, "Mozzarella": {"mozzarella"},
     "Yoghurt": {"yogurts"}, "Quark": {"quarks", "quark", "fresh-cheeses"}, "Cream": {"creams", "whipping-creams"},
     "Eggs": {"eggs", "chicken-eggs"}, "Organic eggs": {"eggs", "chicken-eggs"}, "Bread": {"breads"},
-    "Toast bread": {"breads", "sandwich-breads", "white-breads"}, "Bread rolls": {"breads", "bread-rolls"},
+    "Toast bread": {"toasts", "sandwich-breads", "white-breads"}, "Bread rolls": {"breads", "bread-rolls"},
     "Pasta": {"pastas"}, "Rice": {"rices"}, "Flour": {"flours"}, "Sugar": {"sugars"},
     "Cooking oil": {"vegetable-oils", "sunflower-oils", "rapeseed-oils"}, "Coffee": {"coffees"},
     "Hazelnut spread": {"hazelnut-spreads", "cocoa-and-hazelnuts-spreads"}, "Cereal": {"breakfast-cereals"},
     "Ketchup": {"ketchup"}, "Orange juice": {"orange-juices"}, "Apple juice": {"apple-juices"},
     "Soft drink": {"sodas", "colas", "soft-drinks"}, "Water": {"waters", "mineral-waters"},
-    "Crisps": {"crisps", "chips-and-fries"}, "Chocolate": {"chocolates"}, "Gummy sweets": {"gummies", "candies"},
-    "Crackers": {"crackers"}, "Biscuits": {"biscuits"}, "Sausage & ham": {"sausages", "hams"},
+    "Crisps": {"crisps", "chips-and-fries"}, "Chocolate": {"chocolates"}, "Gummy sweets": {"gummies", "gummi-candies"},
+    "Crackers": {"crackers", "biscuits-and-crackers"}, "Biscuits": {"biscuits"}, "Sausage & ham": {"sausages", "hams"},
     "Tea": {"teas"}, "Salt": {"salts"}, "Lentils": {"lentils"}, "Chickpeas": {"chickpeas"}, "Olive oil": {"olive-oils"},
     "Frozen pizza": {"pizzas"}, "Ice cream": {"ice-creams"}, "Beer": {"beers"}, "Wine": {"wines"},
 }
@@ -100,25 +100,32 @@ def _kind_ok(e, en):
     return bool(cats & want) and not any(bad in c for c in cats for bad in NOT_KINDS.get(en, ()))
 
 
+def _organic_ok(toks, organic):
+    """Organic is compared with organic only, and regular with regular."""
+    return (("bio" in toks or "organic" in toks) == organic)
+
+
 def lookup(query, keys=None, size=None, en=None):
     """-> {CHAIN: {"price", "product", "date", "size"}}, the cheapest matching product per chain.
     keys: the price guide's words for this product type (then en picks the category);
     without keys, every typed word must be in the product's name or brand."""
     db = _load()
     found = []
+    organic = bool(re.search(r"\b(bio|organic)\b", norm(query)))
     if keys:
         singles = [k for k in keys if " " not in k and len(k) >= 3]
         phrases = [" " + k + " " for k in keys if " " in k]
         for toks, name, e in db["items"]:
             if ((any(k in toks for k in singles) or any(p in name for p in phrases)) and _same_size(e.get("s"), size)
-                    and _kind_ok(e, en)):
+                    and _kind_ok(e, en) and _organic_ok(toks, organic)):
                 found.append(e)
     else:
         words = _words(query)
         if not words:
             return {}
         for toks, name, e in db["items"]:
-            if all(w in toks or (len(w) >= 4 and any(t.startswith(w) for t in toks)) for w in words) and _same_size(e.get("s"), size):
+            if (all(w in toks or (len(w) >= 4 and any(t.startswith(w) for t in toks)) for w in words)
+                    and _same_size(e.get("s"), size) and _organic_ok(toks, organic)):
                 found.append(e)
     if found and not size:
         # Compare one pack size only: the most common one among the matches.

@@ -24,8 +24,12 @@ Scan any receipt and Bonwise shows where the same things are cheaper next time
 - **Backup reader:** Tesseract OCR plus a rule-based German receipt parser takes
   over when the AI is off, busy or slow.
 - **Savings:** real ALDI SÜD shelf prices and sneaker prices from price-comparison
-  sites (checked 23 Sep 2026), prices other users paid (community prices), then typical
-  discounter prices, then the AI's own suggestion.
+  sites (checked 23 Sep 2026), real prices per chain (REWE, EDEKA, Lidl, Kaufland, Netto,
+  Penny, dm, Rossmann…) from Open Prices by Open Food Facts (refreshed weekly), prices
+  other users paid (community prices), then typical discounter prices, then the AI's own
+  suggestion. Clothing brands get tips on where they're usually cheaper (no prices).
+- **One simple screen:** greeting and budget, one search box, four big buttons (Scan
+  receipt, My list, Shops nearby, Receipts); results appear below.
 - **Going shopping? (plan before you shop):** type what you need ("milk, crackers,
   vegetables", also in German, Hindi/Urdu or Turkish words like "doodh, sabzi") and
   Bonwise shows the best single shop near you, what each item costs where, how the
