@@ -6,15 +6,25 @@ jobs:
   diag:
     runs-on: ubuntu-latest
     steps:
-      - name: Open Prices filters from its source code
+      - name: Open Prices near a place
         run: |
           set +e
           git clone -q --depth 1 https://github.com/openfoodfacts/open-prices.git op
-          cd op && git log -1 --format=%cd
-          for f in $(grep -rl "FilterSet" --include=*.py . | grep -v test | head -8); do echo "=== $f"; grep -nE "class |fields|= (django_)?filters\.|field_name|lookup_expr|\"__|__\w+\"" "$f" | head -60; done
-          echo "=== urls"; grep -rn "path(\|register(" --include=urls.py . | head -30
+          sed -n 35,160p op/open_prices/api/prices/filters.py
+          grep -n "CORS\|cors" -r op/config/settings*.py op/config/*.py 2>/dev/null | head
           UA="Bonwise/1.0 (https://bonwise.onrender.com)"
-          B="https://prices.openfoodfacts.org/api/v1/prices?currency=EUR&size=1"
-          for f in location__osm_address_country_code=DE location_osm_address_country_code=DE "location__osm_address_country=Deutschland" location__osm_brand=REWE location_osm_brand=REWE; do
-            echo "$f -> $(curl -s -m 30 -A "$UA" "$B&$f" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("total"))')"
-          done
+          show() { curl -s -m 40 -A "$UA" -w "\n%{time_total}s" "$1" | python3 -c "
+          import sys,json,collections
+          raw=sys.stdin.read(); body,t=raw.rsplit('\n',1); d=json.loads(body)
+          items=d.get('items',[]); c=collections.Counter((p.get('location') or {}).get('osm_address_country_code') for p in items)
+          b=collections.Counter(((p.get('location') or {}).get('osm_brand') or (p.get('location') or {}).get('osm_name')) for p in items)
+          print('total',d.get('total'),'items',len(items),'time',t,'countries',dict(c)); print('shops',b.most_common(12))
+          for p in items[:6]:
+              pr=p.get('product') or {}; lo=p.get('location') or {}
+              print(' ',p.get('date'),p.get('price'),p.get('price_per'),p.get('category_tag'),'|',pr.get('product_name'),'|',pr.get('brands'),pr.get('product_quantity'),pr.get('product_quantity_unit'),'|',lo.get('osm_brand') or lo.get('osm_name'),lo.get('osm_address_city'))
+          "; }
+          echo "== Berlin 10 km"; show "https://prices.openfoodfacts.org/api/v1/prices?lat=52.52&lon=13.405&radius_km=10&size=100&order_by=-date"
+          echo "== Munich 10 km"; show "https://prices.openfoodfacts.org/api/v1/prices?lat=48.137&lon=11.575&radius_km=10&size=100&order_by=-date"
+          echo "== Germany-wide by country code, look at items"; show "https://prices.openfoodfacts.org/api/v1/prices?location__osm_address_country_code=DE&size=100&order_by=-date"
+          echo "== product search: Kiri"; show "https://prices.openfoodfacts.org/api/v1/prices?product__product_name__like=kiri&size=50"
+          echo "== CORS header"; curl -s -m 20 -D - -o /dev/null -H "Origin: https://bonwise.onrender.com" "https://prices.openfoodfacts.org/api/v1/prices?size=1" | grep -i "access-control" || echo "no CORS header"
