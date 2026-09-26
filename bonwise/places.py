@@ -16,7 +16,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from . import config
+from . import config, storage
 
 KINDS = {"supermarket": "Supermarket", "discount": "Discounter", "convenience": "Convenience store",
          "chemist": "Drugstore", "greengrocer": "Greengrocer", "bakery": "Bakery", "butcher": "Butcher"}
@@ -290,8 +290,10 @@ def nearby(lat, lon, radius=1500, dow=None, minute=None, osm=None):
         brand = tags.get("brand") or name
         hours = tags.get("opening_hours", "")
         street = " ".join(x for x in (tags.get("addr:street"), tags.get("addr:housenumber")) if x)
+        label = brand + " " + name
+        chain = storage.chain_of(label) or ("dm" if re.search(r"\bdm\b", label.lower()) else "")
         shops.append({
-            "name": name[:60], "brand": brand[:40], "kind": KINDS.get(tags.get("shop"), "Shop"),
+            "name": name[:60], "brand": brand[:40], "chain": chain, "kind": KINDS.get(tags.get("shop"), "Shop"),
             "discounter": any(d in (brand + " " + name).lower() for d in DISCOUNTERS),
             "distance": dist, "lat": plat, "lon": plon, "address": street[:80], "hours": hours[:120],
             "open": open_now(hours, dow, minute) if dow is not None and minute is not None else None,

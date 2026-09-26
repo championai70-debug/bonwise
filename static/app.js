@@ -247,10 +247,88 @@
       return '<li class="swap' + (on ? " on" : "") + '"><input type="checkbox" id="sw-' + o.i + '" data-sw="' + o.i + '"' + (on ? " checked" : "") + '>' +
         '<label class="what" for="sw-' + o.i + '">' + esc(it.en || it.raw) + '</label><span class="amt num">−' + eur(it.save) + '</span>' +
         '<span class="how"><s>' + eur(it.price) + '</s> → <span class="to">' + (it.market && it.save ? "" : "~") + eur(it.altPrice) + '</span> · ' + esc(it.alt || "cheaper option") +
-        (it.market && it.save ? '<span class="src-tag real">Real price</span>' : '<span class="src-tag est">Estimate</span>') + '</span></li>';
+        (it.market && it.save ? '<span class="src-tag real">Real price</span>' : '<span class="src-tag est">Estimate</span>') +
+        (swapChain(it) ? '<span class="near-line" data-near="' + esc(swapChain(it)) + '"></span>' : "") + '</span></li>';
     }).join("");
     renderPickTotal();
+    renderSwapNear();
+    autoNear();
   }
+
+  /* ---------- where to buy the swaps: nearest branch of each shop, with directions ---------- */
+  var nearShops = null, nearState = "", nearMsg = "";
+  // Which shop a swap sends you to: a chain ("ALDI", "LIDL"), any discounter, any drugstore, or none (online).
+  function swapChain(it) {
+    var m = it.market;
+    if (m && m.sport) return "";
+    if (m && m.store) return /aldi/i.test(m.store) ? "ALDI" : String(m.store).toUpperCase() === "DM" ? "dm" : String(m.store).toUpperCase();
+    return it.cat === "Drugstore" ? "drugstore" : "discounter";
+  }
+  function chainLabel(c) { return c === "discounter" ? "a discounter" : c === "drugstore" ? "a drugstore" : c; }
+  function nearestFor(chain) {
+    var list = (nearShops || []).filter(function (x) {
+      return chain === "discounter" ? x.discounter : chain === "drugstore" ? x.kind === "Drugstore" : x.chain === chain;
+    });
+    var open = list.filter(function (x) { return x.open !== false; });
+    return (open.length ? open : list).sort(function (a, b) { return a.distance - b.distance; })[0] || null;
+  }
+  function mapsSearch(c) {
+    var q = c === "discounter" ? "Aldi Lidl Penny Netto" : c === "drugstore" ? "dm Rossmann" : c;
+    return "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(q);
+  }
+  function renderSwapNear() {
+    var box = $("swapNear"); if (!cur) { box.innerHTML = ""; return; }
+    var groups = {}, order = [];
+    swapItems().forEach(function (o) {
+      var c = swapChain(o.it); if (!c) return;
+      if (!groups[c]) { groups[c] = { items: [], save: 0 }; order.push(c); }
+      groups[c].items.push(o.it.en || o.it.raw); groups[c].save = r2(groups[c].save + o.it.save);
+    });
+    box.hidden = !order.length;
+    if (!order.length) return;
+    order.sort(function (a, b) { return groups[b].save - groups[a].save; });
+    var pin = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" style="stroke:var(--accent);fill:none;stroke-width:2"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>';
+    var html = '<h3>' + pin + 'Where to buy these near you</h3>';
+    if (!nearShops) {
+      html += nearState === "loading" ? '<div class="trip-load"><span class="spin" aria-hidden="true"></span><span>Finding the nearest shops…</span></div>'
+        : '<div class="near-go"><button class="btn small" type="button" id="nearBtn">Show the nearest shops</button><span class="muted" style="margin:0">' +
+          esc(order.map(chainLabel).join(", ")) + '</span></div>' +
+          (nearState === "error" ? '<p class="notice warn">' + esc(nearMsg) + '</p>' : '<p class="muted">Uses your location once, rounded to about 100 m.</p>');
+    } else {
+      html += '<ul class="near-list">' + order.map(function (c) {
+        var x = nearestFor(c), g = groups[c], forWhat = "for " + listText(g.items.slice(0, 3)) + (g.items.length > 3 ? " and more" : "") + " · save <b>" + eur(g.save) + "</b>";
+        if (!x) return '<li><div class="nh"><span class="av" style="background:var(--ink-3)">?</span><div><span class="nm">No ' + esc(chainLabel(c)) + ' within 1.5 km</span></div></div>' +
+          '<span class="sub">' + forWhat + '</span><a class="btn small line" href="' + mapsSearch(c) + '" target="_blank" rel="noopener">Find on map</a></li>';
+        var meta = [distTxt(x.distance), openTxt(x), x.address].filter(Boolean).join(" · ");
+        return '<li><div class="nh">' + avatar(shopName(x)) + '<div><span class="nm">' + esc(shopName(x)) + '</span><span class="meta">' + esc(meta) + '</span></div></div>' +
+          '<span class="sub">' + forWhat + '</span><a class="btn small" href="' + mapsLink(x) + '" target="_blank" rel="noopener">Directions</a></li>';
+      }).join("") + '</ul>';
+    }
+    box.innerHTML = html;
+    // A short "nearest" line on each swap too.
+    document.querySelectorAll("#swaps [data-near]").forEach(function (el) {
+      var x = nearShops && nearestFor(el.dataset.near);
+      el.innerHTML = x ? '📍 ' + esc(shopName(x)) + ' · ' + distTxt(x.distance) + ' · <a href="' + mapsLink(x) + '" target="_blank" rel="noopener">Directions</a>' : "";
+    });
+  }
+  function loadNear() {
+    if (nearState === "loading") return;
+    nearState = "loading"; renderSwapNear();
+    locate().then(function (loc) {
+      if (!loc.pos) throw { message: loc.why };
+      var d = new Date(), body = { lat: round3(loc.pos.coords.latitude), lon: round3(loc.pos.coords.longitude), dow: (d.getDay() + 6) % 7, min: d.getHours() * 60 + d.getMinutes() };
+      return osmShops(body.lat, body.lon).then(function (osm) { if (osm) body.osm = osm; return api("/api/shops", body); });
+    }).then(function (j) { nearShops = j.shops || []; nearState = "done"; renderSwapNear(); },
+      function (e) { nearState = "error"; nearMsg = (e && e.message) || "The nearest shops couldn’t be found. Try again."; renderSwapNear(); });
+  }
+  // If the phone already allows location for Bonwise, show the shops without asking.
+  function autoNear() {
+    if (nearShops || nearState || !swapItems().length) return;
+    try {
+      navigator.permissions.query({ name: "geolocation" }).then(function (p) { if (p.state === "granted") loadNear(); }, function () {});
+    } catch (e) {}
+  }
+  $("swapNear").addEventListener("click", function (e) { if (e.target.closest("#nearBtn")) loadNear(); });
   function renderPickTotal() {
     var picked = swapItems().filter(function (o) { return inPlan(o.it); });
     var sum = r2(picked.reduce(function (a, o) { return a + o.it.save; }, 0));
@@ -849,7 +927,8 @@
       osmShops(pos.coords.latitude, pos.coords.longitude).then(function (osm) {
         return osm ? api("/api/shops", { lat: round3(pos.coords.latitude), lon: round3(pos.coords.longitude), dow: (d.getDay() + 6) % 7, min: d.getHours() * 60 + d.getMinutes(), osm: osm }) : api("/api/shops?" + q);
       }).then(function (j) {
-        shopsData = j.shops || []; $("shopFilter").hidden = !shopsData.length; $("shopArt").hidden = !!shopsData.length;
+        shopsData = j.shops || []; $("shopFilter").hidden = !shopsData.length;
+        nearShops = shopsData; nearState = "done"; if (cur) renderSwapNear(); $("shopArt").hidden = !!shopsData.length;
         if (!shopsData.length) { err.hidden = false; err.className = "notice warn"; err.textContent = "No shops found within 1.5 km."; }
         renderShops();
       }).catch(function (e) { err.hidden = false; err.className = "notice bad"; err.textContent = e.message; })

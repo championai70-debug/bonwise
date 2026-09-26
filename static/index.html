@@ -424,6 +424,22 @@ a.btn{text-decoration:none}
 .cmpshops summary{cursor:pointer;font-weight:600;color:var(--accent)}
 .cmpshops .tot{font-family:var(--display);font-weight:800;font-size:17px;text-align:right}
 
+/* ---------- where to buy the swaps: nearest branch of each shop ---------- */
+.near-box{margin-bottom:12px;border-radius:16px;background:var(--sunk);padding:14px}
+.near-box h3{font-size:15px;font-family:var(--body);font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.near-box .muted{margin-top:6px}
+.near-go{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.near-list{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.near-list li{display:grid;gap:8px;background:var(--surface);border:1.5px solid var(--line);border-radius:14px;padding:12px}
+.near-list .nh{display:flex;align-items:center;gap:12px;min-width:0}
+.near-list .nm{display:block;font-weight:700;overflow-wrap:anywhere}
+.near-list .meta{display:block;font-size:13px;color:var(--ink-2)}
+.near-list .sub{font-size:13px;color:var(--ink-2)}
+.near-list .sub b{color:var(--accent)}
+.near-list .btn{justify-self:start}
+.near-line{display:block;margin-top:3px;font-size:12.5px;font-weight:600;color:var(--ink-2)}
+.near-line a{color:var(--accent)}
+
 /* ---------- simple view: fewer numbers, same features ---------- */
 body.simple .adv{display:none!important}
 </style>
@@ -544,6 +560,7 @@ body.simple .adv{display:none!important}
 
   <section class="card" id="swapCard" aria-labelledby="swH" hidden>
     <div class="card-h"><h2 id="swH">Swaps for your next shop</h2><span class="label" id="swCount"></span></div>
+    <div class="near-box" id="swapNear" aria-live="polite"></div>
     <ul class="swaps" id="swaps"></ul>
     <div class="plan-bar"><span id="planHint">Tick the swaps you’ll make next time</span><b class="num" id="planPick">€0 / month</b></div>
   </section>
