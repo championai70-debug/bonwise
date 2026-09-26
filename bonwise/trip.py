@@ -13,7 +13,7 @@ stored. The typed items are only used to answer this request.
 
 import re
 
-from . import advisor, data, places, storage
+from . import advisor, data, openprices, places, storage
 from .textutil import norm, pack_size, round2, size_label
 
 MAX_ITEMS = 30
@@ -24,6 +24,10 @@ FILLER = {"i", "im", "i'm", "am", "we", "going", "go", "to", "the", "at", "for",
           "my", "list", "ich", "brauche", "kaufen", "einkaufen", "noch", "bitte", "etwas", "zum", "zu", "bei",
           "mujhe", "khareedne", "kharidne", "ja", "raha", "rahi", "hu", "hoon", "hai", "lena", "lene", "ke", "liye"}
 SPLIT = re.compile(r"(?<!\d),|,(?!\d)|[;\n+&/•·]|\s(?:and|und|aur|plus|n)\s")
+# Words that describe a product without making it a different one.
+MODIFIERS = {"bio", "organic", "fresh", "frisch", "frische", "whole", "voll", "fettarm", "fettarme", "low", "fat", "light",
+             "skimmed", "large", "small", "big", "free", "range", "freiland", "pack", "packung", "classic", "original",
+             "normal", "loose", "lose", "sliced", "scheiben", "white", "weiss", "brown", "dark", "some", "etwas"}
 COUNT = re.compile(r"^(\d{1,2})\s*x?\s+(?!(?:kg|g|l|ml|cl|er)\b)(.+)$")
 
 
@@ -122,8 +126,17 @@ def _extra(text):
     for keys, en, cat in data.EXTRA_ITEMS:
         for k in keys:
             if (" " + k + " ") in words and len(k) > best_len:
-                best, best_len = (en, cat), len(k)
+                best, best_len = (en, cat, keys), len(k)
     return best
+
+
+def _fashion(text):
+    """A clothing or shoe brand -> (brand, where it's usually cheaper), or None."""
+    words = " " + norm(text).replace("&", " & ") + " "
+    for keys, brand, where in data.FASHION:
+        if any((" " + k + " ") in words for k in keys):
+            return brand, where
+    return None
 
 
 def _size_text(v, fam):
@@ -141,7 +154,7 @@ def resolve(query):
         count, q = max(1, min(20, int(m.group(1)))), m.group(2)
     text = " ".join(_alias(norm(q).split()))
     info = {"query": str(query).strip()[:60], "name": q[:1].upper() + q[1:60], "cat": "Other", "count": count, "size": "",
-            "typical": None, "aldi": None, "online": None, "base": None, "community": {}}
+            "typical": None, "aldi": None, "online": None, "tip": "", "base": None, "community": {}, "open": {}}
 
     sport = advisor.find_sport(text)
     if sport:
@@ -150,8 +163,28 @@ def resolve(query):
                     online={"price": best["total"], "shop": best["shop"], "src": best["src"], "list": sport["list"]})
         return info
 
+    fashion = _fashion(text)
+    if fashion:
+        info.update(name=q[:1].upper() + q[1:60], cat="Clothing & shoes", tip="Usually cheaper at " + fashion[1] + ".")
+        return info
+
     g = advisor.lookup(text)
     size = pack_size(text)
+    words = openprices._words(text)
+    brand = advisor.brand_of(text)
+    if g:
+        # "udon nudeln" or "Kerrygold Butter": words the guide doesn't know make it a specific product,
+        # compared only with that product, never with the generic type (spaghetti, store-brand butter).
+        known = {w for k in g["k"] for w in k.replace("-", " ").split()} | MODIFIERS | set(g["en"].lower().split())
+        if any(w not in known and w != brand for w in words):
+            info["cat"] = g["cat"]
+            info["open"] = openprices.lookup(text, size=size)
+            if size:
+                info["size"] = _size_text(size["v"], size["fam"])
+            elif info["open"]:
+                info["size"] = next(iter(info["open"].values()))["size"]
+            info["keys"] = list(dict.fromkeys(k for k in (q, text) if k))
+            return info
     if g:
         ref = advisor._ref_size(g)
         info["cat"] = g["cat"]
@@ -169,12 +202,20 @@ def resolve(query):
             info["aldi"] = {"price": mk["forYours"], "product": mk["name"], "size": mk["yourSize"], "store": mk["store"],
                             "checked": mk["checked"]}
             info["size"] = mk["yourSize"]
+        want = size if size and size["fam"] == ref["fam"] else (ref if ref["fam"] in ("g", "ml", "st") else None)
+        # A brand ("coca cola") is compared with that brand first, then with the product type.
+        info["open"] = (brand and openprices.lookup(text, size=want)) or openprices.lookup(text, keys=g["k"], size=want, en=g["en"])
     else:
         ex = _extra(text)
         if ex:
-            info["name"], info["cat"] = ex
-        elif size:
+            info["name"], info["cat"] = ex[0], ex[1]
+            info["open"] = openprices.lookup(text, keys=ex[2], size=size, en=ex[0])
+        else:
+            info["open"] = openprices.lookup(text, size=size)
+        if size:
             info["size"] = _size_text(size["v"], size["fam"])
+        if not info["size"] and info["open"]:
+            info["size"] = next(iter(info["open"].values()))["size"]
     info["keys"] = list(dict.fromkeys(k for k in (q, text, info["name"], (info["name"] + " " + info["size"]).strip()) if k))
     return info
 
@@ -194,13 +235,14 @@ def _add_community(infos):
                 if chain not in by_chain or price < by_chain[chain]:
                     by_chain[chain] = price
         info["community"] = by_chain
-        # The discounter price estimates start from: ALDI's shelf price, the guide, or the cheapest user price.
+        # The discounter price estimates start from: ALDI's shelf price, the guide, or the cheapest real price.
+        real = list(by_chain.values()) + [o["price"] for o in info["open"].values()]
         if info["aldi"]:
             info["base"] = info["aldi"]["price"]
         elif info["typical"] is not None:
             info["base"] = info["typical"]
-        elif by_chain:
-            info["base"] = min(by_chain.values())
+        elif real:
+            info["base"] = min(real)
 
 
 def shop_level(shop):
@@ -233,6 +275,9 @@ def price_at(shop, info):
         return {"price": round2(info["community"][chain] * count), "real": True, "src": "users"}
     if chain == "ALDI" and info["aldi"]:
         return {"price": round2(info["aldi"]["price"] * count), "real": True, "src": "aldi"}
+    if chain and chain in info["open"]:
+        o = info["open"][chain]
+        return {"price": round2(o["price"] * count), "real": True, "src": "open", "date": o["date"], "product": o["product"]}
     base = info["base"]
     if shop["level"] == "drugstore" and info["typical"] is not None:
         base = info["typical"]  # the guide's drugstore prices are dm / Rossmann own brands
@@ -284,7 +329,8 @@ def plan(text=None, items=None, lat=None, lon=None, dow=None, minute=None, radiu
         s["chain"] = shop_chain(s)
         s["level"] = shop_level(s)
 
-    local = [i for i, info in enumerate(infos) if not info["online"]]
+    # Clothes and shoes are bought online or in clothing shops, not at the supermarket.
+    local = [i for i, info in enumerate(infos) if not info["online"] and info["cat"] != "Clothing & shoes"]
     rows = []
     for s in shops:
         prices = [price_at(s, info) if i in local else None for i, info in enumerate(infos)]
@@ -366,12 +412,17 @@ def plan(text=None, items=None, lat=None, lon=None, dow=None, minute=None, radiu
             known = {"price": round2(info["community"][ch] * info["count"]), "chain": ch, "src": "users"}
         if info["aldi"] and (known is None or info["aldi"]["price"] * info["count"] < known["price"]):
             known = {"price": round2(info["aldi"]["price"] * info["count"]), "chain": "ALDI", "src": "aldi"}
+        for ch, o in info["open"].items():
+            if known is None or o["price"] * info["count"] < known["price"]:
+                known = {"price": round2(o["price"] * info["count"]), "chain": ch, "src": "open", "date": o["date"], "product": o["product"]}
         out_items.append({
             "query": info["query"], "name": info["name"], "cat": info["cat"], "count": info["count"], "size": info["size"],
             "typical": round2(info["typical"] * info["count"]) if info["typical"] is not None else None,
-            "aldi": info["aldi"], "online": info["online"], "known": known,
-            "best": ({"shop": index[k], "price": best_price["price"], "real": best_price["real"], "src": best_price["src"]}
+            "aldi": info["aldi"], "online": info["online"], "tip": info["tip"], "known": known,
+            "best": (dict({"shop": index[k]}, **{f: best_price[f] for f in ("price", "real", "src", "date", "product") if f in best_price})
                      if k is not None else None),
+            "chains": sorted(({"chain": ch, "price": round2(o["price"] * info["count"]), "date": o["date"], "product": o["product"]}
+                              for ch, o in info["open"].items()), key=lambda x: x["price"])[:6],
             "hint": data.CHEAPEST_AT.get(info["cat"], "discounters (Aldi, Lidl, Penny, Netto)"),
         })
 
@@ -383,4 +434,5 @@ def plan(text=None, items=None, lat=None, lon=None, dow=None, minute=None, radiu
         "split": ({"stops": [dict(st, shop=index[st["shop"]]) for st in split["stops"]], "total": split["total"], "save": split["save"]}
                   if split else None),
         "notice": notice, "retry": bool(notice), "checked": data.MARKET_CHECKED,
+        "openPrices": openprices.meta().get("generated"),
     }

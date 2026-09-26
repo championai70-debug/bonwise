@@ -1,0 +1,39 @@
+# Weekly refresh of real German shop prices from Open Prices (Open Food Facts).
+# Commits bonwise/open_prices.json; Render then deploys it like any other change.
+# Run by hand: GitHub → Actions → "Open Prices data" → Run workflow.
+name: Open Prices data
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 4 * * 1"   # Mondays, 04:17 UTC
+  pull_request:
+    paths: ["tools/import_open_prices.py", ".github/workflows/open-prices.yml"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: open-prices-${{ github.head_ref || github.ref_name }}
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python3 tools/import_open_prices.py
+      - name: Commit the new prices
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add bonwise/open_prices.json
+          if git diff --cached --quiet; then echo "No change"; exit 0; fi
+          git commit -m "Update Open Prices data ($(date -u +%F))"
+          git pull --rebase -X theirs origin "${{ github.head_ref || github.ref_name }}" || git pull --rebase origin "${{ github.head_ref || github.ref_name }}"
+          git push

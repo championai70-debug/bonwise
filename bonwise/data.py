@@ -178,7 +178,8 @@ BRANDS = ["barilla", "coca", "pepsi", "milka", "nutella", "lenor", "ariel", "per
           "ritter sport", "lays", "funny frisch", "bahlsen", "leibniz", "danone", "alpro", "lavazza", "melitta", "elmex"]
 
 STORES = ["rewe", "edeka", "lidl", "aldi", "kaufland", "penny", "netto", "norma", "rossmann", "globus",
-          "tegut", "marktkauf", "famila", "real", "budni", "denns", "alnatura", "dm-drogerie", "dm drogerie", "hit"]
+          "tegut", "marktkauf", "famila", "real", "budni", "budnikowsky", "denns", "alnatura", "dm-drogerie", "dm drogerie",
+          "hit", "mueller", "muller", "nahkauf", "combi", "wasgau", "bunting", "v-markt", "hol ab"]
 
 
 # ---------- Plan my shop (before shopping) ----------
@@ -258,3 +259,42 @@ CHEAPEST_AT = {
     "Bakery": "the discounter's bake-off shelf",
     "Baby": "dm or Rossmann",
 }
+
+
+# ---------- Clothing and shoe brands: where they're usually cheaper ----------
+# No open price database covers clothes, so these are tips, never prices. They name the
+# kinds of places the brands really sell through; the app shows them as "Tip".
+_OUTLETS = "outlet villages (e.g. Metzingen, Wolfsburg, Zweibrücken, Wertheim, Ingolstadt)"
+_SALES = "end-of-season sales in January and July"
+FASHION = [
+    (["nike"], "Nike", "Nike Factory Stores, the Nike app’s member sales, and " + _SALES),
+    (["adidas"], "adidas", "adidas Outlet stores, adiClub member offers, and " + _SALES),
+    (["puma"], "PUMA", "PUMA Outlet stores and " + _SALES + "; older models are often much cheaper online"),
+    (["new balance"], "New Balance", "New Balance outlet stores and online shops’ sales"),
+    (["asics"], "ASICS", "ASICS Outlet stores and last season’s colours in online sales"),
+    (["converse"], "Converse", "Converse outlets and online sales; classic Chucks are rarely full price online"),
+    (["vans"], "Vans", "Vans outlets and online sales"),
+    (["skechers"], "Skechers", "Skechers outlets and shoe chains’ sales"),
+    (["under armour"], "Under Armour", "Under Armour outlets and " + _SALES),
+    (["levis", "levi s", "levi"], "Levi’s", "Levi’s Outlet stores in " + _OUTLETS + ", and " + _SALES),
+    (["tommy hilfiger", "tommy"], "Tommy Hilfiger", "Tommy Hilfiger outlets in " + _OUTLETS),
+    (["calvin klein"], "Calvin Klein", "Calvin Klein outlets in " + _OUTLETS),
+    (["hugo boss", "boss"], "BOSS", "BOSS Outlet stores (Metzingen is its home) and " + _SALES),
+    (["lacoste"], "Lacoste", "Lacoste outlets in " + _OUTLETS),
+    (["ralph lauren", "polo ralph"], "Ralph Lauren", "Polo Ralph Lauren outlets in " + _OUTLETS),
+    (["the north face", "north face"], "The North Face", "The North Face outlets and end-of-winter sales"),
+    (["jack wolfskin"], "Jack Wolfskin", "Jack Wolfskin outlets and end-of-season sales"),
+    (["esprit"], "Esprit", "Esprit outlets and online sales"),
+    (["s oliver", "s.oliver", "soliver"], "s.Oliver", "s.Oliver outlets and newsletter vouchers"),
+    (["tom tailor"], "Tom Tailor", "Tom Tailor outlets and newsletter vouchers"),
+    (["jack jones", "jack & jones"], "Jack & Jones", "Bestseller outlets and online sales"),
+    (["only jeans", "only jacket", "only dress"], "ONLY", "Bestseller outlets and online sales"),
+    (["vero moda"], "Vero Moda", "Bestseller outlets and online sales"),
+    (["zara"], "Zara", "Zara’s own sales, which start in late June and late December"),
+    (["mango"], "Mango", "Mango Outlet online and " + _SALES),
+    (["h&m", "h m", "hm"], "H&M", "H&M’s member offers in its app and " + _SALES),
+    (["uniqlo"], "UNIQLO", "UNIQLO’s weekly limited offers"),
+    (["c&a", "c a"], "C&A", "C&A’s app coupons and " + _SALES),
+    (["primark"], "Primark", "Primark is already cheap; it has few sales"),
+    (["tk maxx"], "TK Maxx", "TK Maxx sells brands below list price all year"),
+]

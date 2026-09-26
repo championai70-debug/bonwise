@@ -76,6 +76,12 @@
     else ws.hidden = true;
     var pace = pacing(after, budget);
     var chip = $("paceChip"); chip.textContent = pace.label; chip.className = "status " + pace.cls;
+    var monthSave = r2(monthReceipts().reduce(function (a, r) { return a + (r.save || 0); }, 0));
+    $("heroSub").innerHTML = cur && s > 0 ? "This receipt: you could keep <b>" + eur(s) + "</b> next time."
+      : monthSave > 0 ? "Bonwise found <b>" + eur(monthSave) + "</b> of savings for you in " + esc(monthName) + "."
+      : monthReceipts().length ? "Nice. Every receipt you add makes prices better for everyone."
+      : "Search or scan to start saving.";
+    $("welcomeCard").hidden = mem.receipts.length > 0 || !!cur;
     $("resetBtn").hidden = monthReceipts().length === 0;
   }
   function pacing(spent, budget) {
@@ -184,7 +190,7 @@
     mem.receipts.push(rec);
     persist();
     reportPrices(cur);
-    closeReceipt(); aiState("✓ Saved to " + monthName + ". Find it under Receipts.", "ok"); $("thumb").removeAttribute("src");
+    closeReceipt(); aiState("✓ Saved to " + monthName + ". Find it under Receipts.", "ok"); $("thumb").removeAttribute("src"); celebrate();
     renderAll();
   });
   $("discardBtn").addEventListener("click", function () { closeReceipt(); aiState(""); });
@@ -211,6 +217,7 @@
     var t = itemTotal(), s = itemSave(), budget = Number(mem.budget) || 0, wk = budget * 7 / daysInMonth, list = swapItems();
     var hero = $("saveCard"); hero.hidden = false; hero.classList.toggle("none", !(s > 0));
     if (s > 0) {
+      if (!cur.celebrated) { cur.celebrated = true; celebrate(); }
       $("svLabel").textContent = "You could save on this shop";
       $("svBig").innerHTML = eur(s) + "<small>by making " + list.length + " swap" + (list.length > 1 ? "s" : "") + " next time</small>";
       $("svPct").hidden = false; $("svPct").textContent = Math.round(s / Math.max(t, 0.01) * 100) + "% less";
@@ -341,6 +348,7 @@
 
   function run(path, payload, label) {
     pendingPayload = { path: path, payload: payload };
+    $("tripCard").hidden = true;  // focus on the receipt being read
     setBusy(true);
     setStage(label, "", 0.2);
     startTimer(payload.useAi !== false && health && health.aiReader);
@@ -393,8 +401,9 @@
     if (!/^image\//.test(file.type)) { showErr("That isn’t an image. Choose a JPEG or PNG photo of the receipt."); return; }
     // A new receipt replaces the last one: clear results, messages and the price search.
     closeReceipt(); showErr(""); aiState("");
+    showTab("home", true);
     $("thumb").src = URL.createObjectURL(file);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    $("scanCard").hidden = false; $("scanCard").scrollIntoView({ behavior: "smooth", block: "start" });
     setBusy(true);
     toJpeg(file).then(function (b64) {
       return run("/api/scan", { image: b64, mediaType: "image/jpeg", context: context() }, "Reading your receipt…");
@@ -418,7 +427,10 @@
       .then(function (b) { scanImage(new File([b], "sample-receipt.jpg", { type: "image/jpeg" })); })
       .catch(function () { showErr("The sample receipt couldn’t be loaded."); });
   });
-  $("pasteToggle").addEventListener("click", function () { $("pasteBox").hidden = !$("pasteBox").hidden; if (!$("pasteBox").hidden) $("pasteText").focus(); });
+  $("pasteToggle").addEventListener("click", function () {
+    $("pasteBox").hidden = !$("pasteBox").hidden; syncScanCard();
+    if (!$("pasteBox").hidden) { $("scanCard").scrollIntoView({ behavior: "smooth", block: "start" }); $("pasteText").focus(); }
+  });
   $("pasteGo").addEventListener("click", function () {
     var t = $("pasteText").value.trim();
     if (!t) { showErr("Paste or type a few lines from the receipt first, e.g. “Butter 250g 2,29”."); return; }
@@ -491,20 +503,66 @@
   }
 
   /* ---------- tabs ---------- */
-  var TABS = ["home", "receipts", "list", "shops", "more"];
-  function showTab(name) {
+  /* One screen: greeting, search and four big buttons stay on top; the part below
+     shows home (results), the list, shops, receipts or settings. Searching or scanning
+     switches back to home by itself. */
+  var TABS = ["home", "receipts", "list", "shops", "more"], curTab = "home";
+  function showTab(name, quiet) {
     if (TABS.indexOf(name) < 0) name = "home";
+    var changed = name !== curTab; curTab = name;
     TABS.forEach(function (t) { $("view-" + t).hidden = t !== name; });
-    document.querySelectorAll(".tabbar button").forEach(function (b) {
+    document.querySelectorAll(".tile[data-tab], .icon-btn[data-tab]").forEach(function (b) {
       if (b.dataset.tab === name) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
     });
     if (name === "list") refreshListPrices();
-    window.scrollTo(0, 0);
+    if (!quiet && changed) {
+      if (name === "home") window.scrollTo({ top: 0, behavior: "smooth" });
+      else $("view-" + name).scrollIntoView({ behavior: "smooth", block: "start" });
+    }
     try { history.replaceState(null, "", name === "home" ? location.pathname + location.search : "#" + name); } catch (e) {}
   }
-  document.querySelector(".tabbar").addEventListener("click", function (e) {
-    var b = e.target.closest("button[data-tab]"); if (b) showTab(b.dataset.tab);
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-tab]"); if (!b) return;
+    // Tapping the open section's button again closes it.
+    showTab(b.dataset.tab === curTab && b.classList.contains("tile") ? "home" : b.dataset.tab);
   });
+  $("tileScan").addEventListener("click", function () { showTab("home", true); $("file").click(); });
+
+  // The receipt card appears only while something is happening in it.
+  function syncScanCard() {
+    $("scanCard").hidden = $("progress").hidden && $("scanErr").hidden && $("aiStatus").hidden && $("pasteBox").hidden;
+  }
+  if (window.MutationObserver) {
+    var mo = new MutationObserver(syncScanCard);
+    ["progress", "scanErr", "aiStatus", "pasteBox"].forEach(function (id) { mo.observe($(id), { attributes: true, attributeFilter: ["hidden"] }); });
+  }
+
+  /* ---------- a warm welcome ---------- */
+  function greet() {
+    var h = new Date().getHours();
+    $("hello").textContent = h < 5 ? "Hello, night owl" : h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
+  }
+  greet();
+  // A short burst of confetti when Bonwise finds money for you.
+  function celebrate() {
+    try { if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return; } catch (e) {}
+    var box = document.createElement("div"), colors = ["#0E7A52", "#FFD166", "#E4573D", "#3A6FD8", "#F58E3B", "#48B87A"];
+    box.className = "confetti"; box.setAttribute("aria-hidden", "true");
+    for (var i = 0; i < 36; i++) {
+      var c = document.createElement("i");
+      c.style.left = Math.random() * 100 + "%"; c.style.background = colors[i % colors.length];
+      c.style.animationDelay = Math.random() * 0.35 + "s"; c.style.animationDuration = 1.2 + Math.random() * 0.8 + "s";
+      box.appendChild(c);
+    }
+    document.body.appendChild(box);
+    setTimeout(function () { box.remove(); }, 2600);
+  }
+  var AV_COLORS = ["#0E7A52", "#3A6FD8", "#D9642B", "#7A55C7", "#C0392B", "#1F8A9E", "#8A6D1F"];
+  function avatar(name) {
+    var n = String(name || "?").trim(), h = 0;
+    for (var i = 0; i < n.length; i++) h = (h * 31 + n.charCodeAt(i)) % 997;
+    return '<span class="av" aria-hidden="true" style="background:' + AV_COLORS[h % AV_COLORS.length] + '">' + esc(n.charAt(0).toUpperCase()) + '</span>';
+  }
 
   /* ---------- dates ---------- */
   var DAY = 86400000;
@@ -624,6 +682,7 @@
         '<span><span class="nm">' + esc(x.name) + '</span>' + bp + '</span><button class="del" type="button" data-rm="' + esc(x.id) + '" aria-label="Remove ' + esc(x.name) + '">×</button></li>';
     }).join("");
     $("listTripRow").hidden = !open;
+    $("listCount").hidden = !open; $("listCount").textContent = open;
     $("listTotal").textContent = open ? (priced ? "Cheapest known prices: " + eur(r2(total)) + " for " + priced + " of " + open + " item" + (open > 1 ? "s" : "") : open + " item" + (open > 1 ? "s" : "") + " to buy") : "";
     renderAgain(); renderTripChips();
   }
@@ -632,6 +691,7 @@
     var c = [];
     if (p.aldi) c.push({ price: p.aldi.price, where: p.aldi.store, note: p.aldi.product });
     if (p.community) c.push({ price: p.community.price, where: p.community.chain, note: "paid by Bonwise users" });
+    if (p.open) c.push({ price: p.open.price, where: p.open.chain, note: p.open.product + " (Open Prices)" });
     return c.sort(function (a, b) { return a.price - b.price; })[0] || null;
   }
   function refreshListPrices() {
@@ -772,7 +832,7 @@
     $("shops").innerHTML = list.length ? list.map(function (x) {
       var dist = x.distance < 1000 ? x.distance + " m" : (x.distance / 1000).toFixed(1) + " km";
       var open = x.open === true ? '<span class="pill2">Open now</span>' : x.open === false ? '<span class="pill2 grey">Closed now</span>' : "";
-      return '<li><span class="nm">' + esc(x.name) + '</span><span class="dist">' + dist + '</span>' +
+      return '<li><span class="nm">' + avatar(x.name) + esc(x.name) + '</span><span class="dist">' + dist + '</span>' +
         '<span class="meta">' + esc(x.kind) + (x.discounter ? ' <span class="pill2 warn">Discounter</span>' : "") + ' ' + open + (x.address ? ' · ' + esc(x.address) : "") + '</span>' +
         (x.hours ? '<span class="meta">' + esc(x.hours) + '</span>' : "") +
         '<a class="go" href="https://www.google.com/maps/dir/?api=1&destination=' + x.lat + "," + x.lon + '" target="_blank" rel="noopener">Directions →</a></li>';
@@ -789,7 +849,7 @@
       osmShops(pos.coords.latitude, pos.coords.longitude).then(function (osm) {
         return osm ? api("/api/shops", { lat: round3(pos.coords.latitude), lon: round3(pos.coords.longitude), dow: (d.getDay() + 6) % 7, min: d.getHours() * 60 + d.getMinutes(), osm: osm }) : api("/api/shops?" + q);
       }).then(function (j) {
-        shopsData = j.shops || []; $("shopFilter").hidden = !shopsData.length;
+        shopsData = j.shops || []; $("shopFilter").hidden = !shopsData.length; $("shopArt").hidden = !!shopsData.length;
         if (!shopsData.length) { err.hidden = false; err.className = "notice warn"; err.textContent = "No shops found within 1.5 km."; }
         renderShops();
       }).catch(function (e) { err.hidden = false; err.className = "notice bad"; err.textContent = e.message; })
@@ -844,6 +904,13 @@
       $("tripBody").innerHTML = '<div class="notice bad" style="margin-top:0">' + esc((e && e.message) || "Something went wrong. Try again.") + '</div>';
     }).then(function () { tripBusy = false; $("tripGo").disabled = $("listTrip").disabled = false; });
   }
+  function srcNote(p) {
+    if (p.src === "users") return " · paid by Bonwise users";
+    if (p.src === "aldi") return " · ALDI SÜD shelf price";
+    if (p.src === "open") return " · " + esc(p.product || "") + (p.date ? ", seen " + esc(fmtIso(p.date)) : "") + " (Open Prices)";
+    return "";
+  }
+  function fmtIso(d) { var x = new Date(d + "T12:00:00"); return isNaN(x) ? d : x.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: x.getFullYear() !== new Date().getFullYear() ? "numeric" : undefined }); }
   function srcTag(p) { return p.real ? '<span class="src-tag real">Real price</span>' : '<span class="src-tag est">Estimate</span>'; }
   function renderTrip(j, locWhy) {
     tripItems = j.items || [];
@@ -861,7 +928,7 @@
           : '<p class="bs-note">' + esc(j.goingTo) + ' costs about the same (' + eur(going.total) + '), so either shop is fine.</p>';
       } else if (j.goingTo && going === best) note = '<p class="bs-note">Good choice: <b>' + esc(j.goingTo) + '</b> is the cheapest shop near you for this list.</p>';
       else if (j.goingTo) note = '<p class="bs-note">There’s no ' + esc(j.goingTo) + ' within 1.5 km of you.</p>';
-      html += '<div class="best-stop"><span class="label">Best stop for your list</span><div class="bs-top"><div><div class="bs-name">' + esc(shopName(best)) + '</div><div class="bs-meta">' + esc(meta) + '</div></div>' +
+      html += '<div class="best-stop"><span class="label">Best stop for your list</span><div class="bs-top"><div><div class="bs-name">' + avatar(shopName(best)) + esc(shopName(best)) + '</div><div class="bs-meta">' + esc(meta) + '</div></div>' +
         '<div class="bs-total num">~' + eur(best.total) + '<small>for ' + (best.priced < n ? best.priced + " of " : "") + n + ' item' + (n === 1 ? "" : "s") + '</small></div></div>' + note +
         '<div class="bs-actions"><a class="btn small" href="' + mapsLink(best) + '" target="_blank" rel="noopener">Directions</a><button class="btn small line" type="button" id="tripSave">Save to my list</button></div></div>';
     } else html += '<div class="bs-actions" style="margin-top:0"><button class="btn small line" type="button" id="tripSave">Save to my list</button></div>';
@@ -877,30 +944,36 @@
       if (it.online) {
         amt = eur(it.online.price) + '<span class="src-tag real">Real price</span>';
         where = "Cheapest online at <b>" + esc(it.online.shop) + "</b> (" + esc(it.online.src) + "), brand shop " + eur(it.online.list);
+      } else if (it.tip) {
+        amt = '<span class="src-tag tip">Tip</span>';
+        where = esc(it.tip);
       } else if (it.best) {
         var sh = shops[it.best.shop];
         if (it.best.price != null) {
           amt = eur(it.best.price) + srcTag(it.best);
-          where = "Cheapest at <b>" + esc(shopName(sh)) + "</b> · " + distTxt(sh.distance) + (it.best.src === "users" ? " · paid by Bonwise users" : it.best.src === "aldi" ? " · ALDI SÜD shelf price" : "");
+          where = "Cheapest at <b>" + esc(shopName(sh)) + "</b> · " + distTxt(sh.distance) + srcNote(it.best);
         } else where = "No price yet · sold at <b>" + esc(shopName(sh)) + "</b> · " + distTxt(sh.distance);
       } else if (it.known) {
         amt = eur(it.known.price) + '<span class="src-tag real">Real price</span>';
-        where = "Best known: <b>" + esc(it.known.chain) + "</b>" + (it.known.src === "users" ? " (paid by Bonwise users)" : " (ALDI SÜD shelf price)");
+        where = "Best known: <b>" + esc(it.known.chain) + "</b>" + srcNote(it.known);
       } else if (it.typical != null) {
         amt = "~" + eur(it.typical) + '<span class="src-tag est">Estimate</span>';
         where = "Usually cheapest at " + esc(it.hint);
       } else where = "No price yet · usually cheapest at " + esc(it.hint);
+      // Real prices at other chains, cheapest first (from Open Prices).
+      var also = (it.chains || []).filter(function (c) { return !(it.best && shops[it.best.shop] && shops[it.best.shop].chain === c.chain && it.best.src === "open"); }).slice(0, 4);
+      if (also.length && !it.online && !it.tip) where += '<span class="also">' + also.map(function (c) { return esc(c.chain) + " " + eur(c.price); }).join(" · ") + '</span>';
       return '<li><span class="nm">' + esc(it.name) + (size ? '<small>' + esc(size) + '</small>' : "") + typed + '</span><span class="amt num">' + amt + '</span><span class="where">' + where + '</span></li>';
     }).join("") + '</ul>';
     var others = shops.filter(function (x) { return x.covers > 0; });
     if (others.length > 1) {
       html += '<details class="cmpshops"><summary>Compare ' + others.length + ' shops</summary><ul class="shops">' + others.map(function (x) {
-        return '<li><span class="nm">' + esc(shopName(x)) + '</span><span class="tot num">~' + eur(x.total) + '</span>' +
+        return '<li><span class="nm">' + avatar(shopName(x)) + esc(shopName(x)) + '</span><span class="tot num">~' + eur(x.total) + '</span>' +
           '<span class="meta">' + distTxt(x.distance) + ' · ' + esc(x.kind) + (openTxt(x) ? ' · ' + openTxt(x) : "") + (x.missing.length ? ' · no ' + esc(listText(x.missing)) : " · has everything") + '</span>' +
           '<a class="go" href="' + mapsLink(x) + '" target="_blank" rel="noopener">Directions →</a></li>';
       }).join("") + '</ul></details>';
     }
-    html += '<p class="pc-note">Real price: ALDI SÜD shelf prices (' + esc(j.checked || "") + ') and what Bonwise users paid in the last 90 days. Estimate: the typical price level of that kind of shop. Prices vary by region and change often. Shop data © OpenStreetMap contributors.</p>';
+    html += '<p class="pc-note">Real price: prices shoppers reported to Open Prices by Open Food Facts (ODbL, updated weekly' + (j.openPrices ? ", last " + esc(fmtIso(j.openPrices)) : "") + '), ALDI SÜD shelf prices (' + esc(j.checked || "") + ') and what Bonwise users paid in the last 90 days. Estimate: the typical price level of that kind of shop. Prices vary by region and change often. Shop data © OpenStreetMap contributors.</p>';
     $("tripBody").innerHTML = html;
   }
   $("tripBody").addEventListener("click", function (e) {
@@ -921,6 +994,7 @@
     if (!t) { $("tripText").focus(); $("tripText").placeholder = "Type a few things first, e.g. milk, bread"; return; }
     store.set("bonwise.tripText", t);
     $("tripText").blur();
+    showTab("home", true);
     runTrip({ text: t }, "tripSlotHome");
   });
   $("listTrip").addEventListener("click", function () {
@@ -939,7 +1013,7 @@
     if (b.dataset.useList) {
       var open = mem.list.filter(function (x) { return !x.done; }).map(function (x) { return x.name; });
       $("tripText").value = open.join(", "); store.set("bonwise.tripText", $("tripText").value);
-      runTrip({ items: open }, "tripSlotHome"); return;
+      showTab("home", true); runTrip({ items: open }, "tripSlotHome"); return;
     }
     var t = $("tripText").value.trim();
     $("tripText").value = (t ? t.replace(/[,\s]+$/, "") + ", " : "") + b.dataset.add;

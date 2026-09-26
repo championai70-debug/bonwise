@@ -1,0 +1,13 @@
+{"source": "test", "generated": "2026-09-20", "since": "2025-09-20", "prices": 9,
+ "products": {
+  "1": {"n": "Frische fettarme Milch 1,5%", "b": "Gut & Günstig", "s": [1000, "ml"], "c": ["dairies", "milks", "semi-skimmed-milks"], "p": {"EDEKA": [0.85, "2026-09-01"], "LIDL": [0.89, "2026-08-01"]}},
+  "2": {"n": "Cremeseife Milch & Honig", "b": "Duschdas", "s": [1000, "ml"], "c": [], "p": {"NETTO": [0.79, "2026-04-11"]}},
+  "3": {"n": "No Milk Hafer", "b": "Lidl", "s": [1000, "ml"], "c": ["plant-based-foods", "milks", "plant-based-milk-alternatives"], "p": {"LIDL": [0.75, "2026-09-17"]}},
+  "4": {"n": "Bio Vollmilch", "b": "Bioland", "s": [1000, "ml"], "c": ["milks", "whole-milks"], "p": {"REWE": [1.29, "2026-09-10"]}},
+  "5": {"n": "Butter", "b": "Milsani", "s": [250, "g"], "c": ["dairies", "butters"], "p": {"ALDI": [1.05, "2026-08-31"], "KAUFLAND": [1.19, "2026-09-22"]}},
+  "6": {"n": "Irische Butter", "b": "Kerrygold", "s": [250, "g"], "c": ["butters"], "p": {"EDEKA": [3.49, "2025-12-12"], "REWE": [3.29, "2026-02-01"]}},
+  "7": {"n": "Kiri Portionen", "b": "Kiri", "s": [200, "g"], "c": ["cheeses", "cream-cheeses"], "p": {"PENNY": [2.19, "2026-07-01"], "REWE": [2.49, "2026-06-01"]}},
+  "8": {"n": "Kiri Portionen XXL", "b": "Kiri", "s": [400, "g"], "c": ["cheeses"], "p": {"KAUFLAND": [3.99, "2026-07-01"]}},
+  "9": {"n": "Spaghetti", "b": "Barilla", "s": [500, "g"], "c": ["pastas", "spaghetti"], "p": {"REWE": [1.99, "2026-07-01"]}}
+ },
+ "categories": {"en:bananas": {"per": "kg", "p": {"LIDL": [1.29, "2026-09-16"], "EDEKA": [1.49, "2026-08-12"]}}}}

@@ -3,3 +3,8 @@
 from bonwise import config
 
 config.PHOTON_URL = ""
+
+# Open Prices data changes every week, so tests use a fixed sample (or none).
+from bonwise import openprices  # noqa: E402
+
+openprices.reset("/nonexistent/open_prices.json")
