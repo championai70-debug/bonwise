@@ -6,20 +6,25 @@ jobs:
   diag:
     runs-on: ubuntu-latest
     steps:
-      - name: Open Prices filters and German coverage
+      - name: Open Prices schema and German coverage
         run: |
           set +e
           UA="Bonwise/1.0 (https://bonwise.onrender.com)"
-          for u in https://prices.openfoodfacts.org/api/openapi.json https://prices.openfoodfacts.org/openapi.json https://prices.openfoodfacts.org/api/v1/openapi.json; do
-            code=$(curl -s -m 30 -A "$UA" -o o.json -w "%{http_code}" "$u"); echo "$u -> $code $(head -c 60 o.json)"
-            python3 -c "
-          import json
-          d=json.load(open('o.json'))
-          for path in ('/api/v1/prices','/api/v1/locations'):
-              op=d['paths'].get(path,{}).get('get',{}); print(path, [p['name'] for p in op.get('parameters',[])])
-          " 2>/dev/null && break
+          for u in "https://prices.openfoodfacts.org/api/schema/?format=json" "https://prices.openfoodfacts.org/api/schema/" "https://prices.openfoodfacts.org/api/v1/schema/?format=json"; do
+            code=$(curl -s -m 30 -A "$UA" -H "Accept: application/json" -o o.json -w "%{http_code}" "$u"); echo "$u -> $code $(head -c 40 o.json | tr '\n' ' ')"
           done
-          B="https://prices.openfoodfacts.org/api/v1/prices?currency=EUR&size=1"
-          for f in location__osm_address_country_code=DE location_osm_address_country_code=DE location__osm_address_country=Deutschland location_osm_address_country=Deutschland; do
-            echo "$f -> $(curl -s -m 30 -A "$UA" "$B&$f" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("total"))')"
-          done
+          python3 - <<'PY'
+          import json, re
+          raw = open("o.json").read()
+          try:
+              d = json.loads(raw)
+          except ValueError:
+              # YAML: pull out the parameter names under the prices path
+              i = raw.find("/api/v1/prices:")
+              seg = raw[i:i+20000]
+              print(sorted(set(re.findall(r"name: ([a-zA-Z_]+)", seg)))[:150])
+              raise SystemExit
+          for path in ("/api/v1/prices", "/api/v1/locations"):
+              op = d["paths"].get(path, {}).get("get", {})
+              print(path, [p["name"] for p in op.get("parameters", [])])
+          PY
