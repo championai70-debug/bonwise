@@ -1,8 +1,8 @@
 """Live check of the OpenStreetMap map servers used for nearby shops.
 
 Run:  python3 tools/check_map_servers.py
-Asks each configured Overpass server for shops around central Berlin and prints what
-answered, then runs a full "Going shopping?" plan. Needs internet (not part of the tests).
+Asks each configured Overpass server and the Photon backup for shops around central
+Berlin and prints what answered, then runs three full "Going shopping?" plans. Needs internet (not part of the tests).
 """
 import sys
 import time
@@ -28,6 +28,14 @@ for url in servers:
         print("FAILED %-60s after %.1f s: %s" % (url, time.time() - t0, e))
 config.OVERPASS_URL, config.OVERPASS_FALLBACKS = saved
 places._cache.clear()
+
+if config.PHOTON_URL:  # the backup source
+    t0 = time.time()
+    try:
+        n = len(places._photon(LAT, LON, 1500)["elements"])
+        print("OK     %-60s %2d shops in %.1f s" % (config.PHOTON_URL, n, time.time() - t0))
+    except places.PlacesError as e:
+        print("FAILED %-60s after %.1f s: %s" % (config.PHOTON_URL, time.time() - t0, e))
 
 # What the app really does: all servers together, three times at different spots (no cache hits).
 good = 0
