@@ -253,7 +253,7 @@ def _cheapest_near(cands, tol_abs=0.30, tol_rel=0.03):
     return min(close, key=lambda c: (c[1], c[0]))
 
 
-def plan(text=None, items=None, lat=None, lon=None, dow=None, minute=None, radius=2000):
+def plan(text=None, items=None, lat=None, lon=None, dow=None, minute=None, radius=1500):
     if items:
         names, going = [], ""
         for it in items[:MAX_ITEMS]:

@@ -784,7 +784,7 @@
     var n = tripItems.filter(function (it) { return !it.online; }).length;
     if (locWhy) html += '<div class="notice warn" style="margin-top:0;margin-bottom:12px">' + esc(locWhy) + ' Below are the best prices we know.</div>';
     else if (j.notice) html += '<div class="notice warn" style="margin-top:0;margin-bottom:12px">' + esc(j.notice) + (j.retry ? ' <button class="linkbtn" type="button" id="tripRetry">Try again</button>' : "") + '</div>';
-    else if (j.located && !best && n) html += '<div class="notice warn" style="margin-top:0;margin-bottom:12px">No shop within 2 km sells everything on this list. See each item below.</div>';
+    else if (j.located && !best && n) html += '<div class="notice warn" style="margin-top:0;margin-bottom:12px">No shop within 1.5 km sells everything on this list. See each item below.</div>';
     if (best) {
       var meta = [distTxt(best.distance), openTxt(best), best.address].filter(Boolean).join(" · ");
       var note = "";
@@ -793,7 +793,7 @@
         note = diff > 0.05 ? '<p class="bs-note warn">You’re going to ' + esc(j.goingTo) + ': about <b>' + eur(going.total) + '</b> there (' + distTxt(going.distance) + '). ' + esc(shopName(best)) + ' saves you about <b>' + eur(diff) + '</b>.</p>'
           : '<p class="bs-note">' + esc(j.goingTo) + ' costs about the same (' + eur(going.total) + '), so either shop is fine.</p>';
       } else if (j.goingTo && going === best) note = '<p class="bs-note">Good choice: <b>' + esc(j.goingTo) + '</b> is the cheapest shop near you for this list.</p>';
-      else if (j.goingTo) note = '<p class="bs-note">There’s no ' + esc(j.goingTo) + ' within 2 km of you.</p>';
+      else if (j.goingTo) note = '<p class="bs-note">There’s no ' + esc(j.goingTo) + ' within 1.5 km of you.</p>';
       html += '<div class="best-stop"><span class="label">Best stop for your list</span><div class="bs-top"><div><div class="bs-name">' + esc(shopName(best)) + '</div><div class="bs-meta">' + esc(meta) + '</div></div>' +
         '<div class="bs-total num">~' + eur(best.total) + '<small>for ' + (best.priced < n ? best.priced + " of " : "") + n + ' item' + (n === 1 ? "" : "s") + '</small></div></div>' + note +
         '<div class="bs-actions"><a class="btn small" href="' + mapsLink(best) + '" target="_blank" rel="noopener">Directions</a><button class="btn small line" type="button" id="tripSave">Save to my list</button></div></div>';

@@ -3,6 +3,7 @@ import tempfile
 import threading
 import unittest
 import urllib.error
+import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -157,8 +158,8 @@ class MapServerFallbackTests(unittest.TestCase):
         config.OVERPASS_URL, config.OVERPASS_FALLBACKS = self.url(self.busy), [self.url(self.good)]
         for i, mode in enumerate(("429", "drop", "remark")):
             BusyOverpass.mode = mode
-            shops = places.nearby(10 + i, 10, 1500, 0, 480)  # a new position each time, so no cache hit
-            self.assertEqual(shops[0]["name"], "ALDI Nord", mode)
+            shops = places.nearby(52.531 + i / 1000, 13.41, 1500, 0, 480)  # a new position each time, so no cache hit
+            self.assertIn("ALDI Nord", [x["name"] for x in shops], mode)
 
     def test_every_server_down(self):
         BusyOverpass.mode = "429"
@@ -227,7 +228,9 @@ class ServerTests(unittest.TestCase):
         aldi = j["shops"][0]
         self.assertTrue(aldi["discounter"] and aldi["open"])
         self.assertEqual(aldi["address"], "Kastanienallee 12")
-        self.assertIn("52.530,13.410", Overpass.calls[0].replace("%2C", ","))  # rounded position only
+        query = urllib.parse.unquote_plus(Overpass.calls[0])
+        self.assertNotIn("52.5301", query)  # only the rounded position (52.530, 13.410) is used
+        self.assertIn("[bbox:%.4f,%.4f,%.4f,%.4f]" % places._bbox(52.530, 13.410, 1500), query)
         self.call("/api/shops?lat=52.53012&lon=13.41018&dow=0&min=480")
         self.assertEqual(len(Overpass.calls), 1)  # second search served from the cache
         self.assertEqual(self.call("/api/shops?lat=abc")[0], 400)

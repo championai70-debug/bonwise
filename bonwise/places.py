@@ -93,11 +93,21 @@ def _servers():
     return list(dict.fromkeys([config.OVERPASS_URL] + list(config.OVERPASS_FALLBACKS)))[:3]
 
 
+def _bbox(lat, lon, radius):
+    """South, west, north, east of a square around the (already rounded) position."""
+    dlat = radius / 111320.0
+    dlon = radius / (111320.0 * max(0.2, math.cos(math.radians(lat))))
+    return lat - dlat, lon - dlon, lat + dlat, lon + dlon
+
+
 def _query(lat, lon, radius):
-    """Ask the Overpass servers in turn; the first good answer wins."""
+    """Ask the Overpass servers in turn; the first good answer wins.
+    A bounding box with plain tag lookups is far cheaper for the servers than
+    around:+regex over nodes, ways and relations (which timed out on busy servers);
+    nearby() cuts the square back to a circle."""
     kinds = "|".join(KINDS)
-    q = ('[out:json][timeout:20];nwr["shop"~"^(%s)$"](around:%d,%.3f,%.3f);out center tags 80;'
-         % (kinds, radius, lat, lon))
+    q = ('[out:json][timeout:20][bbox:%.4f,%.4f,%.4f,%.4f];(node[shop~"^(%s)$"];way[shop~"^(%s)$"];);out center tags;'
+         % (_bbox(lat, lon, radius) + (kinds, kinds)))
     body = urllib.parse.urlencode({"data": q}).encode()
     errors = []
     for url in _servers():
@@ -150,6 +160,8 @@ def nearby(lat, lon, radius=1500, dow=None, minute=None):
         if plat is None or plon is None:
             continue
         dist = _distance_m(lat, lon, plat, plon)
+        if dist > radius:  # a corner of the search square
+            continue
         ident = (name.lower(), round(plat, 4), round(plon, 4))
         if ident in seen:
             continue
