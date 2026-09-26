@@ -32,8 +32,9 @@ python3 -m unittest discover -s tests -t .   # all tests, no network or token ne
 | `bonwise/data.py` | Price data (ALDI SÜD, sneakers, typical discounter prices) |
 | `bonwise/storage.py` | SQLite: households (hashed codes, merge by `updated`) and anonymous community prices |
 | `bonwise/places.py` | Nearby shops via OpenStreetMap Overpass, opening-hours parser |
+| `bonwise/trip.py` | "Going shopping?": typed list (any language) → cheapest shops nearby (`POST /api/trip`) |
 | `bonwise/service.py` | Scan pipeline (AI → OCR fallback → advice) |
-| `static/index.html`, `static/app.js` | Front end, vanilla JS, no build step. Tabs: Home, Receipts, List, Shops, More |
+| `static/index.html`, `static/app.js` | Front end, vanilla JS, no build step. Tabs: Home, Receipts, List, Shops, More. `body.simple` (Simple view, on by default) hides `.adv` elements |
 | `static/sw.js`, `static/manifest.webmanifest` | PWA / Android app shell |
 | `store-kit/` | Google Play listing texts, graphics, data-safety answers, marketing plan |
 

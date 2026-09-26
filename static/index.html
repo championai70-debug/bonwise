@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Bonwise</title>
-<meta name="description" content="Scan any receipt and see where the same things are cheaper: groceries, drugstore and sneakers.">
+<meta name="description" content="Type what you need and see which shops near you are cheapest, or scan a receipt to see where the same things cost less.">
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="theme-color" content="#0E7A52">
 <meta name="mobile-web-app-capable" content="yes">
@@ -314,13 +314,61 @@ body{padding-bottom:calc(72px + env(safe-area-inset-bottom))}
 .code{font-family:var(--mono);font-size:20px;font-weight:600;letter-spacing:.06em;background:var(--sunk);border-radius:12px;padding:10px 14px;text-align:center;user-select:all}
 .links{display:flex;gap:16px;flex-wrap:wrap;font-size:14px}
 .links a{color:var(--accent);font-weight:600}
+
+/* ---------- home actions: plan before, scan after ---------- */
+.act-h{display:grid;grid-template-columns:44px 1fr;gap:12px;align-items:center;margin-bottom:14px}
+.act-ic{width:44px;height:44px;border-radius:13px;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent)}
+.act-ic svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.act-ic.alt{background:var(--sunk);color:var(--ink-2)}
+.act-h h2{font-size:19px;font-weight:800;letter-spacing:-.01em}
+.act-h p{font-size:13.5px;color:var(--ink-2);margin-top:3px;line-height:1.35}
+.plan-card{border-color:color-mix(in srgb,var(--accent) 30%,var(--line))}
+.trip-form{display:flex;gap:10px;flex-wrap:wrap}
+.trip-form .field{flex:1 1 220px;font-size:16px;padding:13px 14px}
+.trip-form .btn{flex:1 1 auto;justify-content:center}
+.quick{margin-top:12px}
+.quick button.use{border-color:var(--accent);color:var(--accent)}
+.more-toggle{text-align:center;padding:4px 0 0}
+
+/* ---------- shop plan results ---------- */
+.trip-load{display:flex;gap:12px;align-items:center;font-size:14.5px;color:var(--ink-2)}
+.spin{width:20px;height:20px;border-radius:50%;border:3px solid var(--accent-soft);border-top-color:var(--accent);animation:spin 1s linear infinite;flex:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+.best-stop{background:var(--accent-soft);border-radius:16px;padding:16px}
+.best-stop .label{color:var(--accent)}
+.bs-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-top:6px}
+.bs-name{font-family:var(--display);font-weight:800;font-size:28px;letter-spacing:-.02em;line-height:1.05;overflow-wrap:anywhere}
+.bs-meta{font-size:13.5px;color:var(--ink-2);margin-top:4px}
+.bs-total{flex:none;text-align:right;font-family:var(--display);font-weight:800;font-size:28px;letter-spacing:-.02em;color:var(--accent);line-height:1.05}
+.bs-total small{display:block;font-family:var(--body);font-size:12.5px;font-weight:600;color:var(--ink-2);letter-spacing:0;margin-top:4px}
+.bs-note{font-size:14px;margin-top:12px}
+.bs-note b{color:var(--accent)}
+.bs-note.warn b{color:var(--warn)}
+.bs-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+a.btn{text-decoration:none}
+.titems{list-style:none;margin:14px 0 0;padding:0}
+.titems li{display:grid;grid-template-columns:1fr auto;gap:2px 12px;align-items:center;padding:11px 0;border-bottom:1px solid var(--line)}
+.titems li:last-child{border-bottom:0}
+.titems .nm{font-weight:700;min-width:0;overflow-wrap:anywhere}
+.titems .nm small{font-weight:500;color:var(--ink-2);margin-left:4px}
+.titems .typed{font-family:var(--mono);font-size:12px;color:var(--thermal);margin-left:6px;font-weight:400}
+.titems .where{grid-column:1;font-size:13px;color:var(--ink-2)}
+.titems .where b{color:var(--ink);font-weight:600}
+.titems .amt{grid-row:1/span 2;grid-column:2;text-align:right;font-family:var(--mono);font-weight:500;font-size:15px}
+.titems .amt .src-tag{display:block;margin:4px 0 0;text-align:center}
+.cmpshops{margin-top:14px;border-top:1px dashed var(--line);padding-top:12px}
+.cmpshops summary{cursor:pointer;font-weight:600;color:var(--accent)}
+.cmpshops .tot{font-family:var(--display);font-weight:800;font-size:17px;text-align:right}
+
+/* ---------- simple view: fewer numbers, same features ---------- */
+body.simple .adv{display:none!important}
 </style>
 </head>
 <body>
 
 <div class="app">
   <header class="top">
-    <div><div class="logo"><span class="logo-mark">€</span>Bonwise</div><div class="tagline">Scan a receipt. Pay less next time.</div></div>
+    <div><div class="logo"><span class="logo-mark">€</span>Bonwise</div><div class="tagline">Plan before you shop. Scan after. Pay less.</div></div>
     <span class="month" id="monthLabel">September 2026</span>
   </header>
 
@@ -343,28 +391,45 @@ body{padding-bottom:calc(72px + env(safe-area-inset-bottom))}
     </div>
     <p class="with-swaps" id="withSwaps" hidden></p>
     <div class="meter" aria-hidden="true"><i class="spent" id="mSpent"></i><i class="pending" id="mPending"></i><span class="today" id="mToday"></span></div>
-    <div class="meter-legend">
+    <div class="meter-legend adv">
       <span><i style="background:var(--ink-2)"></i>Saved receipts</span>
       <span id="lgPending" hidden><i style="background:var(--accent)"></i>This receipt</span>
       <span><i style="background:var(--warn);width:3px"></i>Today</span>
     </div>
-    <div class="stats">
+    <div class="stats adv">
       <div class="stat"><div class="v num" id="stSpent">€0</div><div class="k">Spent so far</div></div>
       <div class="stat"><div class="v num" id="stDaily">€0</div><div class="k">Per day left</div></div>
       <div class="stat"><div class="v num" id="stSaved" style="color:var(--accent)">€0</div><div class="k">Could save this month</div></div>
     </div>
   </section>
 
-  <!-- 2 · Scan -->
+  <!-- 2 · Before shopping: plan my shop -->
+  <section class="card plan-card" aria-labelledby="tH">
+    <div class="act-h">
+      <span class="act-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 4h2l2.4 11.2a1 1 0 0 0 1 .8h8.9a1 1 0 0 0 1-.8L20 8H6.2"/><circle cx="9" cy="20" r="1.4"/><circle cx="17" cy="20" r="1.4"/></svg></span>
+      <div><h2 id="tH">Going shopping?</h2><p>Type what you need. Bonwise finds the cheapest shops near you.</p></div>
+    </div>
+    <form class="trip-form" id="tripForm" autocomplete="off">
+      <input class="field" id="tripText" type="text" enterkeyhint="search" maxlength="600" placeholder="e.g. milk, crackers, vegetables" aria-label="What do you want to buy?">
+      <button class="btn" id="tripGo" type="submit">Find cheapest nearby</button>
+    </form>
+    <div class="sugg quick" id="tripChips" hidden></div>
+  </section>
+  <div id="tripSlotHome"></div>
+
+  <!-- 3 · After shopping: scan -->
   <section class="card" aria-labelledby="sH">
-    <div class="card-h"><h2 id="sH">Scan a receipt</h2></div>
-    <p class="reader"><span class="pill" id="readerPill">Checking reader…</span><span id="readerNote"></span></p>
+    <div class="act-h">
+      <span class="act-ic alt" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg></span>
+      <div><h2 id="sH">Just shopped?</h2><p>Scan the receipt to see what you could save next time.</p></div>
+    </div>
+    <p class="reader adv"><span class="pill" id="readerPill">Checking reader…</span><span id="readerNote"></span></p>
     <div class="scan-actions">
-      <button class="btn" id="pickBtn" type="button">Upload receipt photo</button>
+      <button class="btn" id="pickBtn" type="button">Scan receipt photo</button>
       <button class="btn line" id="sampleBtn" type="button">Try a sample receipt</button>
     </div>
     <input type="file" id="file" accept="image/*" hidden>
-    <div class="drop" id="drop">…or drop a photo here</div>
+    <div class="drop adv" id="drop">…or drop a photo here</div>
     <p class="hint">No photo handy? <button class="linkbtn" id="pasteToggle" type="button">Paste the receipt text instead</button></p>
     <div class="paste" id="pasteBox" hidden>
       <label class="label" for="pasteText">Receipt lines</label>
@@ -397,12 +462,12 @@ body{padding-bottom:calc(72px + env(safe-area-inset-bottom))}
       <div class="cmp"><span>You paid</span><div class="bar"><i id="cbPaid"></i></div><span class="v" id="cvPaid">€0.00</span></div>
       <div class="cmp after" id="cmpAfter"><span>With swaps</span><div class="bar"><i id="cbSwap"></i></div><span class="v" id="cvSwap">€0.00</span></div>
     </div>
-    <div class="facts">
+    <div class="facts adv">
       <div class="fact"><b class="num" id="fMonth">€0</b><span>a month, if this is your weekly shop</span></div>
       <div class="fact"><b class="num" id="fYear">€0</b><span>a year</span></div>
       <div class="fact" id="fWeekBox"><b class="num" id="fWeek">0%</b><span id="fWeekTxt">of your weekly allowance</span></div>
     </div>
-    <p class="coverage" id="coverage"></p>
+    <p class="coverage adv" id="coverage"></p>
   </section>
 
   <section class="card" id="swapCard" aria-labelledby="swH" hidden>
@@ -429,7 +494,7 @@ body{padding-bottom:calc(72px + env(safe-area-inset-bottom))}
   </section>
 
   <!-- 4 · Recommendations -->
-  <section class="card" id="recCard" aria-labelledby="recH" hidden>
+  <section class="card adv" id="recCard" aria-labelledby="recH" hidden>
     <div class="card-h"><h2 id="recH">Staying within your budget</h2></div>
     <ul class="recs" id="recs"></ul>
     <div class="ai-box" id="aiBox" hidden>
@@ -446,14 +511,21 @@ body{padding-bottom:calc(72px + env(safe-area-inset-bottom))}
   </section>
 
   <!-- Price check for the current receipt -->
-  <section class="card" id="pcCard" aria-labelledby="pcH" hidden>
+  <section class="card adv" id="pcCard" aria-labelledby="pcH" hidden>
     <div class="card-h"><h2 id="pcH">Price check for this receipt</h2><span class="label" id="pcCount"></span></div>
     <ul class="pc-list" id="pcList"></ul>
     <p class="pc-note" id="pcNote"></p>
   </section>
 
-  <p class="foot">Test version. Receipt photos are sent to this Bonwise server, which asks an open-source AI model on Hugging Face to read them (Tesseract OCR is the backup). Photos aren’t stored. “Real price” comparisons use ALDI SÜD shelf prices (aldi-sued.de) and sneaker prices from günstiger.de, billiger.de and the brands’ shops, all checked 23 Sep 2026. Prices vary by region, size and colour, and change over time. Other swaps are estimates. Your data stays on this phone unless you turn on household sharing. <a href="/privacy">Privacy policy</a></p>
+  <p class="more-toggle"><button class="linkbtn" id="simpleToggle" type="button">Show all details</button></p>
+  <p class="foot adv">Test version. Receipt photos are sent to this Bonwise server, which asks an open-source AI model on Hugging Face to read them (Tesseract OCR is the backup). Photos aren’t stored. “Real price” comparisons use ALDI SÜD shelf prices (aldi-sued.de) and sneaker prices from günstiger.de, billiger.de and the brands’ shops, all checked 23 Sep 2026. Prices vary by region, size and colour, and change over time. Other swaps are estimates. Your data stays on this phone unless you turn on household sharing. <a href="/privacy">Privacy policy</a></p>
   </div><!-- /view-home -->
+
+  <!-- Shop plan results (moved next to whichever "Find cheapest" was pressed) -->
+  <section class="card" id="tripCard" aria-labelledby="tripH" aria-live="polite" hidden>
+    <div class="card-h"><h2 id="tripH">Your shop plan</h2><button class="linkbtn" id="tripClose" type="button">✕ Close</button></div>
+    <div id="tripBody"></div>
+  </section>
 
   <!-- ===== Receipts ===== -->
   <div class="view" id="view-receipts" hidden>
@@ -477,11 +549,15 @@ body{padding-bottom:calc(72px + env(safe-area-inset-bottom))}
       </form>
       <ul class="slist" id="slist"></ul>
       <p class="empty" id="slistEmpty" style="margin-top:10px">Your list is empty. Add items above or tap “Buy again” below.</p>
+      <div class="row2" style="margin-top:12px" id="listTripRow" hidden>
+        <button class="btn" id="listTrip" type="button" style="flex:1 1 auto;justify-content:center">Find cheapest shops for my list</button>
+      </div>
       <div class="row2" style="margin-top:10px;justify-content:space-between">
         <span class="muted" id="listTotal"></span>
         <button class="linkbtn" id="clearDone" type="button" hidden>Remove ticked items</button>
       </div>
     </section>
+    <div id="tripSlotList"></div>
     <section class="card" id="againCard" aria-labelledby="aH" hidden>
       <div class="card-h"><h2 id="aH">Buy again</h2><span class="label">from your receipts</span></div>
       <div class="sugg" id="again"></div>
@@ -539,6 +615,9 @@ body{padding-bottom:calc(72px + env(safe-area-inset-bottom))}
     </section>
     <section class="card" aria-labelledby="stH">
       <div class="card-h"><h2 id="stH">Settings</h2></div>
+      <div class="setting">
+        <label class="switch"><input type="checkbox" id="setSimple"><span><b style="color:var(--ink)">Simple view</b><br>Shows only what you need most: your budget, “Going shopping?”, “Just shopped?” and your swaps. Turn it off to see every number and chart.</span></label>
+      </div>
       <div class="setting">
         <label class="switch"><input type="checkbox" id="setShare"><span><b style="color:var(--ink)">Share prices anonymously</b><br>When you add a receipt, product prices and the shop chain (no name, no account, no location) help everyone find cheaper shops.</span></label>
       </div>

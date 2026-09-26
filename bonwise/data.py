@@ -179,3 +179,82 @@ BRANDS = ["barilla", "coca", "pepsi", "milka", "nutella", "lenor", "ariel", "per
 
 STORES = ["rewe", "edeka", "lidl", "aldi", "kaufland", "penny", "netto", "norma", "rossmann", "globus",
           "tegut", "marktkauf", "famila", "real", "budni", "denns", "alnatura", "dm-drogerie", "dm drogerie", "hit"]
+
+
+# ---------- Plan my shop (before shopping) ----------
+# Words people type in other languages or loosely -> a product name the price guide
+# knows. Matched as whole words, so "tel" never matches inside "hotel".
+ALIASES = {
+    # Hindi / Urdu, as typed on an English keyboard
+    "doodh": "milk", "dudh": "milk", "sabzi": "vegetables", "sabji": "vegetables", "subzi": "vegetables",
+    "anda": "eggs", "ande": "eggs", "anday": "eggs", "chawal": "rice", "aata": "flour", "atta": "flour",
+    "dahi": "yoghurt", "pyaz": "onion", "pyaaz": "onion", "aloo": "potato", "alu": "potato",
+    "tamatar": "tomato", "cheeni": "sugar", "chini": "sugar", "makhan": "butter", "makkhan": "butter",
+    "namak": "salt", "tel": "cooking oil", "phal": "fruit", "kela": "banana", "seb": "apples",
+    "murgi": "chicken", "murga": "chicken", "machli": "fish", "machhli": "fish", "biskut": "biscuits",
+    "paani": "water", "pani": "water", "chana": "chickpeas",
+    # Turkish
+    "sut": "milk", "ekmek": "bread", "yumurta": "eggs", "peynir": "cheese", "sebze": "vegetables",
+    "meyve": "fruit", "tavuk": "chicken", "pirinc": "rice", "seker": "sugar",
+    # English variants
+    "loo roll": "toilet paper", "toilet roll": "toilet paper", "washing powder": "detergent",
+    "laundry": "detergent", "spuds": "potato",
+}
+
+# Products the price guide has no price for: we still know which shops sell them.
+# (keys, English name, category)
+EXTRA_ITEMS = [
+    (["gemuese", "gemuse", "vegetables", "vegetable", "veggies", "veg", "salat", "salad", "karotten", "moehren",
+      "carrots", "brokkoli", "broccoli", "spinat", "spinach", "zucchini"], "Vegetables", "Fruit & veg"),
+    (["obst", "fruit", "fruits", "orangen", "oranges", "trauben", "grapes", "beeren", "berries", "erdbeeren",
+      "strawberries", "zitronen", "lemons"], "Fruit", "Fruit & veg"),
+    (["cracker", "crackers", "salzcracker"], "Crackers", "Snacks"),
+    (["kekse", "biscuits", "cookies", "butterkekse"], "Biscuits", "Snacks"),
+    (["fleisch", "meat", "hackfleisch", "hack", "minced meat", "mince", "steak"], "Meat", "Meat & fish"),
+    (["wurst", "sausages", "salami", "schinken", "ham", "bacon", "speck"], "Sausage & ham", "Meat & fish"),
+    (["haehnchen", "hahnchen", "huhn", "chicken", "haehnchenbrust", "chicken breast"], "Chicken", "Meat & fish"),
+    (["fisch", "fish", "lachs", "salmon", "thunfisch", "tuna"], "Fish", "Meat & fish"),
+    (["tee", "tea", "chai"], "Tea", "Pantry"),
+    (["salz", "salt"], "Salt", "Pantry"),
+    (["linsen", "lentils", "dal", "daal"], "Lentils", "Pantry"),
+    (["kichererbsen", "chickpeas"], "Chickpeas", "Pantry"),
+    (["olivenoel", "olivenol", "olive oil"], "Olive oil", "Pantry"),
+    (["pizza", "tiefkuehlpizza"], "Frozen pizza", "Frozen"),
+    (["eis", "ice cream", "eiscreme"], "Ice cream", "Frozen"),
+    (["bier", "beer"], "Beer", "Drinks"),
+    (["wein", "wine"], "Wine", "Drinks"),
+    (["windeln", "nappies", "diapers"], "Nappies", "Baby"),
+    (["katzenfutter", "cat food", "hundefutter", "dog food"], "Pet food", "Pet"),
+    (["deo", "deodorant"], "Deodorant", "Drugstore"),
+    (["seife", "soap", "handseife"], "Soap", "Drugstore"),
+    (["reiniger", "cleaner", "putzmittel", "allzweckreiniger"], "Cleaner", "Household"),
+    (["kuechenrolle", "kitchen roll", "paper towels"], "Kitchen roll", "Household"),
+]
+
+# What each kind of shop sells, and its rough price level compared with a discounter.
+# The price levels are only used for estimates, which the app always labels "Estimate":
+# full-range supermarkets are typically 10-20% dearer than discounters on a mixed basket,
+# kiosks and late-night shops a lot more; dm and Rossmann are cheapest for drugstore goods.
+FOOD = ["Dairy", "Bakery", "Fruit & veg", "Pantry", "Drinks", "Snacks", "Meat & fish", "Frozen"]
+NON_FOOD = ["Household", "Drugstore", "Baby", "Pet"]
+SHOP_LEVELS = {
+    "discounter":  {"sells": FOOD + NON_FOOD + ["Other"], "level": 1.0},
+    "supermarket": {"sells": FOOD + NON_FOOD + ["Other"], "level": 1.15},
+    "organic":     {"sells": FOOD + ["Household", "Drugstore", "Baby", "Other"], "level": 1.5},
+    "convenience": {"sells": ["Dairy", "Bakery", "Pantry", "Drinks", "Snacks"], "level": 1.4},
+    "drugstore":   {"sells": ["Drugstore", "Household", "Baby", "Pet"], "level": 1.0},
+    "greengrocer": {"sells": ["Fruit & veg"], "level": 1.0},
+    "bakery":      {"sells": ["Bakery"], "level": 1.5},
+    "butcher":     {"sells": ["Meat & fish"], "level": 1.3},
+}
+# Drugstore goods cost more at supermarkets than at dm, Rossmann or a discounter.
+DRUGSTORE_AT_SUPERMARKET = 1.25
+ORGANIC_CHAINS = ["DENNS", "ALNATURA"]
+
+# Where each category is usually cheapest (shown when we have no price for an item).
+CHEAPEST_AT = {
+    "Drugstore": "dm or Rossmann (or the discounter)",
+    "Fruit & veg": "discounters or a local greengrocer",
+    "Bakery": "the discounter's bake-off shelf",
+    "Baby": "dm or Rossmann",
+}

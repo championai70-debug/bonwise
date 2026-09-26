@@ -26,6 +26,13 @@ Scan any receipt and Bonwise shows where the same things are cheaper next time
 - **Savings:** real ALDI SÜD shelf prices and sneaker prices from price-comparison
   sites (checked 23 Sep 2026), prices other users paid (community prices), then typical
   discounter prices, then the AI's own suggestion.
+- **Going shopping? (plan before you shop):** type what you need ("milk, crackers,
+  vegetables", also in German, Hindi/Urdu or Turkish words like "doodh, sabzi") and
+  Bonwise shows the best single shop near you, what each item costs where, how the
+  shop you named compares, and a two-stop plan when that saves real money. Prices are
+  tagged "Real price" (ALDI SÜD shelf prices, prices users paid) or "Estimate".
+- **Simple view** (on by default): Home shows just the budget, "Going shopping?",
+  "Just shopped?" and the swaps. "Show all details" brings back every chart and number.
 - **Receipt vault:** every saved receipt with its items, return window and 2-year
   warranty date, plus "Coming up" reminders with an "Add to calendar" link.
 - **Shopping list:** "Buy again" from past receipts, best known price per item, share
@@ -105,6 +112,7 @@ The tests use a fake Hugging Face server, so they need no token or internet.
 | `bonwise/service.py` | The scan pipeline: AI → backup → savings |
 | `bonwise/storage.py` | SQLite: household sharing and anonymous community prices |
 | `bonwise/places.py` | Nearby shops from OpenStreetMap, "open now" from opening hours |
+| `bonwise/trip.py` | Plan my shop: typed list → cheapest shops nearby (`POST /api/trip`) |
 | `static/` | The browser app (budget, swaps, savings plan, price check) |
 
 ## API

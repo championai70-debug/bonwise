@@ -14,7 +14,7 @@
     budget: store.get("bonwise.budget", 300), budgetAt: store.get("bonwise.budgetAt", 0),
     receipts: store.get("bonwise.receipts", []), plan: store.get("bonwise.plan", []), list: store.get("bonwise.list", []),
     tomb: store.get("bonwise.tomb", { receipts: {}, plan: {}, list: {} }),
-    settings: Object.assign({ sharePrices: true, returnDays: 14 }, store.get("bonwise.settings", {})),
+    settings: Object.assign({ sharePrices: true, returnDays: 14, simple: true }, store.get("bonwise.settings", {})),
     household: store.get("bonwise.household", null)
   };
   ["receipts", "plan", "list"].forEach(function (k) { if (!mem.tomb[k]) mem.tomb[k] = {}; });
@@ -623,8 +623,9 @@
       return '<li class="' + (x.done ? "done" : "") + '"><input type="checkbox" data-li="' + esc(x.id) + '"' + (x.done ? " checked" : "") + ' aria-label="Bought ' + esc(x.name) + '">' +
         '<span><span class="nm">' + esc(x.name) + '</span>' + bp + '</span><button class="del" type="button" data-rm="' + esc(x.id) + '" aria-label="Remove ' + esc(x.name) + '">×</button></li>';
     }).join("");
+    $("listTripRow").hidden = !open;
     $("listTotal").textContent = open ? (priced ? "Cheapest known prices: " + eur(r2(total)) + " for " + priced + " of " + open + " item" + (open > 1 ? "s" : "") : open + " item" + (open > 1 ? "s" : "") + " to buy") : "";
-    renderAgain();
+    renderAgain(); renderTripChips();
   }
   function bestOf(p) {
     if (!p) return null;
@@ -641,12 +642,12 @@
       renderList();
     }).catch(function () {});
   }
-  function addToList(name) {
+  function addToList(name, quiet) {
     name = String(name || "").trim().slice(0, 80); if (!name) return;
     if (mem.list.some(function (x) { return !x.done && listKey(x.name) === listKey(name); })) return;
     var item = stamp({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name: name, done: false, created: Date.now() });
     mem.list.push(item); delete mem.tomb.list[item.id];
-    persist(); renderList(); refreshListPrices();
+    if (!quiet) { persist(); renderList(); refreshListPrices(); }
   }
   $("listForm").addEventListener("submit", function (e) { e.preventDefault(); addToList($("listInput").value); $("listInput").value = ""; $("listInput").focus(); });
   $("slist").addEventListener("change", function (e) {
@@ -677,7 +678,7 @@
     var done = function () { var t = btn.textContent; btn.textContent = "Copied"; setTimeout(function () { btn.textContent = t; }, 1500); };
     if (navigator.clipboard) navigator.clipboard.writeText(text).then(done, function () {}); 
   }
-  function renderAgain() {
+  function againTop(n) {
     var counts = {}, inList = {};
     mem.list.forEach(function (x) { if (!x.done) inList[listKey(x.name)] = 1; });
     mem.receipts.forEach(function (r) {
@@ -688,8 +689,11 @@
         c.n++; c.last = Math.max(c.last, r.at || 0);
       });
     });
-    var top = Object.keys(counts).map(function (k) { return counts[k]; })
-      .sort(function (a, b) { return b.n - a.n || b.last - a.last; }).slice(0, 12);
+    return Object.keys(counts).map(function (k) { return counts[k]; })
+      .sort(function (a, b) { return b.n - a.n || b.last - a.last; }).slice(0, n);
+  }
+  function renderAgain() {
+    var top = againTop(12);
     $("againCard").hidden = !top.length;
     $("again").innerHTML = top.map(function (c) {
       return '<button type="button" data-again="' + esc(c.name) + '">+ ' + esc(c.name) + (c.n > 1 ? '<small>×' + c.n + '</small>' : "") + '</button>';
@@ -739,6 +743,149 @@
     $("shopFilter").querySelectorAll("button").forEach(function (x) { x.setAttribute("aria-pressed", x === b ? "true" : "false"); });
     renderShops();
   });
+
+  /* ---------- plan my shop: cheapest shops nearby, before shopping ---------- */
+  var tripItems = [], tripBusy = false;
+  function distTxt(m) { return m < 1000 ? m + " m" : (m / 1000).toFixed(1) + " km"; }
+  function mapsLink(x) { return "https://www.google.com/maps/dir/?api=1&destination=" + x.lat + "," + x.lon; }
+  function openTxt(x) { return x.open === true ? "Open now" : x.open === false ? "Closed now" : ""; }
+  function shopName(x) { return x.name || x.brand || "Shop"; }
+  function listText(a) { return a.length <= 1 ? a.join("") : a.slice(0, -1).join(", ") + " and " + a[a.length - 1]; }
+  // Where the user's own location comes from: asked for only when they press the button.
+  function locate() {
+    return new Promise(function (res) {
+      if (!navigator.geolocation) return res({ pos: null, why: "This phone doesn’t share its location with apps." });
+      navigator.geolocation.getCurrentPosition(function (p) { res({ pos: p }); }, function (e) {
+        res({ pos: null, why: e.code === 1 ? "Location is off for Bonwise, so shops near you aren’t compared. Allow location in your phone’s settings to see them." : "Your location couldn’t be found, so shops near you aren’t compared." });
+      }, { enableHighAccuracy: false, timeout: 12000, maximumAge: 300000 });
+    });
+  }
+  function tripLoading(text) { $("tripBody").innerHTML = '<div class="trip-load"><span class="spin" aria-hidden="true"></span><span>' + esc(text) + '</span></div>'; }
+  function runTrip(payload, slot) {
+    if (tripBusy) return;
+    tripBusy = true; $("tripGo").disabled = $("listTrip").disabled = true;
+    $(slot).appendChild($("tripCard")); $("tripCard").hidden = false;
+    tripLoading("Finding your location…");
+    $("tripCard").scrollIntoView({ behavior: "smooth", block: "start" });
+    locate().then(function (loc) {
+      tripLoading(loc.pos ? "Comparing the shops near you…" : "Looking up prices…");
+      var d = new Date(), body = Object.assign({}, payload);
+      if (loc.pos) Object.assign(body, { lat: Number(loc.pos.coords.latitude.toFixed(4)), lon: Number(loc.pos.coords.longitude.toFixed(4)), dow: (d.getDay() + 6) % 7, min: d.getHours() * 60 + d.getMinutes() });
+      return api("/api/trip", body).then(function (j) { renderTrip(j, loc.why || ""); });
+    }).catch(function (e) {
+      $("tripBody").innerHTML = '<div class="notice bad" style="margin-top:0">' + esc((e && e.message) || "Something went wrong. Try again.") + '</div>';
+    }).then(function () { tripBusy = false; $("tripGo").disabled = $("listTrip").disabled = false; });
+  }
+  function srcTag(p) { return p.real ? '<span class="src-tag real">Real price</span>' : '<span class="src-tag est">Estimate</span>'; }
+  function renderTrip(j, locWhy) {
+    tripItems = j.items || [];
+    var shops = j.shops || [], best = j.best != null ? shops[j.best] : null, going = j.going != null ? shops[j.going] : null, html = "";
+    var n = tripItems.filter(function (it) { return !it.online; }).length;
+    if (locWhy) html += '<div class="notice warn" style="margin-top:0;margin-bottom:12px">' + esc(locWhy) + ' Below are the best prices we know.</div>';
+    else if (j.notice) html += '<div class="notice warn" style="margin-top:0;margin-bottom:12px">' + esc(j.notice) + '</div>';
+    else if (j.located && !best && n) html += '<div class="notice warn" style="margin-top:0;margin-bottom:12px">No shop within 2 km sells everything on this list. See each item below.</div>';
+    if (best) {
+      var meta = [distTxt(best.distance), openTxt(best), best.address].filter(Boolean).join(" · ");
+      var note = "";
+      if (j.goingTo && going && going !== best) {
+        var diff = r2(going.total - best.total);
+        note = diff > 0.05 ? '<p class="bs-note warn">You’re going to ' + esc(j.goingTo) + ': about <b>' + eur(going.total) + '</b> there (' + distTxt(going.distance) + '). ' + esc(shopName(best)) + ' saves you about <b>' + eur(diff) + '</b>.</p>'
+          : '<p class="bs-note">' + esc(j.goingTo) + ' costs about the same (' + eur(going.total) + '), so either shop is fine.</p>';
+      } else if (j.goingTo && going === best) note = '<p class="bs-note">Good choice: <b>' + esc(j.goingTo) + '</b> is the cheapest shop near you for this list.</p>';
+      else if (j.goingTo) note = '<p class="bs-note">There’s no ' + esc(j.goingTo) + ' within 2 km of you.</p>';
+      html += '<div class="best-stop"><span class="label">Best stop for your list</span><div class="bs-top"><div><div class="bs-name">' + esc(shopName(best)) + '</div><div class="bs-meta">' + esc(meta) + '</div></div>' +
+        '<div class="bs-total num">~' + eur(best.total) + '<small>for ' + (best.priced < n ? best.priced + " of " : "") + n + ' item' + (n === 1 ? "" : "s") + '</small></div></div>' + note +
+        '<div class="bs-actions"><a class="btn small" href="' + mapsLink(best) + '" target="_blank" rel="noopener">Directions</a><button class="btn small line" type="button" id="tripSave">Save to my list</button></div></div>';
+    } else html += '<div class="bs-actions" style="margin-top:0"><button class="btn small line" type="button" id="tripSave">Save to my list</button></div>';
+    if (j.split) {
+      var parts = j.split.stops.map(function (st) { return esc(shopName(shops[st.shop])) + " (" + esc(listText(st.items.map(function (i) { return tripItems[i].name; }))) + ")"; });
+      html += '<div class="notice ok">Two stops save more: ' + parts.join(" + ") + ' comes to about <b>' + eur(j.split.total) + '</b>, ' + eur(j.split.save) + ' less than one stop.</div>';
+    }
+    html += '<ul class="titems">' + tripItems.map(function (it) {
+      var tq = norm(it.query), tn = norm(it.name);
+      var typed = tq.indexOf(tn) < 0 && tn.indexOf(tq) < 0 ? '<span class="typed">“' + esc(it.query) + '”</span>' : "";
+      var size = (it.count > 1 ? it.count + " × " : "") + (it.size || "");
+      var amt = "", where;
+      if (it.online) {
+        amt = eur(it.online.price) + '<span class="src-tag real">Real price</span>';
+        where = "Cheapest online at <b>" + esc(it.online.shop) + "</b> (" + esc(it.online.src) + "), brand shop " + eur(it.online.list);
+      } else if (it.best) {
+        var sh = shops[it.best.shop];
+        if (it.best.price != null) {
+          amt = eur(it.best.price) + srcTag(it.best);
+          where = "Cheapest at <b>" + esc(shopName(sh)) + "</b> · " + distTxt(sh.distance) + (it.best.src === "users" ? " · paid by Bonwise users" : it.best.src === "aldi" ? " · ALDI SÜD shelf price" : "");
+        } else where = "No price yet · sold at <b>" + esc(shopName(sh)) + "</b> · " + distTxt(sh.distance);
+      } else if (it.known) {
+        amt = eur(it.known.price) + '<span class="src-tag real">Real price</span>';
+        where = "Best known: <b>" + esc(it.known.chain) + "</b>" + (it.known.src === "users" ? " (paid by Bonwise users)" : " (ALDI SÜD shelf price)");
+      } else if (it.typical != null) {
+        amt = "~" + eur(it.typical) + '<span class="src-tag est">Estimate</span>';
+        where = "Usually cheapest at " + esc(it.hint);
+      } else where = "No price yet · usually cheapest at " + esc(it.hint);
+      return '<li><span class="nm">' + esc(it.name) + (size ? '<small>' + esc(size) + '</small>' : "") + typed + '</span><span class="amt num">' + amt + '</span><span class="where">' + where + '</span></li>';
+    }).join("") + '</ul>';
+    var others = shops.filter(function (x) { return x.covers > 0; });
+    if (others.length > 1) {
+      html += '<details class="cmpshops"><summary>Compare ' + others.length + ' shops</summary><ul class="shops">' + others.map(function (x) {
+        return '<li><span class="nm">' + esc(shopName(x)) + '</span><span class="tot num">~' + eur(x.total) + '</span>' +
+          '<span class="meta">' + distTxt(x.distance) + ' · ' + esc(x.kind) + (openTxt(x) ? ' · ' + openTxt(x) : "") + (x.missing.length ? ' · no ' + esc(listText(x.missing)) : " · has everything") + '</span>' +
+          '<a class="go" href="' + mapsLink(x) + '" target="_blank" rel="noopener">Directions →</a></li>';
+      }).join("") + '</ul></details>';
+    }
+    html += '<p class="pc-note">Real price: ALDI SÜD shelf prices (' + esc(j.checked || "") + ') and what Bonwise users paid in the last 90 days. Estimate: the typical price level of that kind of shop. Prices vary by region and change often. Shop data © OpenStreetMap contributors.</p>';
+    $("tripBody").innerHTML = html;
+  }
+  $("tripBody").addEventListener("click", function (e) {
+    if (!e.target.closest("#tripSave")) return;
+    tripItems.forEach(function (it) {
+      var q = norm(it.query), nm = norm(it.name);
+      addToList(q.indexOf(nm) >= 0 || nm.indexOf(q) >= 0 ? it.query : it.name, true);
+    });
+    persist(); renderList(); refreshListPrices();
+    e.target.textContent = "✓ Saved to your list"; e.target.disabled = true;
+  });
+  $("tripClose").addEventListener("click", function () { $("tripCard").hidden = true; });
+  $("tripText").value = store.get("bonwise.tripText", "");
+  $("tripForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var t = $("tripText").value.trim();
+    if (!t) { $("tripText").focus(); $("tripText").placeholder = "Type a few things first, e.g. milk, bread"; return; }
+    store.set("bonwise.tripText", t);
+    $("tripText").blur();
+    runTrip({ text: t }, "tripSlotHome");
+  });
+  $("listTrip").addEventListener("click", function () {
+    var open = mem.list.filter(function (x) { return !x.done; }).map(function (x) { return x.name; });
+    if (open.length) runTrip({ items: open }, "tripSlotList");
+  });
+  // Quick picks under the box: the shopping list, and things you buy often.
+  function renderTripChips() {
+    var open = mem.list.filter(function (x) { return !x.done; }), top = againTop(5), html = "";
+    if (open.length) html += '<button type="button" class="use" data-use-list="1">Use my list (' + open.length + ')</button>';
+    html += top.map(function (c) { return '<button type="button" data-add="' + esc(c.name) + '">+ ' + esc(c.name) + '</button>'; }).join("");
+    $("tripChips").innerHTML = html; $("tripChips").hidden = !html;
+  }
+  $("tripChips").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    if (b.dataset.useList) {
+      var open = mem.list.filter(function (x) { return !x.done; }).map(function (x) { return x.name; });
+      $("tripText").value = open.join(", "); store.set("bonwise.tripText", $("tripText").value);
+      runTrip({ items: open }, "tripSlotHome"); return;
+    }
+    var t = $("tripText").value.trim();
+    $("tripText").value = (t ? t.replace(/[,\s]+$/, "") + ", " : "") + b.dataset.add;
+    b.remove(); if (!$("tripChips").children.length) $("tripChips").hidden = true;
+  });
+
+  /* ---------- simple view ---------- */
+  function applySimple() {
+    var on = !!mem.settings.simple;
+    document.body.classList.toggle("simple", on);
+    $("setSimple").checked = on;
+    $("simpleToggle").textContent = on ? "Show all details" : "Switch to simple view";
+  }
+  $("setSimple").addEventListener("change", function () { mem.settings.simple = $("setSimple").checked; persist(); applySimple(); });
+  $("simpleToggle").addEventListener("click", function () { mem.settings.simple = !mem.settings.simple; persist(); applySimple(); });
 
   /* ---------- settings ---------- */
   function renderSettings() {
@@ -841,7 +988,7 @@
   });
   document.addEventListener("visibilitychange", function () { if (!document.hidden) { syncNow(); renderReminders(); } });
 
-  function renderAll() { renderBudget(); renderVault(); renderReminders(); renderPlan(); renderList(); renderSettings(); }
+  function renderAll() { renderBudget(); renderVault(); renderReminders(); renderPlan(); renderList(); renderSettings(); applySimple(); }
   renderAll();
   showTab((location.hash || "").slice(1) || "home");
   syncNow();
