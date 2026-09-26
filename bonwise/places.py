@@ -24,7 +24,7 @@ DISCOUNTERS = ("aldi", "lidl", "penny", "netto", "norma", "kaufland")
 DAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"]
 
 _cache, _lock = {}, threading.Lock()
-BUDGET = 28         # seconds a shop search may take in all
+BUDGET = 12         # seconds for Overpass before the Photon backup is asked
 HEAD_START = 3      # seconds the main server gets before the mirrors are asked too
 RETRY_WAIT = 1.5    # seconds between tries when the main server is busy
 CACHE_SECONDS = 6 * 3600  # shops rarely move; "open now" is worked out fresh on every request
@@ -175,20 +175,96 @@ def _ask(url, body, answers, deadline, retry):
             time.sleep(RETRY_WAIT)
 
 
-def nearby(lat, lon, radius=1500, dow=None, minute=None):
+# Photon returns the nearest places first and at most 50 per call, so the few big shops
+# get their own call and aren't crowded out by bakeries and kiosks.
+PHOTON_GROUPS = (("supermarket", "discount", "chemist"), ("convenience", "greengrocer", "bakery", "butcher"))
+
+
+def photon_elements(features):
+    """Photon GeoJSON features -> Overpass-style elements (Photon has no opening hours)."""
+    out = []
+    for f in features if isinstance(features, list) else []:
+        try:
+            props, (plon, plat) = f["properties"], f["geometry"]["coordinates"][:2]
+            plat, plon = float(plat), float(plon)
+        except (TypeError, KeyError, ValueError):
+            continue
+        if props.get("osm_key") != "shop" or props.get("osm_value") not in KINDS or not props.get("name"):
+            continue
+        tags = {"shop": props["osm_value"], "name": str(props["name"])[:200]}
+        if props.get("street"):
+            tags["addr:street"] = str(props["street"])[:100]
+        if props.get("housenumber"):
+            tags["addr:housenumber"] = str(props["housenumber"])[:20]
+        out.append({"lat": plat, "lon": plon, "tags": tags})
+    return out
+
+
+def _photon(lat, lon, radius):
+    """Backup: nearby shops from Photon (komoot)."""
+    elements = []
+    for group in PHOTON_GROUPS:
+        params = [("lat", "%.3f" % lat), ("lon", "%.3f" % lon), ("radius", "%.1f" % (radius / 1000.0)), ("limit", "50")]
+        params += [("osm_tag", "shop:" + k) for k in group]
+        req = urllib.request.Request(config.PHOTON_URL + "?" + urllib.parse.urlencode(params), headers={
+            "User-Agent": "Bonwise/1.0 (receipt savings app; https://bonwise.onrender.com)", "Accept": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=10) as res:
+                elements += photon_elements(json.loads(res.read().decode("utf-8", "replace")).get("features"))
+        except (OSError, http.client.HTTPException, ValueError, AttributeError) as e:
+            reason = "HTTP %s" % e.code if isinstance(e, urllib.error.HTTPError) else repr(e)[:160]
+            print("photon failed: " + reason, flush=True)
+            raise PlacesError("photon: " + reason)
+    return {"elements": elements}
+
+
+PHONE_TAGS = ("name", "brand", "shop", "opening_hours", "addr:street", "addr:housenumber")
+
+
+def from_phone(elements):
+    """Overpass elements the phone fetched itself -> the same shape, checked and trimmed.
+    The phone asks the map servers directly (its own internet address isn't rate-limited
+    like a shared cloud server's); anything malformed is dropped."""
+    out = []
+    for el in elements[:2000] if isinstance(elements, list) else []:
+        if not isinstance(el, dict) or not isinstance(el.get("tags"), dict):
+            continue
+        pos = el if "lat" in el else el.get("center")
+        try:
+            plat, plon = float(pos["lat"]), float(pos["lon"])
+        except (TypeError, KeyError, ValueError):
+            continue
+        if not (-90 <= plat <= 90 and -180 <= plon <= 180):
+            continue
+        tags = {k: str(el["tags"][k])[:200] for k in PHONE_TAGS if isinstance(el["tags"].get(k), (str, int, float))}
+        if tags.get("shop") in KINDS:
+            out.append({"lat": plat, "lon": plon, "tags": tags})
+    return {"elements": out}
+
+
+def nearby(lat, lon, radius=1500, dow=None, minute=None, osm=None):
+    """Shops around a position, nearest first. osm: elements the phone already fetched
+    from OpenStreetMap; without them the server asks the map servers itself."""
     lat, lon = round(float(lat), 3), round(float(lon), 3)
     if not (-90 <= lat <= 90 and -180 <= lon <= 180):
         raise PlacesError("bad position")
     radius = max(300, min(int(radius), 5000))
     key = (lat, lon, radius)
+    raw = from_phone(osm) if osm is not None else None
     with _lock:
         hit = _cache.get(key)
-        if hit and time.time() - hit[0] < CACHE_SECONDS:
+        if raw is None and hit and time.time() - hit[0] < CACHE_SECONDS:
             raw = hit[1]
-        else:
-            raw = None
     if raw is None:
-        raw = _query(lat, lon, radius)
+        try:
+            raw = _query(lat, lon, radius)
+        except PlacesError as e:
+            if not config.PHOTON_URL:
+                raise
+            try:
+                raw = _photon(lat, lon, radius)
+            except PlacesError as e2:
+                raise PlacesError("%s; %s" % (e, e2))
         with _lock:
             if len(_cache) > 500:
                 _cache.clear()

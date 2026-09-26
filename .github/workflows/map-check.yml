@@ -1,14 +1,16 @@
-# Live check that the OpenStreetMap map servers answer (nearby shops, "Going shopping?").
+# Live check that nearby shops work ("Going shopping?" and the Shops tab):
+# 1. the server's own lookup against the real OpenStreetMap map servers;
+# 2. a real browser fetching the shops itself, with the server's lookup switched off.
 # Run it from GitHub → Actions → "Map servers check" → Run workflow.
 name: Map servers check
 
 on:
   workflow_dispatch:
   pull_request:
-    paths: ["bonwise/places.py", "bonwise/config.py", "tools/check_map_servers.py"]
+    paths: ["bonwise/places.py", "bonwise/config.py", "static/app.js", "tools/check_*", ".github/workflows/map-check.yml"]
 
 jobs:
-  check:
+  server:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -16,3 +18,36 @@ jobs:
         with:
           python-version: "3.11"
       - run: python3 tools/check_map_servers.py
+
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Can a website read the map servers' answers? (CORS headers)
+        run: |
+          Q='[out:json][timeout:20][bbox:52.5165,13.3879,52.5435,13.4321];(node[shop~"^(supermarket|discount)$"];);out center tags;'
+          for url in https://overpass-api.de/api/interpreter https://overpass.private.coffee/api/interpreter https://overpass.kumi.systems/api/interpreter; do
+            for method in POST GET; do
+              echo "== $method $url"
+              if [ $method = POST ]; then
+                curl -s -m 30 -o /tmp/body -D - -H "Origin: http://localhost:7860" --data-urlencode "data=$Q" "$url" | grep -iE "^HTTP|access-control|content-type" || echo "(no answer)"
+              else
+                curl -s -m 30 -o /tmp/body -D - -H "Origin: http://localhost:7860" -G --data-urlencode "data=$Q" "$url" | grep -iE "^HTTP|access-control|content-type" || echo "(no answer)"
+              fi
+              head -c 150 /tmp/body 2>/dev/null; echo
+            done
+          done
+          echo "== preflight OPTIONS"
+          curl -s -m 20 -o /dev/null -D - -X OPTIONS -H "Origin: http://localhost:7860" -H "Access-Control-Request-Method: POST" https://overpass-api.de/api/interpreter | grep -iE "^HTTP|access-control" || true
+      - run: npm install --no-save playwright@1.56.1 && npx playwright install --with-deps chromium
+      - name: Browser fetches the shops itself
+        run: |
+          OVERPASS_URL=http://127.0.0.1:9/api/interpreter OVERPASS_FALLBACKS= python3 app.py > app.log 2>&1 &
+          sleep 3
+          node tools/check_browser_map.mjs http://localhost:7860 || (cat app.log; exit 1)

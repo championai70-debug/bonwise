@@ -151,6 +151,18 @@ class TripServerTests(unittest.TestCase):
         self.assertEqual(j["shops"][j["best"]]["name"], "ALDI Nord")
         self.assertEqual(j["items"][1]["best"]["price"], 0.95)  # shampoo is cheapest at dm
 
+    def test_shops_fetched_by_the_phone(self):
+        from tests.test_phase1 import OVERPASS
+        before = len(Overpass.calls)
+        osm = [dict(el, tags=dict(el["tags"], extra="dropped")) for el in OVERPASS["elements"]]
+        osm += ["junk", {"lat": "north", "lon": 1, "tags": {"shop": "supermarket", "name": "X"}},
+                {"lat": 52.5301, "lon": 13.4101, "tags": {"shop": "car", "name": "Autohaus"}}]
+        s, j = self.post({"text": "milk", "lat": 52.53, "lon": 13.41, "dow": 0, "min": 480, "osm": osm})
+        self.assertEqual(s, 200)
+        self.assertEqual(len(Overpass.calls), before)  # the server didn't ask a map server
+        self.assertEqual(j["shops"][j["best"]]["name"], "ALDI Nord")
+        self.assertNotIn("Autohaus", [x["name"] for x in j["shops"]])
+
     def test_list_items_and_errors(self):
         s, j = self.post({"items": ["Butter 250 g", "Eggs", "butter"]})
         self.assertEqual((s, [it["name"] for it in j["items"]]), (200, ["Butter", "Eggs"]))  # butter only once

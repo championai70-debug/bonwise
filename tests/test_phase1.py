@@ -78,6 +78,30 @@ class BusyOverpass(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
 
+PHOTON = {"type": "FeatureCollection", "features": [
+    {"geometry": {"coordinates": [13.4109, 52.5301]},
+     "properties": {"osm_key": "shop", "osm_value": "chemist", "name": "dm", "street": "Schönhauser Allee", "housenumber": "9"}},
+    {"geometry": {"coordinates": [13.4121, 52.5305]}, "properties": {"osm_key": "shop", "osm_value": "supermarket", "name": "REWE"}},
+    {"geometry": {"coordinates": [13.4121, 52.5305]}, "properties": {"osm_key": "amenity", "osm_value": "cafe", "name": "Café"}},
+    {"geometry": {"coordinates": [13.4121, 52.5305]}, "properties": {"osm_key": "shop", "osm_value": "bakery"}},  # no name
+]}
+
+
+class Photon(BaseHTTPRequestHandler):
+    calls = []
+
+    def log_message(self, *a):
+        pass
+
+    def do_GET(self):
+        Photon.calls.append(self.path)
+        body = json.dumps(PHOTON if "supermarket" in self.path else {"features": []}).encode()
+        self.send_response(200)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+
 class StorageTests(unittest.TestCase):
     def setUp(self):
         storage.reset_for_tests(tempfile.mkdtemp())
@@ -193,6 +217,23 @@ class MapServerFallbackTests(unittest.TestCase):
         self.assertIn("ALDI Nord", [x["name"] for x in shops])
         self.assertLess(time.monotonic() - t0, 1.5)  # didn't wait for the slow server
 
+    def test_photon_backs_up_overpass(self):
+        BusyOverpass.mode = "429"
+        photon = ThreadingHTTPServer(("127.0.0.1", 0), Photon)
+        threading.Thread(target=photon.serve_forever, daemon=True).start()
+        config.OVERPASS_URL, config.OVERPASS_FALLBACKS = self.url(self.busy), []
+        config.PHOTON_URL = "http://127.0.0.1:%d/reverse" % photon.server_address[1]
+        try:
+            shops = places.nearby(52.534, 13.41, 1500, 0, 480)
+        finally:
+            config.PHOTON_URL = ""
+            photon.shutdown()
+        self.assertEqual([x["name"] for x in shops], ["REWE", "dm"])  # nearest first; café and nameless skipped
+        dm = shops[1]
+        self.assertEqual((dm["kind"], dm["address"], dm["open"]), ("Drugstore", "Schönhauser Allee 9", None))
+        self.assertIn("osm_tag=shop%3Asupermarket", Photon.calls[0])
+        self.assertIn("lat=52.534", Photon.calls[0])  # only the rounded position
+
     def test_every_server_down(self):
         BusyOverpass.mode = "429"
         config.OVERPASS_URL, config.OVERPASS_FALLBACKS = self.url(self.busy), [self.url(self.busy)]
@@ -266,6 +307,20 @@ class ServerTests(unittest.TestCase):
         self.call("/api/shops?lat=52.53012&lon=13.41018&dow=0&min=480")
         self.assertEqual(len(Overpass.calls), 1)  # second search served from the cache
         self.assertEqual(self.call("/api/shops?lat=abc")[0], 400)
+
+    def test_shops_tab_with_shops_from_the_phone(self):
+        before = len(Overpass.calls)
+        s, j = self.call("/api/shops", {"lat": 52.53, "lon": 13.41, "dow": 0, "min": 480, "osm": OVERPASS["elements"]})
+        self.assertEqual((s, j["shops"][0]["name"]), (200, "ALDI Nord"))
+        self.assertEqual(len(Overpass.calls), before)
+        self.assertEqual(self.call("/api/shops", {"lat": 95, "lon": 13.41})[0], 400)
+        self.assertEqual(self.call("/api/shops", {"lat": "x"})[0], 400)
+
+    def test_phone_data_is_checked(self):
+        raw = places.from_phone([{"center": {"lat": 1, "lon": 2}, "tags": {"shop": "bakery", "name": "B", "x": "y"}},
+                                 {"lat": 500, "lon": 2, "tags": {"shop": "bakery"}}, None, {"lat": 1, "lon": 2}])
+        self.assertEqual(raw["elements"], [{"lat": 1.0, "lon": 2.0, "tags": {"shop": "bakery", "name": "B"}}])
+        self.assertEqual(places.from_phone("not a list"), {"elements": []})
 
     def test_impressum(self):
         config.IMPRESSUM = "Max Muster\\nMusterstr. 1\\n10115 Berlin"

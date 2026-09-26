@@ -45,7 +45,7 @@
   <p>When you use “Going shopping?” or “Find cheapest shops for my list”, the items you typed are sent to the Bonwise server to look up prices. They are used only to answer that request and are not stored.</p>
 
   <h2>Your location</h2>
-  <p>Only when you tap “Find shops near me” or “Find cheapest nearby” does the app ask for your location. It is rounded to about 100 metres and sent to OpenStreetMap’s Overpass service (overpass-api.de) to find nearby shops. When that server is busy, the same request goes to a public Overpass mirror in the EU (overpass.private.coffee or overpass.kumi.systems). The server keeps the list of shops in memory for up to six hours to answer repeat searches and never stores your location. If you don’t allow location, the app still shows the best prices it knows.</p>
+  <p>Only when you tap “Find shops near me” or “Find cheapest nearby” does the app ask for your location. It is rounded to about 100 metres. Your phone then asks a free OpenStreetMap map service for the shops in that area: Overpass (overpass-api.de), or when that is busy Photon by komoot (photon.komoot.io, Germany). Like any website, that service sees your phone’s IP address. The shop list and the rounded position are sent to the Bonwise server to work out distances and prices. If your phone can’t reach them, the Bonwise server asks the same services instead. The server keeps shop lists it fetched itself in memory for up to six hours to answer repeat searches and never stores your location. If you don’t allow location, the app still shows the best prices it knows.</p>
 
   <h2>What the server keeps</h2>
   <ul>
@@ -57,7 +57,7 @@
   <h2>What Bonwise does not do</h2>
   <ul>
     <li>No accounts, no ads, no analytics or tracking.</li>
-    <li>No selling of your data. Data is shared only as described above: receipts with the AI service to be read, and your rounded location with OpenStreetMap when you search for shops.</li>
+    <li>No selling of your data. Data is shared only as described above: receipts with the AI service to be read, and your rounded location with OpenStreetMap’s map service when you search for shops.</li>
   </ul>
 
   <h2>Other services</h2>

@@ -701,6 +701,67 @@
   }
   $("again").addEventListener("click", function (e) { var b = e.target.closest("button[data-again]"); if (b) addToList(b.dataset.again); });
 
+  /* ---------- shops from OpenStreetMap, fetched by this phone ----------
+     The phone asks the free map services itself: its own internet address isn't
+     rate-limited like the shared cloud server's. The position is rounded to about 100 m
+     first. Overpass (with opening hours) is asked first; if it refuses or is slow, Photon
+     by komoot. The Bonwise server then works out distances, "open now" and prices; if the
+     phone gets nothing, the server tries the same services itself. */
+  var OVERPASS = "https://overpass-api.de/api/interpreter", PHOTON = "https://photon.komoot.io/reverse";
+  var OSM_KINDS = "supermarket|discount|convenience|chemist|greengrocer|bakery|butcher";
+  var OSM_TAGS = ["name", "brand", "shop", "opening_hours", "addr:street", "addr:housenumber"];
+  var PHOTON_GROUPS = [["supermarket", "discount", "chemist"], ["convenience", "greengrocer", "bakery", "butcher"]];
+  var osmCache = {};
+  function round3(x) { return Math.round(x * 1000) / 1000; }
+  function getJson(url, init, ms) {
+    var c = new AbortController(), t = setTimeout(function () { c.abort(); }, ms);
+    return fetch(url, Object.assign({ signal: c.signal }, init || {}))
+      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(function (j) { clearTimeout(t); return j; }, function (e) { clearTimeout(t); throw e; });
+  }
+  function fromOverpass(lat, lon) {
+    var dlat = 1500 / 111320, dlon = 1500 / (111320 * Math.max(0.2, Math.cos(lat * Math.PI / 180)));
+    var box = [lat - dlat, lon - dlon, lat + dlat, lon + dlon].map(function (x) { return x.toFixed(4); }).join(",");
+    var q = '[out:json][timeout:20][bbox:' + box + '];(node[shop~"^(' + OSM_KINDS + ')$"];way[shop~"^(' + OSM_KINDS + ')$"];);out center tags;';
+    // A plain form POST: no CORS preflight.
+    return getJson(OVERPASS, { method: "POST", body: "data=" + encodeURIComponent(q), headers: { "content-type": "application/x-www-form-urlencoded" } }, 8000)
+      .then(function (j) {
+        if (!j || !Array.isArray(j.elements) || (!j.elements.length && j.remark)) throw new Error("no answer");
+        return j.elements.slice(0, 2000).map(function (el) {
+          var tags = {}; OSM_TAGS.forEach(function (k) { if (el.tags && el.tags[k] != null) tags[k] = String(el.tags[k]).slice(0, 200); });
+          var pos = el.lat != null ? el : (el.center || {});
+          return { lat: pos.lat, lon: pos.lon, tags: tags };
+        });
+      });
+  }
+  function fromPhoton(lat, lon) {
+    return Promise.all(PHOTON_GROUPS.map(function (g) {
+      var url = PHOTON + "?lat=" + lat + "&lon=" + lon + "&radius=1.5&limit=50" + g.map(function (k) { return "&osm_tag=shop:" + k; }).join("");
+      return getJson(url, null, 10000);
+    })).then(function (answers) {
+      var out = [];
+      answers.forEach(function (a) {
+        (a.features || []).forEach(function (f) {
+          var p = f.properties || {}, c = (f.geometry || {}).coordinates || [];
+          if (p.osm_key !== "shop" || !p.name || c.length < 2) return;
+          var tags = { shop: p.osm_value, name: String(p.name).slice(0, 200) };
+          if (p.street) tags["addr:street"] = String(p.street).slice(0, 100);
+          if (p.housenumber) tags["addr:housenumber"] = String(p.housenumber).slice(0, 20);
+          out.push({ lat: c[1], lon: c[0], tags: tags });
+        });
+      });
+      return out;
+    });
+  }
+  // -> shop elements, or null when neither service answered (the server then tries).
+  function osmShops(lat, lon) {
+    lat = round3(lat); lon = round3(lon);
+    var key = lat + "," + lon;
+    if (osmCache[key] && Date.now() - osmCache[key].at < 3600000) return Promise.resolve(osmCache[key].el);
+    return fromOverpass(lat, lon).catch(function () { return fromPhoton(lat, lon); })
+      .then(function (el) { osmCache[key] = { at: Date.now(), el: el }; return el; }, function () { return null; });
+  }
+
   /* ---------- nearby shops ---------- */
   var shopsData = [], shopFilter = "all";
   function renderShops() {
@@ -723,9 +784,11 @@
     if (!navigator.geolocation) { err.hidden = false; err.textContent = "This phone doesn’t share its location with apps."; return; }
     btn.disabled = true; btn.textContent = "Finding your location…";
     navigator.geolocation.getCurrentPosition(function (pos) {
-      var d = new Date(), q = "lat=" + pos.coords.latitude.toFixed(4) + "&lon=" + pos.coords.longitude.toFixed(4) + "&dow=" + ((d.getDay() + 6) % 7) + "&min=" + (d.getHours() * 60 + d.getMinutes());
+      var d = new Date(), q = "lat=" + round3(pos.coords.latitude) + "&lon=" + round3(pos.coords.longitude) + "&dow=" + ((d.getDay() + 6) % 7) + "&min=" + (d.getHours() * 60 + d.getMinutes());
       btn.textContent = "Looking for shops…";
-      api("/api/shops?" + q).then(function (j) {
+      osmShops(pos.coords.latitude, pos.coords.longitude).then(function (osm) {
+        return osm ? api("/api/shops", { lat: round3(pos.coords.latitude), lon: round3(pos.coords.longitude), dow: (d.getDay() + 6) % 7, min: d.getHours() * 60 + d.getMinutes(), osm: osm }) : api("/api/shops?" + q);
+      }).then(function (j) {
         shopsData = j.shops || []; $("shopFilter").hidden = !shopsData.length;
         if (!shopsData.length) { err.hidden = false; err.className = "notice warn"; err.textContent = "No shops found within 1.5 km."; }
         renderShops();
@@ -771,8 +834,12 @@
     locate().then(function (loc) {
       tripLoading(loc.pos ? "Comparing the shops near you…" : "Looking up prices…");
       var d = new Date(), body = Object.assign({}, payload);
-      if (loc.pos) Object.assign(body, { lat: Number(loc.pos.coords.latitude.toFixed(4)), lon: Number(loc.pos.coords.longitude.toFixed(4)), dow: (d.getDay() + 6) % 7, min: d.getHours() * 60 + d.getMinutes() });
-      return api("/api/trip", body).then(function (j) { renderTrip(j, loc.why || ""); });
+      if (!loc.pos) return api("/api/trip", body).then(function (j) { renderTrip(j, loc.why || ""); });
+      Object.assign(body, { lat: round3(loc.pos.coords.latitude), lon: round3(loc.pos.coords.longitude), dow: (d.getDay() + 6) % 7, min: d.getHours() * 60 + d.getMinutes() });
+      return osmShops(body.lat, body.lon).then(function (osm) {
+        if (osm) body.osm = osm;
+        return api("/api/trip", body);
+      }).then(function (j) { renderTrip(j, ""); });
     }).catch(function (e) {
       $("tripBody").innerHTML = '<div class="notice bad" style="margin-top:0">' + esc((e && e.message) || "Something went wrong. Try again.") + '</div>';
     }).then(function () { tripBusy = false; $("tripGo").disabled = $("listTrip").disabled = false; });
