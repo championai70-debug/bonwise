@@ -134,7 +134,8 @@ Data types to declare:
 |---|---|---|---|---|---|
 | **Photos** (receipt photos) | Yes | No* | Yes (not stored) | Required for scanning | App functionality |
 | **Financial info → Purchase history** (receipt items/prices when household sharing is on; anonymous prices) | Yes | No | No | Optional | App functionality |
-| **Location → Approximate location** (rounded, only when you search shops) | Yes | No* | Yes (not stored) | Optional | App functionality |
+| **Location → Approximate location** (rounded, only when you search shops or plan a shop) | Yes | No* | Yes (not stored) | Optional | App functionality |
+| **Financial info → Purchase history** (items typed into "Going shopping?", used to look up prices) | Yes | No | Yes (not stored) | Optional | App functionality |
 
 \* Sending data to a service provider that processes it for you (the AI service
 reading receipts; OpenStreetMap finding shops) is not "sharing" in Google's definition.
