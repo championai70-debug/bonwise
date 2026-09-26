@@ -690,6 +690,7 @@
     var c = [];
     if (p.aldi) c.push({ price: p.aldi.price, where: p.aldi.store, note: p.aldi.product });
     if (p.community) c.push({ price: p.community.price, where: p.community.chain, note: "paid by Bonwise users" });
+    if (p.open) c.push({ price: p.open.price, where: p.open.chain, note: p.open.product + " (Open Prices)" });
     return c.sort(function (a, b) { return a.price - b.price; })[0] || null;
   }
   function refreshListPrices() {
@@ -902,6 +903,13 @@
       $("tripBody").innerHTML = '<div class="notice bad" style="margin-top:0">' + esc((e && e.message) || "Something went wrong. Try again.") + '</div>';
     }).then(function () { tripBusy = false; $("tripGo").disabled = $("listTrip").disabled = false; });
   }
+  function srcNote(p) {
+    if (p.src === "users") return " · paid by Bonwise users";
+    if (p.src === "aldi") return " · ALDI SÜD shelf price";
+    if (p.src === "open") return " · " + esc(p.product || "") + (p.date ? ", seen " + esc(fmtIso(p.date)) : "") + " (Open Prices)";
+    return "";
+  }
+  function fmtIso(d) { var x = new Date(d + "T12:00:00"); return isNaN(x) ? d : x.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: x.getFullYear() !== new Date().getFullYear() ? "numeric" : undefined }); }
   function srcTag(p) { return p.real ? '<span class="src-tag real">Real price</span>' : '<span class="src-tag est">Estimate</span>'; }
   function renderTrip(j, locWhy) {
     tripItems = j.items || [];
@@ -935,19 +943,25 @@
       if (it.online) {
         amt = eur(it.online.price) + '<span class="src-tag real">Real price</span>';
         where = "Cheapest online at <b>" + esc(it.online.shop) + "</b> (" + esc(it.online.src) + "), brand shop " + eur(it.online.list);
+      } else if (it.tip) {
+        amt = '<span class="src-tag tip">Tip</span>';
+        where = esc(it.tip);
       } else if (it.best) {
         var sh = shops[it.best.shop];
         if (it.best.price != null) {
           amt = eur(it.best.price) + srcTag(it.best);
-          where = "Cheapest at <b>" + esc(shopName(sh)) + "</b> · " + distTxt(sh.distance) + (it.best.src === "users" ? " · paid by Bonwise users" : it.best.src === "aldi" ? " · ALDI SÜD shelf price" : "");
+          where = "Cheapest at <b>" + esc(shopName(sh)) + "</b> · " + distTxt(sh.distance) + srcNote(it.best);
         } else where = "No price yet · sold at <b>" + esc(shopName(sh)) + "</b> · " + distTxt(sh.distance);
       } else if (it.known) {
         amt = eur(it.known.price) + '<span class="src-tag real">Real price</span>';
-        where = "Best known: <b>" + esc(it.known.chain) + "</b>" + (it.known.src === "users" ? " (paid by Bonwise users)" : " (ALDI SÜD shelf price)");
+        where = "Best known: <b>" + esc(it.known.chain) + "</b>" + srcNote(it.known);
       } else if (it.typical != null) {
         amt = "~" + eur(it.typical) + '<span class="src-tag est">Estimate</span>';
         where = "Usually cheapest at " + esc(it.hint);
       } else where = "No price yet · usually cheapest at " + esc(it.hint);
+      // Real prices at other chains, cheapest first (from Open Prices).
+      var also = (it.chains || []).filter(function (c) { return !(it.best && shops[it.best.shop] && shops[it.best.shop].chain === c.chain && it.best.src === "open"); }).slice(0, 4);
+      if (also.length && !it.online && !it.tip) where += '<span class="also">' + also.map(function (c) { return esc(c.chain) + " " + eur(c.price); }).join(" · ") + '</span>';
       return '<li><span class="nm">' + esc(it.name) + (size ? '<small>' + esc(size) + '</small>' : "") + typed + '</span><span class="amt num">' + amt + '</span><span class="where">' + where + '</span></li>';
     }).join("") + '</ul>';
     var others = shops.filter(function (x) { return x.covers > 0; });
@@ -958,7 +972,7 @@
           '<a class="go" href="' + mapsLink(x) + '" target="_blank" rel="noopener">Directions →</a></li>';
       }).join("") + '</ul></details>';
     }
-    html += '<p class="pc-note">Real price: ALDI SÜD shelf prices (' + esc(j.checked || "") + ') and what Bonwise users paid in the last 90 days. Estimate: the typical price level of that kind of shop. Prices vary by region and change often. Shop data © OpenStreetMap contributors.</p>';
+    html += '<p class="pc-note">Real price: prices shoppers reported to Open Prices by Open Food Facts (ODbL, updated weekly' + (j.openPrices ? ", last " + esc(fmtIso(j.openPrices)) : "") + '), ALDI SÜD shelf prices (' + esc(j.checked || "") + ') and what Bonwise users paid in the last 90 days. Estimate: the typical price level of that kind of shop. Prices vary by region and change often. Shop data © OpenStreetMap contributors.</p>';
     $("tripBody").innerHTML = html;
   }
   $("tripBody").addEventListener("click", function (e) {

@@ -24,6 +24,10 @@ FILLER = {"i", "im", "i'm", "am", "we", "going", "go", "to", "the", "at", "for",
           "my", "list", "ich", "brauche", "kaufen", "einkaufen", "noch", "bitte", "etwas", "zum", "zu", "bei",
           "mujhe", "khareedne", "kharidne", "ja", "raha", "rahi", "hu", "hoon", "hai", "lena", "lene", "ke", "liye"}
 SPLIT = re.compile(r"(?<!\d),|,(?!\d)|[;\n+&/•·]|\s(?:and|und|aur|plus|n)\s")
+# Words that describe a product without making it a different one.
+MODIFIERS = {"bio", "organic", "fresh", "frisch", "frische", "whole", "voll", "fettarm", "fettarme", "low", "fat", "light",
+             "skimmed", "large", "small", "big", "free", "range", "freiland", "pack", "packung", "classic", "original",
+             "normal", "loose", "lose", "sliced", "scheiben", "white", "weiss", "brown", "dark", "some", "etwas"}
 COUNT = re.compile(r"^(\d{1,2})\s*x?\s+(?!(?:kg|g|l|ml|cl|er)\b)(.+)$")
 
 
@@ -126,6 +130,15 @@ def _extra(text):
     return best
 
 
+def _fashion(text):
+    """A clothing or shoe brand -> (brand, where it's usually cheaper), or None."""
+    words = " " + norm(text).replace("&", " & ") + " "
+    for keys, brand, where in data.FASHION:
+        if any((" " + k + " ") in words for k in keys):
+            return brand, where
+    return None
+
+
 def _size_text(v, fam):
     if fam in ("g", "ml", "st"):
         return size_label(v, fam)
@@ -141,7 +154,7 @@ def resolve(query):
         count, q = max(1, min(20, int(m.group(1)))), m.group(2)
     text = " ".join(_alias(norm(q).split()))
     info = {"query": str(query).strip()[:60], "name": q[:1].upper() + q[1:60], "cat": "Other", "count": count, "size": "",
-            "typical": None, "aldi": None, "online": None, "base": None, "community": {}, "open": {}}
+            "typical": None, "aldi": None, "online": None, "tip": "", "base": None, "community": {}, "open": {}}
 
     sport = advisor.find_sport(text)
     if sport:
@@ -150,8 +163,28 @@ def resolve(query):
                     online={"price": best["total"], "shop": best["shop"], "src": best["src"], "list": sport["list"]})
         return info
 
+    fashion = _fashion(text)
+    if fashion:
+        info.update(name=q[:1].upper() + q[1:60], cat="Clothing & shoes", tip="Usually cheaper at " + fashion[1] + ".")
+        return info
+
     g = advisor.lookup(text)
     size = pack_size(text)
+    words = openprices._words(text)
+    brand = advisor.brand_of(text)
+    if g:
+        # "udon nudeln" or "Kerrygold Butter": words the guide doesn't know make it a specific product,
+        # compared only with that product, never with the generic type (spaghetti, store-brand butter).
+        known = {w for k in g["k"] for w in k.replace("-", " ").split()} | MODIFIERS | set(g["en"].lower().split())
+        if any(w not in known and w != brand for w in words):
+            info["cat"] = g["cat"]
+            info["open"] = openprices.lookup(text, size=size)
+            if size:
+                info["size"] = _size_text(size["v"], size["fam"])
+            elif info["open"]:
+                info["size"] = next(iter(info["open"].values()))["size"]
+            info["keys"] = list(dict.fromkeys(k for k in (q, text) if k))
+            return info
     if g:
         ref = advisor._ref_size(g)
         info["cat"] = g["cat"]
@@ -170,12 +203,13 @@ def resolve(query):
                             "checked": mk["checked"]}
             info["size"] = mk["yourSize"]
         want = size if size and size["fam"] == ref["fam"] else (ref if ref["fam"] in ("g", "ml", "st") else None)
-        info["open"] = openprices.lookup(text, keys=g["k"], size=want, en=g["en"])
+        # A brand ("coca cola") is compared with that brand first, then with the product type.
+        info["open"] = (brand and openprices.lookup(text, size=want)) or openprices.lookup(text, keys=g["k"], size=want, en=g["en"])
     else:
         ex = _extra(text)
         if ex:
             info["name"], info["cat"] = ex[0], ex[1]
-            info["open"] = openprices.lookup(text, keys=ex[2], size=size)
+            info["open"] = openprices.lookup(text, keys=ex[2], size=size, en=ex[0])
         else:
             info["open"] = openprices.lookup(text, size=size)
         if size:
@@ -295,7 +329,8 @@ def plan(text=None, items=None, lat=None, lon=None, dow=None, minute=None, radiu
         s["chain"] = shop_chain(s)
         s["level"] = shop_level(s)
 
-    local = [i for i, info in enumerate(infos) if not info["online"]]
+    # Clothes and shoes are bought online or in clothing shops, not at the supermarket.
+    local = [i for i, info in enumerate(infos) if not info["online"] and info["cat"] != "Clothing & shoes"]
     rows = []
     for s in shops:
         prices = [price_at(s, info) if i in local else None for i, info in enumerate(infos)]
@@ -383,7 +418,7 @@ def plan(text=None, items=None, lat=None, lon=None, dow=None, minute=None, radiu
         out_items.append({
             "query": info["query"], "name": info["name"], "cat": info["cat"], "count": info["count"], "size": info["size"],
             "typical": round2(info["typical"] * info["count"]) if info["typical"] is not None else None,
-            "aldi": info["aldi"], "online": info["online"], "known": known,
+            "aldi": info["aldi"], "online": info["online"], "tip": info["tip"], "known": known,
             "best": (dict({"shop": index[k]}, **{f: best_price[f] for f in ("price", "real", "src", "date", "product") if f in best_price})
                      if k is not None else None),
             "chains": sorted(({"chain": ch, "price": round2(o["price"] * info["count"]), "date": o["date"], "product": o["product"]}

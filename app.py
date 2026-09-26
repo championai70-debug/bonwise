@@ -79,6 +79,10 @@ def list_prices(names):
         c = community.get(storage.price_key(n))
         if c:
             entry["community"] = {"price": c["price"], "chain": c["chain"], "day": c["day"], "reports": c["reports"]}
+        found = trip.resolve(n)["open"]
+        if found:
+            chain = min(found, key=lambda k: found[k]["price"])
+            entry["open"] = dict(found[chain], chain=chain)
         out.append(entry)
     return out
 
