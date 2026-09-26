@@ -36,6 +36,7 @@ python3 -m unittest discover -s tests -t .   # all tests, no network or token ne
 | `bonwise/service.py` | Scan pipeline (AI → OCR fallback → advice) |
 | `static/index.html`, `static/app.js` | Front end, vanilla JS, no build step. Tabs: Home, Receipts, List, Shops, More. `body.simple` (Simple view, on by default) hides `.adv` elements |
 | `static/sw.js`, `static/manifest.webmanifest` | PWA / Android app shell |
+| `android/`, `.github/workflows/android-apk.yml` | Test APK (Trusted Web Activity, package `com.onrender.bonwise.preview`), built by GitHub Actions and published at the `android-preview` release |
 | `store-kit/` | Google Play listing texts, graphics, data-safety answers, marketing plan |
 
 ## Rules

@@ -1,0 +1,50 @@
+// Bonwise for Android: a Trusted Web Activity that shows the live site full screen.
+// Web changes need no new APK. Built and signed by .github/workflows/android-apk.yml.
+plugins {
+    id "com.android.application"
+}
+
+def siteHost = project.findProperty("bonwiseHost") ?: "bonwise.onrender.com"
+
+android {
+    namespace "app.bonwise.twa"
+    compileSdk 34
+
+    defaultConfig {
+        applicationId project.findProperty("bonwiseAppId") ?: "com.onrender.bonwise.preview"
+        minSdk 21
+        targetSdk 34
+        versionCode((project.findProperty("bonwiseVersionCode") ?: "1") as int)
+        versionName "1.0." + (project.findProperty("bonwiseVersionCode") ?: "1")
+        manifestPlaceholders = [siteHost: siteHost]
+        resValue "string", "app_name", "Bonwise"
+        resValue "string", "site_url", "https://" + siteHost + "/"
+        resValue "string", "asset_statements",
+            '[{"relation": ["delegate_permission/common.handle_all_urls"], "target": {"namespace": "web", "site": "https://' + siteHost + '"}}]'
+    }
+
+    signingConfigs {
+        release {
+            storeFile file(System.getenv("BW_KEYSTORE") ?: "missing.jks")
+            storePassword System.getenv("BW_STORE_PASS")
+            keyAlias System.getenv("BW_KEY_ALIAS")
+            keyPassword System.getenv("BW_KEY_PASS")
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation "com.google.androidbrowserhelper:androidbrowserhelper:2.5.0"
+}
