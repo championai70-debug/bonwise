@@ -76,6 +76,12 @@
     else ws.hidden = true;
     var pace = pacing(after, budget);
     var chip = $("paceChip"); chip.textContent = pace.label; chip.className = "status " + pace.cls;
+    var monthSave = r2(monthReceipts().reduce(function (a, r) { return a + (r.save || 0); }, 0));
+    $("heroSub").innerHTML = cur && s > 0 ? "This receipt: you could keep <b>" + eur(s) + "</b> next time."
+      : monthSave > 0 ? "Bonwise found <b>" + eur(monthSave) + "</b> of savings for you in " + esc(monthName) + "."
+      : monthReceipts().length ? "Nice. Every receipt you add makes prices better for everyone."
+      : "Search or scan to start saving.";
+    $("welcomeCard").hidden = mem.receipts.length > 0 || !!cur;
     $("resetBtn").hidden = monthReceipts().length === 0;
   }
   function pacing(spent, budget) {
@@ -184,7 +190,7 @@
     mem.receipts.push(rec);
     persist();
     reportPrices(cur);
-    closeReceipt(); aiState("✓ Saved to " + monthName + ". Find it under Receipts.", "ok"); $("thumb").removeAttribute("src");
+    closeReceipt(); aiState("✓ Saved to " + monthName + ". Find it under Receipts.", "ok"); $("thumb").removeAttribute("src"); celebrate();
     renderAll();
   });
   $("discardBtn").addEventListener("click", function () { closeReceipt(); aiState(""); });
@@ -211,6 +217,7 @@
     var t = itemTotal(), s = itemSave(), budget = Number(mem.budget) || 0, wk = budget * 7 / daysInMonth, list = swapItems();
     var hero = $("saveCard"); hero.hidden = false; hero.classList.toggle("none", !(s > 0));
     if (s > 0) {
+      if (!cur.celebrated) { cur.celebrated = true; celebrate(); }
       $("svLabel").textContent = "You could save on this shop";
       $("svBig").innerHTML = eur(s) + "<small>by making " + list.length + " swap" + (list.length > 1 ? "s" : "") + " next time</small>";
       $("svPct").hidden = false; $("svPct").textContent = Math.round(s / Math.max(t, 0.01) * 100) + "% less";
@@ -393,8 +400,9 @@
     if (!/^image\//.test(file.type)) { showErr("That isn’t an image. Choose a JPEG or PNG photo of the receipt."); return; }
     // A new receipt replaces the last one: clear results, messages and the price search.
     closeReceipt(); showErr(""); aiState("");
+    showTab("home", true);
     $("thumb").src = URL.createObjectURL(file);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    $("scanCard").hidden = false; $("scanCard").scrollIntoView({ behavior: "smooth", block: "start" });
     setBusy(true);
     toJpeg(file).then(function (b64) {
       return run("/api/scan", { image: b64, mediaType: "image/jpeg", context: context() }, "Reading your receipt…");
@@ -418,7 +426,10 @@
       .then(function (b) { scanImage(new File([b], "sample-receipt.jpg", { type: "image/jpeg" })); })
       .catch(function () { showErr("The sample receipt couldn’t be loaded."); });
   });
-  $("pasteToggle").addEventListener("click", function () { $("pasteBox").hidden = !$("pasteBox").hidden; if (!$("pasteBox").hidden) $("pasteText").focus(); });
+  $("pasteToggle").addEventListener("click", function () {
+    $("pasteBox").hidden = !$("pasteBox").hidden; syncScanCard();
+    if (!$("pasteBox").hidden) { $("scanCard").scrollIntoView({ behavior: "smooth", block: "start" }); $("pasteText").focus(); }
+  });
   $("pasteGo").addEventListener("click", function () {
     var t = $("pasteText").value.trim();
     if (!t) { showErr("Paste or type a few lines from the receipt first, e.g. “Butter 250g 2,29”."); return; }
@@ -491,20 +502,66 @@
   }
 
   /* ---------- tabs ---------- */
-  var TABS = ["home", "receipts", "list", "shops", "more"];
-  function showTab(name) {
+  /* One screen: greeting, search and four big buttons stay on top; the part below
+     shows home (results), the list, shops, receipts or settings. Searching or scanning
+     switches back to home by itself. */
+  var TABS = ["home", "receipts", "list", "shops", "more"], curTab = "home";
+  function showTab(name, quiet) {
     if (TABS.indexOf(name) < 0) name = "home";
+    var changed = name !== curTab; curTab = name;
     TABS.forEach(function (t) { $("view-" + t).hidden = t !== name; });
-    document.querySelectorAll(".tabbar button").forEach(function (b) {
+    document.querySelectorAll(".tile[data-tab], .icon-btn[data-tab]").forEach(function (b) {
       if (b.dataset.tab === name) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
     });
     if (name === "list") refreshListPrices();
-    window.scrollTo(0, 0);
+    if (!quiet && changed) {
+      if (name === "home") window.scrollTo({ top: 0, behavior: "smooth" });
+      else $("view-" + name).scrollIntoView({ behavior: "smooth", block: "start" });
+    }
     try { history.replaceState(null, "", name === "home" ? location.pathname + location.search : "#" + name); } catch (e) {}
   }
-  document.querySelector(".tabbar").addEventListener("click", function (e) {
-    var b = e.target.closest("button[data-tab]"); if (b) showTab(b.dataset.tab);
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-tab]"); if (!b) return;
+    // Tapping the open section's button again closes it.
+    showTab(b.dataset.tab === curTab && b.classList.contains("tile") ? "home" : b.dataset.tab);
   });
+  $("tileScan").addEventListener("click", function () { showTab("home", true); $("file").click(); });
+
+  // The receipt card appears only while something is happening in it.
+  function syncScanCard() {
+    $("scanCard").hidden = $("progress").hidden && $("scanErr").hidden && $("aiStatus").hidden && $("pasteBox").hidden;
+  }
+  if (window.MutationObserver) {
+    var mo = new MutationObserver(syncScanCard);
+    ["progress", "scanErr", "aiStatus", "pasteBox"].forEach(function (id) { mo.observe($(id), { attributes: true, attributeFilter: ["hidden"] }); });
+  }
+
+  /* ---------- a warm welcome ---------- */
+  function greet() {
+    var h = new Date().getHours();
+    $("hello").textContent = h < 5 ? "Hello, night owl" : h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
+  }
+  greet();
+  // A short burst of confetti when Bonwise finds money for you.
+  function celebrate() {
+    try { if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return; } catch (e) {}
+    var box = document.createElement("div"), colors = ["#0E7A52", "#FFD166", "#E4573D", "#3A6FD8", "#F58E3B", "#48B87A"];
+    box.className = "confetti"; box.setAttribute("aria-hidden", "true");
+    for (var i = 0; i < 36; i++) {
+      var c = document.createElement("i");
+      c.style.left = Math.random() * 100 + "%"; c.style.background = colors[i % colors.length];
+      c.style.animationDelay = Math.random() * 0.35 + "s"; c.style.animationDuration = 1.2 + Math.random() * 0.8 + "s";
+      box.appendChild(c);
+    }
+    document.body.appendChild(box);
+    setTimeout(function () { box.remove(); }, 2600);
+  }
+  var AV_COLORS = ["#0E7A52", "#3A6FD8", "#D9642B", "#7A55C7", "#C0392B", "#1F8A9E", "#8A6D1F"];
+  function avatar(name) {
+    var n = String(name || "?").trim(), h = 0;
+    for (var i = 0; i < n.length; i++) h = (h * 31 + n.charCodeAt(i)) % 997;
+    return '<span class="av" aria-hidden="true" style="background:' + AV_COLORS[h % AV_COLORS.length] + '">' + esc(n.charAt(0).toUpperCase()) + '</span>';
+  }
 
   /* ---------- dates ---------- */
   var DAY = 86400000;
@@ -624,6 +681,7 @@
         '<span><span class="nm">' + esc(x.name) + '</span>' + bp + '</span><button class="del" type="button" data-rm="' + esc(x.id) + '" aria-label="Remove ' + esc(x.name) + '">×</button></li>';
     }).join("");
     $("listTripRow").hidden = !open;
+    $("listCount").hidden = !open; $("listCount").textContent = open;
     $("listTotal").textContent = open ? (priced ? "Cheapest known prices: " + eur(r2(total)) + " for " + priced + " of " + open + " item" + (open > 1 ? "s" : "") : open + " item" + (open > 1 ? "s" : "") + " to buy") : "";
     renderAgain(); renderTripChips();
   }
@@ -921,6 +979,7 @@
     if (!t) { $("tripText").focus(); $("tripText").placeholder = "Type a few things first, e.g. milk, bread"; return; }
     store.set("bonwise.tripText", t);
     $("tripText").blur();
+    showTab("home", true);
     runTrip({ text: t }, "tripSlotHome");
   });
   $("listTrip").addEventListener("click", function () {
@@ -939,7 +998,7 @@
     if (b.dataset.useList) {
       var open = mem.list.filter(function (x) { return !x.done; }).map(function (x) { return x.name; });
       $("tripText").value = open.join(", "); store.set("bonwise.tripText", $("tripText").value);
-      runTrip({ items: open }, "tripSlotHome"); return;
+      showTab("home", true); runTrip({ items: open }, "tripSlotHome"); return;
     }
     var t = $("tripText").value.trim();
     $("tripText").value = (t ? t.replace(/[,\s]+$/, "") + ", " : "") + b.dataset.add;

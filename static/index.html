@@ -19,6 +19,7 @@
 :root{
   --ground:#EEF2EE;--surface:#FFFFFF;--sunk:#F5F8F5;--ink:#14201A;--ink-2:#4A5A51;--ink-3:#7A8A81;--line:#D5DDD7;
   --accent:#0E7A52;--accent-ink:#FFFFFF;--accent-soft:#DDEFE6;
+  --hero-a:#E3F4EA;--hero-b:#FFF4DA;--hero-blob:#FFFFFF;--hero-bag:#C98B4E;--hero-bag-2:#A86F3A;
   --warn:#9A5A05;--warn-soft:#FBEBD2;--bad:#B0432E;--bad-soft:#F8E4DE;--thermal:#5B4B8A;
   --shadow:0 1px 0 rgba(20,32,26,.04),0 14px 32px -20px rgba(20,32,26,.30);
   --display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
@@ -28,12 +29,12 @@
 @media (prefers-color-scheme:dark){
   :root:not([data-theme="light"]){color-scheme:dark;
     --ground:#0F1512;--surface:#18201C;--sunk:#131A16;--ink:#E7EFEA;--ink-2:#A3B5AA;--ink-3:#7C8E84;--line:#2C3832;
-    --accent:#3CC48E;--accent-ink:#06140D;--accent-soft:#173427;--warn:#F0A94A;--warn-soft:#3A2A12;--bad:#E8836A;--bad-soft:#3A2118;--thermal:#B7A7EA;
+    --accent:#3CC48E;--accent-ink:#06140D;--accent-soft:#173427;--hero-a:#15291F;--hero-b:#2A2414;--hero-blob:#1E2B24;--hero-bag:#B07A45;--hero-bag-2:#8E5F31;--warn:#F0A94A;--warn-soft:#3A2A12;--bad:#E8836A;--bad-soft:#3A2118;--thermal:#B7A7EA;
     --shadow:0 14px 32px -20px rgba(0,0,0,.8)}
 }
 :root[data-theme="dark"]{color-scheme:dark;
   --ground:#0F1512;--surface:#18201C;--sunk:#131A16;--ink:#E7EFEA;--ink-2:#A3B5AA;--ink-3:#7C8E84;--line:#2C3832;
-  --accent:#3CC48E;--accent-ink:#06140D;--accent-soft:#173427;--warn:#F0A94A;--warn-soft:#3A2A12;--bad:#E8836A;--bad-soft:#3A2118;--thermal:#B7A7EA;
+  --accent:#3CC48E;--accent-ink:#06140D;--accent-soft:#173427;--hero-a:#15291F;--hero-b:#2A2414;--hero-blob:#1E2B24;--hero-bag:#B07A45;--hero-bag-2:#8E5F31;--warn:#F0A94A;--warn-soft:#3A2A12;--bad:#E8836A;--bad-soft:#3A2118;--thermal:#B7A7EA;
   --shadow:0 14px 32px -20px rgba(0,0,0,.8)}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
@@ -243,16 +244,74 @@ button,input,textarea{font:inherit;color:inherit}
 }
 @media (prefers-reduced-motion:reduce){.pbar i{transition:none}}
 
-/* ---------- app shell: views + bottom tab bar ---------- */
-body{padding-bottom:calc(72px + env(safe-area-inset-bottom))}
-.view{display:flex;flex-direction:column;gap:14px}
+/* ---------- one screen: top block always visible, one panel below ---------- */
+body{padding-bottom:env(safe-area-inset-bottom)}
+.view{display:flex;flex-direction:column;gap:14px;scroll-margin-top:12px}
 .view[hidden]{display:none!important}
-.tabbar{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--surface);border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(5,1fr);padding-bottom:env(safe-area-inset-bottom)}
-.tabbar button{background:none;border:0;padding:8px 2px 9px;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11.5px;font-weight:600;color:var(--ink-2);cursor:pointer;position:relative}
-.tabbar svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-.tabbar button[aria-current="page"]{color:var(--accent)}
-.tabbar button[aria-current="page"]::before{content:"";position:absolute;top:0;left:30%;right:30%;height:3px;border-radius:0 0 3px 3px;background:var(--accent)}
-.tabbar .dot{position:absolute;top:6px;left:calc(50% + 8px);min-width:16px;height:16px;border-radius:8px;background:var(--bad);color:#fff;font-size:10px;line-height:16px;padding:0 4px}
+.top-r{display:flex;align-items:center;gap:10px}
+.icon-btn{width:40px;height:40px;border-radius:12px;border:1.5px solid var(--line);background:var(--surface);color:var(--ink-2);display:grid;place-items:center;cursor:pointer}
+.icon-btn svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.icon-btn:hover,.icon-btn[aria-current="page"]{border-color:var(--accent);color:var(--accent)}
+/* hero: greeting, money left, a warm picture */
+.hero{position:relative;overflow:hidden;display:grid;grid-template-columns:1fr 132px;gap:8px;align-items:center;
+  background:linear-gradient(135deg,var(--hero-a),var(--hero-b));border-radius:24px;padding:20px 18px 18px;box-shadow:var(--shadow)}
+.hero-art{width:132px;height:124px;justify-self:end;animation:bob 5s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(-5px)}}
+.hello{font-size:15px;font-weight:600;color:var(--ink-2);margin-bottom:4px}
+.hero .left-big{font-size:40px}
+.hero-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px}
+.hero .budget-edit{font-size:12.5px}
+.hero .budget-edit input{width:70px;padding:4px 8px;font-size:13.5px;background:color-mix(in srgb,var(--surface) 75%,transparent)}
+.hero .meter{margin-top:12px;background:color-mix(in srgb,var(--surface) 70%,transparent)}
+.hero-sub{font-size:13.5px;color:var(--ink-2);margin-top:10px;line-height:1.4}
+.hero-sub b{color:var(--accent)}
+.hero .stats{grid-column:1/-1}
+/* the one search box */
+.search{display:flex;align-items:center;gap:8px;background:var(--surface);border:2px solid var(--accent);border-radius:18px;padding:6px 6px 6px 14px;box-shadow:var(--shadow)}
+.search-ic{width:22px;height:22px;flex:none;stroke:var(--accent);fill:none;stroke-width:2.2;stroke-linecap:round}
+.search input{flex:1;min-width:0;border:0;background:none;font:inherit;font-size:16.5px;padding:10px 2px;color:var(--ink)}
+.search input:focus{outline:none}
+.search:focus-within{box-shadow:0 0 0 4px var(--accent-soft),var(--shadow)}
+.search .btn{flex:none;padding:12px 16px;border-radius:13px}
+.quick{margin-top:-4px}
+/* four big buttons */
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.tile{position:relative;display:flex;flex-direction:column;align-items:center;gap:8px;padding:14px 4px 12px;border-radius:18px;border:1.5px solid var(--line);background:var(--surface);color:var(--ink);font-size:13px;font-weight:700;line-height:1.2;text-align:center;cursor:pointer;box-shadow:var(--shadow);transition:transform .12s,border-color .12s}
+.tile:hover{border-color:var(--c,var(--accent))}
+.tile:active{transform:scale(.96)}
+.tile[aria-current="page"]{border-color:var(--accent);background:var(--accent-soft)}
+.t-ic{width:46px;height:46px;border-radius:15px;display:grid;place-items:center;background:color-mix(in srgb,var(--c) 14%,var(--surface));color:var(--c)}
+.t-ic svg{width:25px;height:25px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.t-n{position:absolute;top:8px;right:10px;min-width:20px;height:20px;border-radius:10px;background:#3A6FD8;color:#fff;font-size:11px;line-height:20px;padding:0 6px}
+.t-n.alert{background:var(--bad)}
+/* panels */
+.panel-h{display:flex;justify-content:space-between;align-items:center;padding-top:4px}
+.close-btn{width:38px;height:38px;border-radius:50%;border:0;background:var(--surface);color:var(--ink-2);font-size:17px;cursor:pointer;box-shadow:var(--shadow)}
+.close-btn:hover{color:var(--ink)}
+/* first visit: three illustrated steps */
+.welcome h2{font-size:19px;font-weight:800;margin-bottom:14px}
+.steps{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(3,1fr);gap:10px;text-align:center}
+.steps li{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:12.5px;color:var(--ink-2);line-height:1.35}
+.steps svg{width:56px;height:56px;margin-bottom:4px}
+.steps b{font-size:13.5px;color:var(--ink)}
+.welcome-actions{display:flex;gap:14px;align-items:center;justify-content:center;flex-wrap:wrap;margin-top:16px}
+/* little celebration when Bonwise finds savings */
+.confetti{position:fixed;inset:0;pointer-events:none;z-index:50;overflow:hidden}
+.confetti i{position:absolute;top:-12px;width:9px;height:14px;border-radius:2px;animation:fall 1.6s ease-in forwards}
+@keyframes fall{to{transform:translateY(105vh) rotate(540deg);opacity:.9}}
+/* shop avatar: first letter in a soft colour (not the shop's logo) */
+.av{width:34px;height:34px;border-radius:11px;display:inline-grid;place-items:center;font-weight:800;font-size:15px;color:#fff;flex:none}
+.empty-art{display:block;width:84px;height:84px;margin:6px auto 8px}
+@media (max-width:440px){
+  .hero{grid-template-columns:1fr 104px;padding:18px 14px 16px}
+  .hero-art{width:104px;height:98px}
+  .hero .left-big{font-size:34px}
+  .tiles{gap:8px}
+  .tile{font-size:12px;padding:12px 2px 10px}
+  .t-ic{width:42px;height:42px}
+  .search .btn{padding:11px 12px}
+}
+@media (prefers-reduced-motion:reduce){.hero-art{animation:none}.confetti{display:none}}
 .view-title{font-family:var(--display);font-size:24px;font-weight:800;letter-spacing:-.02em;padding:4px 2px 0}
 .field{width:100%;min-width:0;font:inherit;font-size:15px;background:var(--sunk);border:1.5px solid var(--line);border-radius:12px;padding:11px 12px;color:var(--ink)}
 .field:focus{border-color:var(--accent);outline:none}
@@ -368,9 +427,63 @@ body.simple .adv{display:none!important}
 
 <div class="app">
   <header class="top">
-    <div><div class="logo"><span class="logo-mark">€</span>Bonwise</div><div class="tagline">Plan before you shop. Scan after. Pay less.</div></div>
-    <span class="month" id="monthLabel">September 2026</span>
+    <div class="logo"><span class="logo-mark">€</span>Bonwise</div>
+    <div class="top-r">
+      <span class="month" id="monthLabel">September 2026</span>
+      <button class="icon-btn" type="button" data-tab="more" aria-label="Settings and household"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+    </div>
   </header>
+
+  <!-- Always on screen: greeting + budget, one search box, four big buttons -->
+  <section class="hero" aria-labelledby="hello">
+    <div class="hero-txt">
+      <p class="hello" id="hello">Hello!</p>
+      <div class="left-big num" id="leftBig">€300 <small>left this month</small></div>
+      <div class="hero-row"><span class="status good" id="paceChip">On track</span>
+        <label class="budget-edit" for="budget">Budget <input id="budget" type="number" inputmode="decimal" min="0" step="10" value="300"> €</label></div>
+      <div class="meter" aria-hidden="true"><i class="spent" id="mSpent"></i><i class="pending" id="mPending"></i><span class="today" id="mToday"></span></div>
+      <p class="hero-sub" id="heroSub">Search or scan to start saving.</p>
+      <p class="with-swaps" id="withSwaps" hidden></p>
+      <div class="meter-legend adv">
+        <span><i style="background:var(--ink-2)"></i>Saved receipts</span>
+        <span id="lgPending" hidden><i style="background:var(--accent)"></i>This receipt</span>
+        <span><i style="background:var(--warn);width:3px"></i>Today</span>
+      </div>
+      <div class="stats adv">
+        <div class="stat"><div class="v num" id="stSpent">€0</div><div class="k">Spent so far</div></div>
+        <div class="stat"><div class="v num" id="stDaily">€0</div><div class="k">Per day left</div></div>
+        <div class="stat"><div class="v num" id="stSaved" style="color:var(--accent)">€0</div><div class="k">Could save this month</div></div>
+      </div>
+    </div>
+    <svg class="hero-art" viewBox="0 0 160 150" aria-hidden="true">
+      <circle cx="84" cy="78" r="64" fill="var(--hero-blob)"/>
+      <path d="M52 30c4-10 16-12 20-2" stroke="#2F9E62" stroke-width="5" fill="none" stroke-linecap="round"/>
+      <path d="M70 26c10-12 26-8 24 6" stroke="#48B87A" stroke-width="5" fill="none" stroke-linecap="round"/>
+      <rect x="56" y="30" width="10" height="44" rx="5" transform="rotate(-14 61 52)" fill="#F2B84B"/>
+      <circle cx="98" cy="40" r="13" fill="#E4573D"/><path d="M98 27c1-5 5-7 8-6" stroke="#2F9E62" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <circle cx="78" cy="44" r="11" fill="#F58E3B"/>
+      <path d="M36 58h96l-9 66a10 10 0 0 1-10 9H55a10 10 0 0 1-10-9z" fill="var(--hero-bag)"/>
+      <path d="M36 58h96l-2 12H38z" fill="var(--hero-bag-2)"/>
+      <path d="M62 64v-8a22 22 0 0 1 44 0v8" stroke="var(--hero-bag-2)" stroke-width="5" fill="none" stroke-linecap="round"/>
+      <circle cx="84" cy="98" r="18" fill="#FFD166"/><circle cx="84" cy="98" r="13" fill="none" stroke="#E0A92E" stroke-width="2.5"/>
+      <text x="84" y="104" text-anchor="middle" font-family="system-ui,sans-serif" font-weight="800" font-size="17" fill="#8A5A00">€</text>
+      <path d="M128 36l3 7 7 3-7 3-3 7-3-7-7-3 7-3z" fill="#FFD166"/><path d="M26 92l2 4 4 2-4 2-2 4-2-4-4-2 4-2z" fill="#FFD166"/>
+    </svg>
+  </section>
+
+  <form class="search" id="tripForm" autocomplete="off" role="search">
+    <svg class="search-ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+    <input id="tripText" type="text" enterkeyhint="search" maxlength="600" placeholder="What do you need? e.g. milk, bread" aria-label="What do you want to buy?">
+    <button class="btn" id="tripGo" type="submit">Find cheapest</button>
+  </form>
+  <div class="sugg quick" id="tripChips" hidden></div>
+
+  <nav class="tiles" aria-label="What do you want to do?">
+    <button type="button" class="tile" id="tileScan"><span class="t-ic" style="--c:#0E7A52"><svg viewBox="0 0 24 24"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><path d="M9 9h6M9 12h6M9 15h4"/></svg></span>Scan receipt</button>
+    <button type="button" class="tile" data-tab="list"><span class="t-ic" style="--c:#3A6FD8"><svg viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></svg></span>My list<span class="t-n" id="listCount" hidden></span></button>
+    <button type="button" class="tile" data-tab="shops"><span class="t-ic" style="--c:#D9642B"><svg viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg></span>Shops nearby</button>
+    <button type="button" class="tile" data-tab="receipts"><span class="t-ic" style="--c:#7A55C7"><svg viewBox="0 0 24 24"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg></span>Receipts<span class="t-n alert" id="remDot" hidden></span></button>
+  </nav>
 
   <div class="view" id="view-home">
   <!-- Reminders: returns and warranties coming up -->
@@ -379,65 +492,19 @@ body.simple .adv{display:none!important}
     <ul class="remind" id="remindList"></ul>
   </section>
 
-  <!-- 1 · Budget -->
-  <section class="card" aria-labelledby="bH">
-    <div class="card-h">
-      <h2 id="bH">Monthly spending</h2>
-      <label class="budget-edit" for="budget">Monthly <input id="budget" type="number" inputmode="decimal" min="0" step="10" value="300"> €</label>
-    </div>
-    <div class="budget-top">
-      <div class="left-big num" id="leftBig">€300 <small>left this month</small></div>
-      <span class="status good" id="paceChip">On track</span>
-    </div>
-    <p class="with-swaps" id="withSwaps" hidden></p>
-    <div class="meter" aria-hidden="true"><i class="spent" id="mSpent"></i><i class="pending" id="mPending"></i><span class="today" id="mToday"></span></div>
-    <div class="meter-legend adv">
-      <span><i style="background:var(--ink-2)"></i>Saved receipts</span>
-      <span id="lgPending" hidden><i style="background:var(--accent)"></i>This receipt</span>
-      <span><i style="background:var(--warn);width:3px"></i>Today</span>
-    </div>
-    <div class="stats adv">
-      <div class="stat"><div class="v num" id="stSpent">€0</div><div class="k">Spent so far</div></div>
-      <div class="stat"><div class="v num" id="stDaily">€0</div><div class="k">Per day left</div></div>
-      <div class="stat"><div class="v num" id="stSaved" style="color:var(--accent)">€0</div><div class="k">Could save this month</div></div>
-    </div>
-  </section>
-
-  <!-- 2 · Before shopping: plan my shop -->
-  <section class="card plan-card" aria-labelledby="tH">
-    <div class="act-h">
-      <span class="act-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 4h2l2.4 11.2a1 1 0 0 0 1 .8h8.9a1 1 0 0 0 1-.8L20 8H6.2"/><circle cx="9" cy="20" r="1.4"/><circle cx="17" cy="20" r="1.4"/></svg></span>
-      <div><h2 id="tH">Going shopping?</h2><p>Type what you need. Bonwise finds the cheapest shops near you.</p></div>
-    </div>
-    <form class="trip-form" id="tripForm" autocomplete="off">
-      <input class="field" id="tripText" type="text" enterkeyhint="search" maxlength="600" placeholder="e.g. milk, crackers, vegetables" aria-label="What do you want to buy?">
-      <button class="btn" id="tripGo" type="submit">Find cheapest nearby</button>
-    </form>
-    <div class="sugg quick" id="tripChips" hidden></div>
-  </section>
   <div id="tripSlotHome"></div>
 
-  <!-- 3 · After shopping: scan -->
-  <section class="card" aria-labelledby="sH">
-    <div class="act-h">
-      <span class="act-ic alt" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg></span>
-      <div><h2 id="sH">Just shopped?</h2><p>Scan the receipt to see what you could save next time.</p></div>
-    </div>
+  <!-- Receipt scan: shown while reading, and for pasting text -->
+  <section class="card" id="scanCard" aria-labelledby="sH" hidden>
+    <div class="card-h"><h2 id="sH">Your receipt</h2><button class="linkbtn" id="pickBtn" type="button">Scan another</button></div>
     <p class="reader adv"><span class="pill" id="readerPill">Checking reader…</span><span id="readerNote"></span></p>
-    <div class="scan-actions">
-      <button class="btn" id="pickBtn" type="button">Scan receipt photo</button>
-      <button class="btn line" id="sampleBtn" type="button">Try a sample receipt</button>
-    </div>
     <input type="file" id="file" accept="image/*" hidden>
     <div class="drop adv" id="drop">…or drop a photo here</div>
-    <p class="hint">No photo handy? <button class="linkbtn" id="pasteToggle" type="button">Paste the receipt text instead</button></p>
     <div class="paste" id="pasteBox" hidden>
       <label class="label" for="pasteText">Receipt lines</label>
       <textarea id="pasteText" placeholder="Bio Eier 10er 2,79&#10;Roggenbrot 500g 2,19&#10;Coca Cola 1,5L 1,89&#10;Summe 6,87"></textarea>
       <div class="row"><button class="btn small" id="pasteGo" type="button">Read these lines</button></div>
     </div>
-
-
     <div class="progress" id="progress" hidden>
       <img id="thumb" alt="">
       <div>
@@ -517,6 +584,23 @@ body.simple .adv{display:none!important}
     <p class="pc-note" id="pcNote"></p>
   </section>
 
+  <!-- First visit: what Bonwise does, in three pictures -->
+  <section class="card welcome" id="welcomeCard" aria-labelledby="wH">
+    <h2 id="wH">Save on every shop, in 3 steps</h2>
+    <ol class="steps">
+      <li><svg viewBox="0 0 64 64" aria-hidden="true"><rect x="10" y="8" width="44" height="50" rx="8" fill="#E3ECFB"/><path d="M20 22h24M20 32h24M20 42h14" stroke="#3A6FD8" stroke-width="4" stroke-linecap="round"/><circle cx="48" cy="46" r="9" fill="#3A6FD8"/><path d="M52 50l5 5" stroke="#3A6FD8" stroke-width="4" stroke-linecap="round"/><circle cx="48" cy="46" r="4" fill="#E3ECFB"/></svg>
+        <b>Type what you need</b><span>Bonwise shows the cheapest shop near you.</span></li>
+      <li><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M32 58s-18-15-18-29a18 18 0 0 1 36 0c0 14-18 29-18 29z" fill="#FCE3D6"/><circle cx="32" cy="29" r="8" fill="#D9642B"/><path d="M10 58h44" stroke="#D9642B" stroke-width="4" stroke-linecap="round"/></svg>
+        <b>Shop there</b><span>Directions, opening hours and prices in one place.</span></li>
+      <li><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M16 6h32v52l-8-5-8 5-8-5-8 5z" fill="#DDEFE6"/><path d="M23 20h18M23 29h18M23 38h10" stroke="#0E7A52" stroke-width="4" stroke-linecap="round"/><circle cx="46" cy="44" r="12" fill="#FFD166"/><text x="46" y="50" text-anchor="middle" font-family="system-ui,sans-serif" font-weight="800" font-size="15" fill="#8A5A00">€</text></svg>
+        <b>Scan the receipt</b><span>See what you’d save next time, and track your budget.</span></li>
+    </ol>
+    <div class="welcome-actions">
+      <button class="btn" id="sampleBtn" type="button">Try a sample receipt</button>
+      <button class="linkbtn" id="pasteToggle" type="button">Paste receipt text</button>
+    </div>
+  </section>
+
   <p class="more-toggle"><button class="linkbtn" id="simpleToggle" type="button">Show all details</button></p>
   <p class="foot adv">Test version. Receipt photos are sent to this Bonwise server, which asks an open-source AI model on Hugging Face to read them (Tesseract OCR is the backup). Photos aren’t stored. “Real price” comparisons use ALDI SÜD shelf prices (aldi-sued.de) and sneaker prices from günstiger.de, billiger.de and the brands’ shops, all checked 23 Sep 2026. Prices vary by region, size and colour, and change over time. Other swaps are estimates. Your data stays on this phone unless you turn on household sharing. <a href="/privacy">Privacy policy</a></p>
   </div><!-- /view-home -->
@@ -529,7 +613,7 @@ body.simple .adv{display:none!important}
 
   <!-- ===== Receipts ===== -->
   <div class="view" id="view-receipts" hidden>
-    <h1 class="view-title">Receipts</h1>
+    <div class="panel-h"><h1 class="view-title">Receipts</h1><button class="close-btn" type="button" data-tab="home" aria-label="Close receipts">✕</button></div>
     <section class="card" aria-labelledby="hH">
       <div class="card-h"><h2 id="hH">Your receipts</h2><button class="linkbtn" id="resetBtn" type="button" hidden>Clear this month</button></div>
       <p class="muted" style="margin-bottom:6px">Tap a receipt to see its items, return window and warranty.</p>
@@ -540,7 +624,7 @@ body.simple .adv{display:none!important}
 
   <!-- ===== Shopping list ===== -->
   <div class="view" id="view-list" hidden>
-    <h1 class="view-title">Shopping list</h1>
+    <div class="panel-h"><h1 class="view-title">Shopping list</h1><button class="close-btn" type="button" data-tab="home" aria-label="Close shopping list">✕</button></div>
     <section class="card" aria-labelledby="lH">
       <div class="card-h"><h2 id="lH">To buy</h2><button class="linkbtn" id="shareList" type="button">Share list</button></div>
       <form class="row2" id="listForm" autocomplete="off">
@@ -567,7 +651,7 @@ body.simple .adv{display:none!important}
 
   <!-- ===== Nearby shops ===== -->
   <div class="view" id="view-shops" hidden>
-    <h1 class="view-title">Shops near you</h1>
+    <div class="panel-h"><h1 class="view-title">Shops near you</h1><button class="close-btn" type="button" data-tab="home" aria-label="Close shops near you">✕</button></div>
     <section class="card" aria-labelledby="shH">
       <div class="card-h"><h2 id="shH">Nearby</h2><span class="label" id="shopCount"></span></div>
       <p class="muted" id="shopIntro">Find supermarkets, discounters and drugstores around you, with opening hours. Discounters like Aldi, Lidl and Penny are usually cheapest for basics.</p>
@@ -588,7 +672,7 @@ body.simple .adv{display:none!important}
 
   <!-- ===== More / settings ===== -->
   <div class="view" id="view-more" hidden>
-    <h1 class="view-title">More</h1>
+    <div class="panel-h"><h1 class="view-title">Settings</h1><button class="close-btn" type="button" data-tab="home" aria-label="Close settings">✕</button></div>
     <section class="card" aria-labelledby="hhH">
       <div class="card-h"><h2 id="hhH">Household sharing</h2><span class="label" id="syncState"></span></div>
       <div id="hhOff">
@@ -641,13 +725,6 @@ body.simple .adv{display:none!important}
 
 </div>
 
-<nav class="tabbar" aria-label="Main">
-  <button type="button" data-tab="home" aria-current="page"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>Home</button>
-  <button type="button" data-tab="receipts"><svg viewBox="0 0 24 24"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg>Receipts<span class="dot" id="remDot" hidden></span></button>
-  <button type="button" data-tab="list"><svg viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></svg>List</button>
-  <button type="button" data-tab="shops"><svg viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>Shops</button>
-  <button type="button" data-tab="more"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></svg>More</button>
-</nav>
 <script src="/static/app.js"></script>
 </body>
 </html>
