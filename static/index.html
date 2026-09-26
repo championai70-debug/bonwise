@@ -260,7 +260,8 @@ body{padding-bottom:env(safe-area-inset-bottom)}
 .hero-art{width:132px;height:124px;justify-self:end;animation:bob 5s ease-in-out infinite}
 @keyframes bob{50%{transform:translateY(-5px)}}
 .hello{font-size:15px;font-weight:600;color:var(--ink-2);margin-bottom:4px}
-.hero .left-big{font-size:40px}
+.hero .left-big{font-size:42px}
+.hero .left-big small{display:block;margin:6px 0 0}
 .hero-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px}
 .hero .budget-edit{font-size:12.5px}
 .hero .budget-edit input{width:70px;padding:4px 8px;font-size:13.5px;background:color-mix(in srgb,var(--surface) 75%,transparent)}
@@ -302,6 +303,8 @@ body{padding-bottom:env(safe-area-inset-bottom)}
 .confetti i{position:absolute;top:-12px;width:9px;height:14px;border-radius:2px;animation:fall 1.6s ease-in forwards}
 @keyframes fall{to{transform:translateY(105vh) rotate(540deg);opacity:.9}}
 /* shop avatar: first letter in a soft colour (not the shop's logo) */
+.shops .nm,.bs-name{display:flex;align-items:center;gap:10px}
+.bs-name .av{width:40px;height:40px;font-size:18px}
 .av{width:34px;height:34px;border-radius:11px;display:inline-grid;place-items:center;font-weight:800;font-size:15px;color:#fff;flex:none}
 .empty-art{display:block;width:84px;height:84px;margin:6px auto 8px}
 @media (max-width:440px){
@@ -475,8 +478,8 @@ body.simple .adv{display:none!important}
 
   <form class="search" id="tripForm" autocomplete="off" role="search">
     <svg class="search-ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
-    <input id="tripText" type="text" enterkeyhint="search" maxlength="600" placeholder="What do you need? e.g. milk, bread" aria-label="What do you want to buy?">
-    <button class="btn" id="tripGo" type="submit">Find cheapest</button>
+    <input id="tripText" type="text" enterkeyhint="search" maxlength="600" placeholder="What do you need?" aria-label="What do you want to buy? For example milk, bread">
+    <button class="btn" id="tripGo" type="submit">Find</button>
   </form>
   <div class="sugg quick" id="tripChips" hidden></div>
 
@@ -620,7 +623,7 @@ body.simple .adv{display:none!important}
       <div class="card-h"><h2 id="hH">Your receipts</h2><button class="linkbtn" id="resetBtn" type="button" hidden>Clear this month</button></div>
       <p class="muted" style="margin-bottom:6px">Tap a receipt to see its items, return window and warranty.</p>
       <ul class="vault" id="hist"></ul>
-      <p class="empty" id="histEmpty">No receipts saved yet. Scan one on Home, check it, then press “Add to this month”.</p>
+      <div class="empty" id="histEmpty" style="text-align:center"><svg class="empty-art" viewBox="0 0 64 64" aria-hidden="true"><path d="M16 6h32v52l-8-5-8 5-8-5-8 5z" fill="#EDE6FA"/><path d="M23 20h18M23 29h18M23 38h10" stroke="#7A55C7" stroke-width="4" stroke-linecap="round"/></svg>No receipts yet. Tap “Scan receipt” above, check the prices, then press “Add to this month”.</div>
     </section>
   </div>
 
@@ -634,7 +637,7 @@ body.simple .adv{display:none!important}
         <button class="btn small" type="submit">Add</button>
       </form>
       <ul class="slist" id="slist"></ul>
-      <p class="empty" id="slistEmpty" style="margin-top:10px">Your list is empty. Add items above or tap “Buy again” below.</p>
+      <div class="empty" id="slistEmpty" style="margin-top:10px;text-align:center"><svg class="empty-art" viewBox="0 0 64 64" aria-hidden="true"><rect x="12" y="8" width="40" height="50" rx="8" fill="#E3ECFB"/><path d="M21 22l3 3 5-6M21 34l3 3 5-6" stroke="#3A6FD8" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M34 23h10M34 35h10M22 46h22" stroke="#3A6FD8" stroke-width="3.5" stroke-linecap="round"/></svg>Your list is empty. Add items above or tap “Buy again” below.</div>
       <div class="row2" style="margin-top:12px" id="listTripRow" hidden>
         <button class="btn" id="listTrip" type="button" style="flex:1 1 auto;justify-content:center">Find cheapest shops for my list</button>
       </div>
@@ -656,7 +659,8 @@ body.simple .adv{display:none!important}
     <div class="panel-h"><h1 class="view-title">Shops near you</h1><button class="close-btn" type="button" data-tab="home" aria-label="Close shops near you">✕</button></div>
     <section class="card" aria-labelledby="shH">
       <div class="card-h"><h2 id="shH">Nearby</h2><span class="label" id="shopCount"></span></div>
-      <p class="muted" id="shopIntro">Find supermarkets, discounters and drugstores around you, with opening hours. Discounters like Aldi, Lidl and Penny are usually cheapest for basics.</p>
+      <svg class="empty-art" viewBox="0 0 64 64" aria-hidden="true" id="shopArt"><path d="M32 58s-18-15-18-29a18 18 0 0 1 36 0c0 14-18 29-18 29z" fill="#FCE3D6"/><circle cx="32" cy="29" r="8" fill="#D9642B"/></svg>
+      <p class="muted" id="shopIntro" style="text-align:center">Find supermarkets, discounters and drugstores around you, with opening hours. Discounters like Aldi, Lidl and Penny are usually cheapest for basics.</p>
       <div class="row2" style="margin-top:12px">
         <button class="btn" id="findShops" type="button">Find shops near me</button>
       </div>

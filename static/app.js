@@ -348,6 +348,7 @@
 
   function run(path, payload, label) {
     pendingPayload = { path: path, payload: payload };
+    $("tripCard").hidden = true;  // focus on the receipt being read
     setBusy(true);
     setStage(label, "", 0.2);
     startTimer(payload.useAi !== false && health && health.aiReader);
@@ -831,7 +832,7 @@
     $("shops").innerHTML = list.length ? list.map(function (x) {
       var dist = x.distance < 1000 ? x.distance + " m" : (x.distance / 1000).toFixed(1) + " km";
       var open = x.open === true ? '<span class="pill2">Open now</span>' : x.open === false ? '<span class="pill2 grey">Closed now</span>' : "";
-      return '<li><span class="nm">' + esc(x.name) + '</span><span class="dist">' + dist + '</span>' +
+      return '<li><span class="nm">' + avatar(x.name) + esc(x.name) + '</span><span class="dist">' + dist + '</span>' +
         '<span class="meta">' + esc(x.kind) + (x.discounter ? ' <span class="pill2 warn">Discounter</span>' : "") + ' ' + open + (x.address ? ' · ' + esc(x.address) : "") + '</span>' +
         (x.hours ? '<span class="meta">' + esc(x.hours) + '</span>' : "") +
         '<a class="go" href="https://www.google.com/maps/dir/?api=1&destination=' + x.lat + "," + x.lon + '" target="_blank" rel="noopener">Directions →</a></li>';
@@ -848,7 +849,7 @@
       osmShops(pos.coords.latitude, pos.coords.longitude).then(function (osm) {
         return osm ? api("/api/shops", { lat: round3(pos.coords.latitude), lon: round3(pos.coords.longitude), dow: (d.getDay() + 6) % 7, min: d.getHours() * 60 + d.getMinutes(), osm: osm }) : api("/api/shops?" + q);
       }).then(function (j) {
-        shopsData = j.shops || []; $("shopFilter").hidden = !shopsData.length;
+        shopsData = j.shops || []; $("shopFilter").hidden = !shopsData.length; $("shopArt").hidden = !!shopsData.length;
         if (!shopsData.length) { err.hidden = false; err.className = "notice warn"; err.textContent = "No shops found within 1.5 km."; }
         renderShops();
       }).catch(function (e) { err.hidden = false; err.className = "notice bad"; err.textContent = e.message; })
@@ -927,7 +928,7 @@
           : '<p class="bs-note">' + esc(j.goingTo) + ' costs about the same (' + eur(going.total) + '), so either shop is fine.</p>';
       } else if (j.goingTo && going === best) note = '<p class="bs-note">Good choice: <b>' + esc(j.goingTo) + '</b> is the cheapest shop near you for this list.</p>';
       else if (j.goingTo) note = '<p class="bs-note">There’s no ' + esc(j.goingTo) + ' within 1.5 km of you.</p>';
-      html += '<div class="best-stop"><span class="label">Best stop for your list</span><div class="bs-top"><div><div class="bs-name">' + esc(shopName(best)) + '</div><div class="bs-meta">' + esc(meta) + '</div></div>' +
+      html += '<div class="best-stop"><span class="label">Best stop for your list</span><div class="bs-top"><div><div class="bs-name">' + avatar(shopName(best)) + esc(shopName(best)) + '</div><div class="bs-meta">' + esc(meta) + '</div></div>' +
         '<div class="bs-total num">~' + eur(best.total) + '<small>for ' + (best.priced < n ? best.priced + " of " : "") + n + ' item' + (n === 1 ? "" : "s") + '</small></div></div>' + note +
         '<div class="bs-actions"><a class="btn small" href="' + mapsLink(best) + '" target="_blank" rel="noopener">Directions</a><button class="btn small line" type="button" id="tripSave">Save to my list</button></div></div>';
     } else html += '<div class="bs-actions" style="margin-top:0"><button class="btn small line" type="button" id="tripSave">Save to my list</button></div>';
@@ -967,7 +968,7 @@
     var others = shops.filter(function (x) { return x.covers > 0; });
     if (others.length > 1) {
       html += '<details class="cmpshops"><summary>Compare ' + others.length + ' shops</summary><ul class="shops">' + others.map(function (x) {
-        return '<li><span class="nm">' + esc(shopName(x)) + '</span><span class="tot num">~' + eur(x.total) + '</span>' +
+        return '<li><span class="nm">' + avatar(shopName(x)) + esc(shopName(x)) + '</span><span class="tot num">~' + eur(x.total) + '</span>' +
           '<span class="meta">' + distTxt(x.distance) + ' · ' + esc(x.kind) + (openTxt(x) ? ' · ' + openTxt(x) : "") + (x.missing.length ? ' · no ' + esc(listText(x.missing)) : " · has everything") + '</span>' +
           '<a class="go" href="' + mapsLink(x) + '" target="_blank" rel="noopener">Directions →</a></li>';
       }).join("") + '</ul></details>';

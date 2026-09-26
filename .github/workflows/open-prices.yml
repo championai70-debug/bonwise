@@ -35,4 +35,5 @@ jobs:
           git add bonwise/open_prices.json
           if git diff --cached --quiet; then echo "No change"; exit 0; fi
           git commit -m "Update Open Prices data ($(date -u +%F))"
+          git pull --rebase -X theirs origin "${{ github.head_ref || github.ref_name }}" || git pull --rebase origin "${{ github.head_ref || github.ref_name }}"
           git push
