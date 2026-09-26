@@ -301,6 +301,7 @@ class ServerTests(unittest.TestCase):
         aldi = j["shops"][0]
         self.assertTrue(aldi["discounter"] and aldi["open"])
         self.assertEqual(aldi["address"], "Kastanienallee 12")
+        self.assertEqual([x["chain"] for x in j["shops"]], ["ALDI", "dm", "REWE"])  # to find the nearest branch of a chain
         query = urllib.parse.unquote_plus(Overpass.calls[0])
         self.assertNotIn("52.5301", query)  # only the rounded position (52.530, 13.410) is used
         self.assertIn("[bbox:%.4f,%.4f,%.4f,%.4f]" % places._bbox(52.530, 13.410, 1500), query)
