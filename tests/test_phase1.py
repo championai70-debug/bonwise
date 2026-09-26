@@ -36,6 +36,31 @@ class Overpass(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
 
+class BusyOverpass(BaseHTTPRequestHandler):
+    """A map server that refuses (429), drops the connection, or answers 'timed out'."""
+    mode = "429"
+
+    def log_message(self, *a):
+        pass
+
+    def do_POST(self):
+        self.rfile.read(int(self.headers["Content-Length"]))
+        if BusyOverpass.mode == "drop":
+            self.close_connection = True
+            self.wfile.flush()
+            self.connection.shutdown(2)
+            return
+        if BusyOverpass.mode == "remark":
+            body = json.dumps({"elements": [], "remark": "runtime error: Query timed out"}).encode()
+            self.send_response(200)
+        else:
+            body = b"rate limited"
+            self.send_response(429)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+
 class StorageTests(unittest.TestCase):
     def setUp(self):
         storage.reset_for_tests(tempfile.mkdtemp())
@@ -108,6 +133,39 @@ class PlacesTests(unittest.TestCase):
         self.assertFalse(places.open_now("Mo-Fr 08:00-12:00,14:00-18:00", 1, 13 * 60))
         self.assertTrue(places.open_now("Fr-Sa 18:00-02:00", 4, 23 * 60))  # late opening past midnight
         self.assertIsNone(places.open_now("sunrise-sunset", 1, 600))
+
+
+class MapServerFallbackTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.busy = ThreadingHTTPServer(("127.0.0.1", 0), BusyOverpass)
+        cls.good = ThreadingHTTPServer(("127.0.0.1", 0), Overpass)
+        for srv in (cls.busy, cls.good):
+            threading.Thread(target=srv.serve_forever, daemon=True).start()
+        cls.saved = (config.OVERPASS_URL, config.OVERPASS_FALLBACKS)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.busy.shutdown()
+        cls.good.shutdown()
+        config.OVERPASS_URL, config.OVERPASS_FALLBACKS = cls.saved
+
+    def url(self, srv):
+        return "http://127.0.0.1:%d/api/interpreter" % srv.server_address[1]
+
+    def test_busy_server_falls_back_to_the_next(self):
+        config.OVERPASS_URL, config.OVERPASS_FALLBACKS = self.url(self.busy), [self.url(self.good)]
+        for i, mode in enumerate(("429", "drop", "remark")):
+            BusyOverpass.mode = mode
+            shops = places.nearby(10 + i, 10, 1500, 0, 480)  # a new position each time, so no cache hit
+            self.assertEqual(shops[0]["name"], "ALDI Nord", mode)
+
+    def test_every_server_down(self):
+        BusyOverpass.mode = "429"
+        config.OVERPASS_URL, config.OVERPASS_FALLBACKS = self.url(self.busy), [self.url(self.busy)]
+        with self.assertRaises(places.PlacesError) as cm:
+            places.nearby(20, 20, 1500)
+        self.assertIn("HTTP 429", str(cm.exception))
 
 
 class ServerTests(unittest.TestCase):

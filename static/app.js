@@ -745,7 +745,7 @@
   });
 
   /* ---------- plan my shop: cheapest shops nearby, before shopping ---------- */
-  var tripItems = [], tripBusy = false;
+  var tripItems = [], tripBusy = false, lastTrip = null;
   function distTxt(m) { return m < 1000 ? m + " m" : (m / 1000).toFixed(1) + " km"; }
   function mapsLink(x) { return "https://www.google.com/maps/dir/?api=1&destination=" + x.lat + "," + x.lon; }
   function openTxt(x) { return x.open === true ? "Open now" : x.open === false ? "Closed now" : ""; }
@@ -763,6 +763,7 @@
   function tripLoading(text) { $("tripBody").innerHTML = '<div class="trip-load"><span class="spin" aria-hidden="true"></span><span>' + esc(text) + '</span></div>'; }
   function runTrip(payload, slot) {
     if (tripBusy) return;
+    lastTrip = { payload: payload, slot: slot };
     tripBusy = true; $("tripGo").disabled = $("listTrip").disabled = true;
     $(slot).appendChild($("tripCard")); $("tripCard").hidden = false;
     tripLoading("Finding your location…");
@@ -782,7 +783,7 @@
     var shops = j.shops || [], best = j.best != null ? shops[j.best] : null, going = j.going != null ? shops[j.going] : null, html = "";
     var n = tripItems.filter(function (it) { return !it.online; }).length;
     if (locWhy) html += '<div class="notice warn" style="margin-top:0;margin-bottom:12px">' + esc(locWhy) + ' Below are the best prices we know.</div>';
-    else if (j.notice) html += '<div class="notice warn" style="margin-top:0;margin-bottom:12px">' + esc(j.notice) + '</div>';
+    else if (j.notice) html += '<div class="notice warn" style="margin-top:0;margin-bottom:12px">' + esc(j.notice) + (j.retry ? ' <button class="linkbtn" type="button" id="tripRetry">Try again</button>' : "") + '</div>';
     else if (j.located && !best && n) html += '<div class="notice warn" style="margin-top:0;margin-bottom:12px">No shop within 2 km sells everything on this list. See each item below.</div>';
     if (best) {
       var meta = [distTxt(best.distance), openTxt(best), best.address].filter(Boolean).join(" · ");
@@ -836,6 +837,7 @@
     $("tripBody").innerHTML = html;
   }
   $("tripBody").addEventListener("click", function (e) {
+    if (e.target.closest("#tripRetry") && lastTrip) { runTrip(lastTrip.payload, lastTrip.slot); return; }
     if (!e.target.closest("#tripSave")) return;
     tripItems.forEach(function (it) {
       var q = norm(it.query), nm = norm(it.name);

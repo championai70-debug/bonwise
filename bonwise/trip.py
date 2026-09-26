@@ -279,7 +279,7 @@ def plan(text=None, items=None, lat=None, lon=None, dow=None, minute=None, radiu
         try:
             shops = places.nearby(lat, lon, radius, dow, minute)
         except places.PlacesError:
-            notice = "The map service didn’t answer, so nearby shops are missing. Try again in a minute."
+            notice = "The map service is busy right now, so shops near you couldn’t be compared. Below are the best prices we know."
     for s in shops:
         s["chain"] = shop_chain(s)
         s["level"] = shop_level(s)
@@ -382,5 +382,5 @@ def plan(text=None, items=None, lat=None, lon=None, dow=None, minute=None, radiu
         "going": index.get(going_i) if going_i is not None else None,
         "split": ({"stops": [dict(st, shop=index[st["shop"]]) for st in split["stops"]], "total": split["total"], "save": split["save"]}
                   if split else None),
-        "notice": notice, "checked": data.MARKET_CHECKED,
+        "notice": notice, "retry": bool(notice), "checked": data.MARKET_CHECKED,
     }

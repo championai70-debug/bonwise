@@ -68,3 +68,10 @@ IMPRESSUM = os.environ.get("IMPRESSUM", "").strip()
 
 # Nearby shops come from OpenStreetMap's free Overpass API.
 OVERPASS_URL = os.environ.get("OVERPASS_URL", "https://overpass-api.de/api/interpreter")
+# Public mirrors in the EU (Austria), tried in order when the main server is busy or refuses
+# (it limits requests per IP address, and cloud hosts share addresses). Comma-separated;
+# empty turns it off. If you change these, update static/privacy.html.
+OVERPASS_FALLBACKS = [u.strip() for u in os.environ.get(
+    "OVERPASS_FALLBACKS",
+    "https://overpass.private.coffee/api/interpreter,https://overpass.kumi.systems/api/interpreter",
+).split(",") if u.strip()]

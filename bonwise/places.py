@@ -4,6 +4,7 @@ The phone sends its position; it is rounded to about 100 m before it is used, ca
 for an hour in memory and never stored.
 """
 
+import http.client
 import json
 import math
 import re
@@ -88,17 +89,35 @@ def open_now(hours, dow, minute):
     return state if state is not None else False
 
 
+def _servers():
+    return list(dict.fromkeys([config.OVERPASS_URL] + list(config.OVERPASS_FALLBACKS)))[:3]
+
+
 def _query(lat, lon, radius):
+    """Ask the Overpass servers in turn; the first good answer wins."""
     kinds = "|".join(KINDS)
-    q = ('[out:json][timeout:15];nwr["shop"~"^(%s)$"](around:%d,%.3f,%.3f);out center tags 80;'
+    q = ('[out:json][timeout:20];nwr["shop"~"^(%s)$"](around:%d,%.3f,%.3f);out center tags 80;'
          % (kinds, radius, lat, lon))
-    req = urllib.request.Request(config.OVERPASS_URL, data=urllib.parse.urlencode({"data": q}).encode(),
-                                 headers={"User-Agent": "Bonwise/1.0 (receipt savings app)"})
-    try:
-        with urllib.request.urlopen(req, timeout=20) as res:
-            return json.loads(res.read().decode("utf-8", "replace"))
-    except (urllib.error.URLError, TimeoutError, ValueError) as e:
-        raise PlacesError(str(e)[:200])
+    body = urllib.parse.urlencode({"data": q}).encode()
+    errors = []
+    for url in _servers():
+        req = urllib.request.Request(url, data=body, headers={
+            "User-Agent": "Bonwise/1.0 (receipt savings app; https://bonwise.onrender.com)",
+            "Accept": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=15) as res:
+                raw = json.loads(res.read().decode("utf-8", "replace"))
+            if not isinstance(raw, dict) or "elements" not in raw:
+                raise ValueError("no elements in the answer")
+            if not raw["elements"] and "remark" in raw:  # e.g. "runtime error: Query timed out"
+                raise ValueError(str(raw["remark"])[:120])
+            return raw
+        except (OSError, http.client.HTTPException, ValueError) as e:  # URLError, timeouts, dropped connections
+            reason = "HTTP %s" % e.code if isinstance(e, urllib.error.HTTPError) else (repr(e)[:160])
+            errors.append("%s: %s" % (urllib.parse.urlparse(url).netloc, reason))
+    # Logged without the position, so the server log never holds a location.
+    print("shop search failed on every map server: " + "; ".join(errors), flush=True)
+    raise PlacesError("; ".join(errors)[:300])
 
 
 def nearby(lat, lon, radius=1500, dow=None, minute=None):

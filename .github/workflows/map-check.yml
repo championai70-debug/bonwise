@@ -1,0 +1,18 @@
+# Live check that the OpenStreetMap map servers answer (nearby shops, "Going shopping?").
+# Run it from GitHub → Actions → "Map servers check" → Run workflow.
+name: Map servers check
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ["bonwise/places.py", "bonwise/config.py", "tools/check_map_servers.py"]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python3 tools/check_map_servers.py
