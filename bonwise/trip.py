@@ -253,7 +253,7 @@ def _cheapest_near(cands, tol_abs=0.30, tol_rel=0.03):
     return min(close, key=lambda c: (c[1], c[0]))
 
 
-def plan(text=None, items=None, lat=None, lon=None, dow=None, minute=None, radius=1500):
+def plan(text=None, items=None, lat=None, lon=None, dow=None, minute=None, radius=1500, osm=None):
     if items:
         names, going = [], ""
         for it in items[:MAX_ITEMS]:
@@ -277,7 +277,7 @@ def plan(text=None, items=None, lat=None, lon=None, dow=None, minute=None, radiu
     notice, shops = "", []
     if lat is not None and lon is not None:
         try:
-            shops = places.nearby(lat, lon, radius, dow, minute)
+            shops = places.nearby(lat, lon, radius, dow, minute, osm=osm)
         except places.PlacesError:
             notice = "The map service is busy right now, so shops near you couldn’t be compared. Below are the best prices we know."
     for s in shops:

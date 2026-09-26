@@ -267,6 +267,20 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(len(Overpass.calls), 1)  # second search served from the cache
         self.assertEqual(self.call("/api/shops?lat=abc")[0], 400)
 
+    def test_shops_tab_with_shops_from_the_phone(self):
+        before = len(Overpass.calls)
+        s, j = self.call("/api/shops", {"lat": 52.53, "lon": 13.41, "dow": 0, "min": 480, "osm": OVERPASS["elements"]})
+        self.assertEqual((s, j["shops"][0]["name"]), (200, "ALDI Nord"))
+        self.assertEqual(len(Overpass.calls), before)
+        self.assertEqual(self.call("/api/shops", {"lat": 95, "lon": 13.41})[0], 400)
+        self.assertEqual(self.call("/api/shops", {"lat": "x"})[0], 400)
+
+    def test_phone_data_is_checked(self):
+        raw = places.from_phone([{"center": {"lat": 1, "lon": 2}, "tags": {"shop": "bakery", "name": "B", "x": "y"}},
+                                 {"lat": 500, "lon": 2, "tags": {"shop": "bakery"}}, None, {"lat": 1, "lon": 2}])
+        self.assertEqual(raw["elements"], [{"lat": 1.0, "lon": 2.0, "tags": {"shop": "bakery", "name": "B"}}])
+        self.assertEqual(places.from_phone("not a list"), {"elements": []})
+
     def test_impressum(self):
         config.IMPRESSUM = "Max Muster\\nMusterstr. 1\\n10115 Berlin"
         try:

@@ -97,10 +97,28 @@ def plan_trip(body):
             dow, minute = int(body["dow"]) % 7, int(body["min"]) % 1440
     except (TypeError, ValueError):
         return 400, {"error": "bad_request", "message": "Your location couldn't be read."}
-    result = trip.plan(text=text, items=items, lat=lat, lon=lon, dow=dow, minute=minute)
+    osm = body.get("osm") if isinstance(body.get("osm"), list) else None
+    result = trip.plan(text=text, items=items, lat=lat, lon=lon, dow=dow, minute=minute, osm=osm)
     if not result["items"]:
         return 422, {"error": "no_items", "message": "Type what you want to buy, e.g. “milk, bread, crackers”."}
     return 200, result
+
+
+def shops_near(body):
+    """Shops tab: the phone's position (and the shops it fetched itself). Returns (status, body)."""
+    try:
+        lat, lon = float(body["lat"]), float(body["lon"])
+        dow = int(body["dow"]) % 7 if body.get("dow") is not None else None
+        minute = int(body["min"]) % 1440 if body.get("min") is not None else None
+        if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+            raise ValueError
+    except (KeyError, TypeError, ValueError):
+        return 400, {"error": "bad_request", "message": "Your location couldn't be read."}
+    osm = body.get("osm") if isinstance(body.get("osm"), list) else None
+    try:
+        return 200, {"shops": places.nearby(lat, lon, 1500, dow, minute, osm=osm)}
+    except places.PlacesError:
+        return 502, {"error": "places", "message": "The map service is busy right now. Try again in a minute."}
 
 
 def prices_payload():
@@ -214,7 +232,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         path = urlparse(self.path).path
         if path not in ("/api/scan", "/api/scan-text", "/api/test-ai", "/api/household/new", "/api/household/sync", "/api/household/delete",
-                        "/api/prices/report", "/api/list/prices", "/api/trip"):
+                        "/api/prices/report", "/api/list/prices", "/api/trip", "/api/shops"):
             return self._send(404, {"error": "not_found"})
         origin = self.headers.get("Origin")
         hosts = {h.strip() for h in (self.headers.get("Host", ""), self.headers.get("X-Forwarded-Host", "")) if h}
@@ -224,7 +242,7 @@ class Handler(BaseHTTPRequestHandler):
             body = self._json_body() or {}
             if path == "/api/test-ai":
                 return self._send(200, self._test_ai())
-            if path.startswith(("/api/household/", "/api/prices/", "/api/list/", "/api/trip")):
+            if path.startswith(("/api/household/", "/api/prices/", "/api/list/", "/api/trip", "/api/shops")):
                 return self._data_api(path, body)
             if not limiter.allow(self._client()):
                 return self._send(429, {"error": "too_many", "message":
@@ -262,6 +280,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, {"kept": storage.report_prices(body.get("store"), body.get("day"), body.get("items"))})
             if path == "/api/trip":
                 return self._send(*plan_trip(body))
+            if path == "/api/shops":
+                return self._send(*shops_near(body))
             return self._send(200, {"items": list_prices(body.get("items"))})
         except storage.HouseholdError as e:
             return self._send(e.status, {"error": e.code, "message": e.message})

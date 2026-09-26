@@ -701,6 +701,60 @@
   }
   $("again").addEventListener("click", function (e) { var b = e.target.closest("button[data-again]"); if (b) addToList(b.dataset.again); });
 
+  /* ---------- shops from OpenStreetMap, fetched by this phone ----------
+     The phone asks the free Overpass map servers itself: its own internet address isn't
+     rate-limited like the shared cloud server's. The position is rounded to about 100 m
+     first. The Bonwise server then works out distances, "open now" and prices; if the
+     phone gets nothing, the server tries the map servers itself. */
+  var OSM_SERVERS = ["https://overpass-api.de/api/interpreter", "https://overpass.private.coffee/api/interpreter", "https://overpass.kumi.systems/api/interpreter"];
+  var OSM_KINDS = "supermarket|discount|convenience|chemist|greengrocer|bakery|butcher";
+  var OSM_TAGS = ["name", "brand", "shop", "opening_hours", "addr:street", "addr:housenumber"];
+  var osmCache = {};
+  function round3(x) { return Math.round(x * 1000) / 1000; }
+  function osmQuery(lat, lon, radius) {
+    var dlat = radius / 111320, dlon = radius / (111320 * Math.max(0.2, Math.cos(lat * Math.PI / 180)));
+    var box = [lat - dlat, lon - dlon, lat + dlat, lon + dlon].map(function (x) { return x.toFixed(4); }).join(",");
+    return '[out:json][timeout:20][bbox:' + box + '];(node[shop~"^(' + OSM_KINDS + ')$"];way[shop~"^(' + OSM_KINDS + ')$"];);out center tags;';
+  }
+  function askOsm(url, q) {
+    var c = new AbortController(), t = setTimeout(function () { c.abort(); }, 20000);
+    // A plain form POST: no CORS preflight, and the map servers allow any website.
+    return fetch(url, { method: "POST", body: "data=" + encodeURIComponent(q), headers: { "content-type": "application/x-www-form-urlencoded" }, signal: c.signal })
+      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(function (j) {
+        clearTimeout(t);
+        if (!j || !Array.isArray(j.elements) || (!j.elements.length && j.remark)) throw new Error("no answer");
+        return j.elements.slice(0, 2000).map(function (el) {
+          var tags = {}; OSM_TAGS.forEach(function (k) { if (el.tags && el.tags[k] != null) tags[k] = String(el.tags[k]).slice(0, 200); });
+          var pos = el.lat != null ? el : (el.center || {});
+          return { lat: pos.lat, lon: pos.lon, tags: tags };
+        });
+      }, function (e) { clearTimeout(t); throw e; });
+  }
+  // Main server first; after 4 s (or as soon as it fails) the mirrors too. First good answer wins.
+  function osmShops(lat, lon) {
+    lat = round3(lat); lon = round3(lon);
+    var key = lat + "," + lon;
+    if (osmCache[key] && Date.now() - osmCache[key].at < 3600000) return Promise.resolve(osmCache[key].el);
+    var q = osmQuery(lat, lon, 1500);
+    return new Promise(function (res) {
+      var next = 0, failed = 0, done = false;
+      function start() {
+        var url = OSM_SERVERS[next++];
+        askOsm(url, q).then(function (el) {
+          if (done) return; done = true; osmCache[key] = { at: Date.now(), el: el }; res(el);
+        }, function () {
+          failed++;
+          if (!done && next < OSM_SERVERS.length) startRest();
+          if (!done && failed === OSM_SERVERS.length) { done = true; res(null); }
+        });
+      }
+      function startRest() { while (next < OSM_SERVERS.length) start(); }
+      start();
+      setTimeout(function () { if (!done) startRest(); }, 4000);
+    });
+  }
+
   /* ---------- nearby shops ---------- */
   var shopsData = [], shopFilter = "all";
   function renderShops() {
@@ -723,9 +777,11 @@
     if (!navigator.geolocation) { err.hidden = false; err.textContent = "This phone doesn’t share its location with apps."; return; }
     btn.disabled = true; btn.textContent = "Finding your location…";
     navigator.geolocation.getCurrentPosition(function (pos) {
-      var d = new Date(), q = "lat=" + pos.coords.latitude.toFixed(4) + "&lon=" + pos.coords.longitude.toFixed(4) + "&dow=" + ((d.getDay() + 6) % 7) + "&min=" + (d.getHours() * 60 + d.getMinutes());
+      var d = new Date(), q = "lat=" + round3(pos.coords.latitude) + "&lon=" + round3(pos.coords.longitude) + "&dow=" + ((d.getDay() + 6) % 7) + "&min=" + (d.getHours() * 60 + d.getMinutes());
       btn.textContent = "Looking for shops…";
-      api("/api/shops?" + q).then(function (j) {
+      osmShops(pos.coords.latitude, pos.coords.longitude).then(function (osm) {
+        return osm ? api("/api/shops", { lat: round3(pos.coords.latitude), lon: round3(pos.coords.longitude), dow: (d.getDay() + 6) % 7, min: d.getHours() * 60 + d.getMinutes(), osm: osm }) : api("/api/shops?" + q);
+      }).then(function (j) {
         shopsData = j.shops || []; $("shopFilter").hidden = !shopsData.length;
         if (!shopsData.length) { err.hidden = false; err.className = "notice warn"; err.textContent = "No shops found within 1.5 km."; }
         renderShops();
@@ -771,8 +827,12 @@
     locate().then(function (loc) {
       tripLoading(loc.pos ? "Comparing the shops near you…" : "Looking up prices…");
       var d = new Date(), body = Object.assign({}, payload);
-      if (loc.pos) Object.assign(body, { lat: Number(loc.pos.coords.latitude.toFixed(4)), lon: Number(loc.pos.coords.longitude.toFixed(4)), dow: (d.getDay() + 6) % 7, min: d.getHours() * 60 + d.getMinutes() });
-      return api("/api/trip", body).then(function (j) { renderTrip(j, loc.why || ""); });
+      if (!loc.pos) return api("/api/trip", body).then(function (j) { renderTrip(j, loc.why || ""); });
+      Object.assign(body, { lat: round3(loc.pos.coords.latitude), lon: round3(loc.pos.coords.longitude), dow: (d.getDay() + 6) % 7, min: d.getHours() * 60 + d.getMinutes() });
+      return osmShops(body.lat, body.lon).then(function (osm) {
+        if (osm) body.osm = osm;
+        return api("/api/trip", body);
+      }).then(function (j) { renderTrip(j, ""); });
     }).catch(function (e) {
       $("tripBody").innerHTML = '<div class="notice bad" style="margin-top:0">' + esc((e && e.message) || "Something went wrong. Try again.") + '</div>';
     }).then(function () { tripBusy = false; $("tripGo").disabled = $("listTrip").disabled = false; });

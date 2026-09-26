@@ -175,18 +175,43 @@ def _ask(url, body, answers, deadline, retry):
             time.sleep(RETRY_WAIT)
 
 
-def nearby(lat, lon, radius=1500, dow=None, minute=None):
+PHONE_TAGS = ("name", "brand", "shop", "opening_hours", "addr:street", "addr:housenumber")
+
+
+def from_phone(elements):
+    """Overpass elements the phone fetched itself -> the same shape, checked and trimmed.
+    The phone asks the map servers directly (its own internet address isn't rate-limited
+    like a shared cloud server's); anything malformed is dropped."""
+    out = []
+    for el in elements[:2000] if isinstance(elements, list) else []:
+        if not isinstance(el, dict) or not isinstance(el.get("tags"), dict):
+            continue
+        pos = el if "lat" in el else el.get("center")
+        try:
+            plat, plon = float(pos["lat"]), float(pos["lon"])
+        except (TypeError, KeyError, ValueError):
+            continue
+        if not (-90 <= plat <= 90 and -180 <= plon <= 180):
+            continue
+        tags = {k: str(el["tags"][k])[:200] for k in PHONE_TAGS if isinstance(el["tags"].get(k), (str, int, float))}
+        if tags.get("shop") in KINDS:
+            out.append({"lat": plat, "lon": plon, "tags": tags})
+    return {"elements": out}
+
+
+def nearby(lat, lon, radius=1500, dow=None, minute=None, osm=None):
+    """Shops around a position, nearest first. osm: elements the phone already fetched
+    from OpenStreetMap; without them the server asks the map servers itself."""
     lat, lon = round(float(lat), 3), round(float(lon), 3)
     if not (-90 <= lat <= 90 and -180 <= lon <= 180):
         raise PlacesError("bad position")
     radius = max(300, min(int(radius), 5000))
     key = (lat, lon, radius)
+    raw = from_phone(osm) if osm is not None else None
     with _lock:
         hit = _cache.get(key)
-        if hit and time.time() - hit[0] < CACHE_SECONDS:
+        if raw is None and hit and time.time() - hit[0] < CACHE_SECONDS:
             raw = hit[1]
-        else:
-            raw = None
     if raw is None:
         raw = _query(lat, lon, radius)
         with _lock:

@@ -1,14 +1,16 @@
-# Live check that the OpenStreetMap map servers answer (nearby shops, "Going shopping?").
+# Live check that nearby shops work ("Going shopping?" and the Shops tab):
+# 1. the server's own lookup against the real OpenStreetMap map servers;
+# 2. a real browser fetching the shops itself, with the server's lookup switched off.
 # Run it from GitHub → Actions → "Map servers check" → Run workflow.
 name: Map servers check
 
 on:
   workflow_dispatch:
   pull_request:
-    paths: ["bonwise/places.py", "bonwise/config.py", "tools/check_map_servers.py"]
+    paths: ["bonwise/places.py", "bonwise/config.py", "static/app.js", "tools/check_*", ".github/workflows/map-check.yml"]
 
 jobs:
-  check:
+  server:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -16,3 +18,20 @@ jobs:
         with:
           python-version: "3.11"
       - run: python3 tools/check_map_servers.py
+
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm install --no-save playwright@1.56.1 && npx playwright install --with-deps chromium
+      - name: Browser fetches the shops itself
+        run: |
+          OVERPASS_URL=http://127.0.0.1:9/api/interpreter OVERPASS_FALLBACKS= python3 app.py > app.log 2>&1 &
+          sleep 3
+          node tools/check_browser_map.mjs http://localhost:7860 || (cat app.log; exit 1)

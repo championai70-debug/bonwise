@@ -31,7 +31,7 @@ python3 -m unittest discover -s tests -t .   # all tests, no network or token ne
 | `bonwise/advisor.py` | Savings logic: ALDI SÜD prices → sneakers → community prices → guide estimate → AI suggestion |
 | `bonwise/data.py` | Price data (ALDI SÜD, sneakers, typical discounter prices) |
 | `bonwise/storage.py` | SQLite: households (hashed codes, merge by `updated`) and anonymous community prices |
-| `bonwise/places.py` | Nearby shops via OpenStreetMap Overpass (main server, then EU mirrors in `OVERPASS_FALLBACKS`), opening-hours parser. Live check: `tools/check_map_servers.py` / "Map servers check" workflow |
+| `bonwise/places.py` | Nearby shops via OpenStreetMap Overpass. The phone fetches them itself (`osmShops` in `app.js`; Render's shared IP gets refused) and sends them as `osm`; the server's own lookup (main server, then EU mirrors in `OVERPASS_FALLBACKS`) is the backup. Opening-hours parser. Live checks: "Map servers check" workflow (`tools/check_map_servers.py`, `tools/check_browser_map.mjs`) |
 | `bonwise/trip.py` | "Going shopping?": typed list (any language) → cheapest shops nearby (`POST /api/trip`) |
 | `bonwise/service.py` | Scan pipeline (AI → OCR fallback → advice) |
 | `static/index.html`, `static/app.js` | Front end, vanilla JS, no build step. Tabs: Home, Receipts, List, Shops, More. `body.simple` (Simple view, on by default) hides `.adv` elements |
