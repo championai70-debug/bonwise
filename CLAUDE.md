@@ -31,7 +31,7 @@ python3 -m unittest discover -s tests -t .   # all tests, no network or token ne
 | `bonwise/advisor.py` | Savings logic: ALDI SÜD prices → sneakers → community prices → guide estimate → AI suggestion |
 | `bonwise/data.py` | Price data (ALDI SÜD, sneakers, typical discounter prices) |
 | `bonwise/storage.py` | SQLite: households (hashed codes, merge by `updated`) and anonymous community prices |
-| `bonwise/places.py` | Nearby shops via OpenStreetMap Overpass, opening-hours parser |
+| `bonwise/places.py` | Nearby shops via OpenStreetMap Overpass (main server, then EU mirrors in `OVERPASS_FALLBACKS`), opening-hours parser. Live check: `tools/check_map_servers.py` / "Map servers check" workflow |
 | `bonwise/trip.py` | "Going shopping?": typed list (any language) → cheapest shops nearby (`POST /api/trip`) |
 | `bonwise/service.py` | Scan pipeline (AI → OCR fallback → advice) |
 | `static/index.html`, `static/app.js` | Front end, vanilla JS, no build step. Tabs: Home, Receipts, List, Shops, More. `body.simple` (Simple view, on by default) hides `.adv` elements |

@@ -1,8 +1,10 @@
 import json
 import tempfile
 import threading
+import time
 import unittest
 import urllib.error
+import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -31,6 +33,46 @@ class Overpass(BaseHTTPRequestHandler):
         body = json.dumps(OVERPASS).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+
+class BusyOverpass(BaseHTTPRequestHandler):
+    """A map server that refuses (429), drops the connection, or answers 'timed out'."""
+    mode = "429"
+
+    def log_message(self, *a):
+        pass
+
+    def do_POST(self):
+        self.rfile.read(int(self.headers["Content-Length"]))
+        if BusyOverpass.mode == "drop":
+            self.close_connection = True
+            self.wfile.flush()
+            self.connection.shutdown(2)
+            return
+        if BusyOverpass.mode == "slow":
+            time.sleep(2)
+        if BusyOverpass.mode == "flaky":  # busy once, then a normal answer
+            BusyOverpass.mode = "ok"
+            self.send_response(504)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        if BusyOverpass.mode == "ok":
+            body = json.dumps(OVERPASS).encode()
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        if BusyOverpass.mode == "remark":
+            body = json.dumps({"elements": [], "remark": "runtime error: Query timed out"}).encode()
+            self.send_response(200)
+        else:
+            body = b"rate limited"
+            self.send_response(429)
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -110,6 +152,55 @@ class PlacesTests(unittest.TestCase):
         self.assertIsNone(places.open_now("sunrise-sunset", 1, 600))
 
 
+class MapServerFallbackTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.busy = ThreadingHTTPServer(("127.0.0.1", 0), BusyOverpass)
+        cls.good = ThreadingHTTPServer(("127.0.0.1", 0), Overpass)
+        for srv in (cls.busy, cls.good):
+            threading.Thread(target=srv.serve_forever, daemon=True).start()
+        cls.saved = (config.OVERPASS_URL, config.OVERPASS_FALLBACKS)
+        cls.timing = (places.BUDGET, places.HEAD_START, places.RETRY_WAIT)
+        places.BUDGET, places.HEAD_START, places.RETRY_WAIT = 4, 0.3, 0.1  # keep the tests quick
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.busy.shutdown()
+        cls.good.shutdown()
+        config.OVERPASS_URL, config.OVERPASS_FALLBACKS = cls.saved
+        places.BUDGET, places.HEAD_START, places.RETRY_WAIT = cls.timing
+
+    def test_busy_main_server_is_tried_again(self):
+        BusyOverpass.mode = "flaky"
+        config.OVERPASS_URL, config.OVERPASS_FALLBACKS = self.url(self.busy), []
+        self.assertIn("ALDI Nord", [x["name"] for x in places.nearby(52.536, 13.41, 1500, 0, 480)])
+
+    def url(self, srv):
+        return "http://127.0.0.1:%d/api/interpreter" % srv.server_address[1]
+
+    def test_busy_server_falls_back_to_the_next(self):
+        config.OVERPASS_URL, config.OVERPASS_FALLBACKS = self.url(self.busy), [self.url(self.good)]
+        for i, mode in enumerate(("429", "drop", "remark")):
+            BusyOverpass.mode = mode
+            shops = places.nearby(52.531 + i / 1000, 13.41, 1500, 0, 480)  # a new position each time, so no cache hit
+            self.assertIn("ALDI Nord", [x["name"] for x in shops], mode)
+
+    def test_slow_main_server_lets_a_mirror_answer_first(self):
+        BusyOverpass.mode = "slow"
+        config.OVERPASS_URL, config.OVERPASS_FALLBACKS = self.url(self.busy), [self.url(self.good)]
+        t0 = time.monotonic()
+        shops = places.nearby(52.539, 13.41, 1500, 0, 480)
+        self.assertIn("ALDI Nord", [x["name"] for x in shops])
+        self.assertLess(time.monotonic() - t0, 1.5)  # didn't wait for the slow server
+
+    def test_every_server_down(self):
+        BusyOverpass.mode = "429"
+        config.OVERPASS_URL, config.OVERPASS_FALLBACKS = self.url(self.busy), [self.url(self.busy)]
+        with self.assertRaises(places.PlacesError) as cm:
+            places.nearby(20, 20, 1500)
+        self.assertIn("HTTP 429", str(cm.exception))
+
+
 class ServerTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -169,7 +260,9 @@ class ServerTests(unittest.TestCase):
         aldi = j["shops"][0]
         self.assertTrue(aldi["discounter"] and aldi["open"])
         self.assertEqual(aldi["address"], "Kastanienallee 12")
-        self.assertIn("52.530,13.410", Overpass.calls[0].replace("%2C", ","))  # rounded position only
+        query = urllib.parse.unquote_plus(Overpass.calls[0])
+        self.assertNotIn("52.5301", query)  # only the rounded position (52.530, 13.410) is used
+        self.assertIn("[bbox:%.4f,%.4f,%.4f,%.4f]" % places._bbox(52.530, 13.410, 1500), query)
         self.call("/api/shops?lat=52.53012&lon=13.41018&dow=0&min=480")
         self.assertEqual(len(Overpass.calls), 1)  # second search served from the cache
         self.assertEqual(self.call("/api/shops?lat=abc")[0], 400)
