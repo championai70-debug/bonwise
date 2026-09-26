@@ -1,0 +1,33 @@
+name: Map sources diagnostic
+on:
+  pull_request:
+    paths: [".github/workflows/map-diag.yml"]
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Try each free map source (status, time, CORS header, first bytes)
+        run: |
+          O="Origin: https://bonwise.onrender.com"
+          try() { # label, curl args...
+            label=$1; shift
+            out=$(curl -s -m 30 -o /tmp/b -D /tmp/h -w "%{http_code} %{time_total}s" -H "$O" -A "Bonwise/1.0 (https://bonwise.onrender.com)" "$@")
+            cors=$(grep -i "^access-control-allow-origin" /tmp/h | tr -d '\r')
+            echo "## $label -> $out | ${cors:-NO CORS HEADER}"
+            head -c 300 /tmp/b | tr '\n' ' '; echo; echo
+          }
+          Q='[out:json][timeout:20][bbox:52.5165,13.3879,52.5435,13.4321];(node[shop~"^(supermarket|discount)$"];);out center tags;'
+          for i in 1 2 3; do
+            try "overpass-api.de POST #$i" --data-urlencode "data=$Q" https://overpass-api.de/api/interpreter
+            try "overpass-api.de GET #$i" -G --data-urlencode "data=$Q" https://overpass-api.de/api/interpreter
+          done
+          try "overpass.private.coffee" --data-urlencode "data=$Q" https://overpass.private.coffee/api/interpreter
+          try "overpass.kumi.systems" --data-urlencode "data=$Q" https://overpass.kumi.systems/api/interpreter
+          try "overpass.osm.jp" --data-urlencode "data=$Q" https://overpass.osm.jp/api/interpreter
+          try "photon reverse multi-tag" "https://photon.komoot.io/reverse?lat=52.530&lon=13.410&radius=1.5&limit=50&osm_tag=shop:supermarket&osm_tag=shop:chemist&osm_tag=shop:bakery"
+          try "photon search supermarket" "https://photon.komoot.io/api/?q=supermarket&lat=52.530&lon=13.410&limit=50&osm_tag=shop:supermarket"
+          try "photon search aldi" "https://photon.komoot.io/api/?q=aldi&lat=52.530&lon=13.410&limit=20"
+          try "nominatim supermarket bounded" "https://nominatim.openstreetmap.org/search?q=supermarket&format=jsonv2&viewbox=13.3879,52.5435,13.4321,52.5165&bounded=1&limit=40&extratags=1"
+          try "nominatim [supermarket] phrase" "https://nominatim.openstreetmap.org/search?q=%5Bsupermarket%5D&format=jsonv2&viewbox=13.3879,52.5435,13.4321,52.5165&bounded=1&limit=40&extratags=1"
+          echo "## photon reverse result count:"; curl -s -m 20 "https://photon.komoot.io/reverse?lat=52.530&lon=13.410&radius=1.5&limit=50&osm_tag=shop:supermarket&osm_tag=shop:chemist&osm_tag=shop:bakery" | python3 -c "import sys,json; f=json.load(sys.stdin)['features']; print(len(f)); [print(x['properties'].get('name'), x['properties'].get('osm_value'), x['properties'].get('street'), x['geometry']['coordinates']) for x in f[:8]]" || true
+          echo "## nominatim count:"; curl -s -m 20 -A "Bonwise/1.0 (https://bonwise.onrender.com)" "https://nominatim.openstreetmap.org/search?q=supermarket&format=jsonv2&viewbox=13.3879,52.5435,13.4321,52.5165&bounded=1&limit=40&extratags=1" | python3 -c "import sys,json; f=json.load(sys.stdin); print(len(f)); [print(x.get('name'), x.get('type'), (x.get('extratags') or {}).get('opening_hours'), (x.get('extratags') or {}).get('brand')) for x in f[:8]]" || true
