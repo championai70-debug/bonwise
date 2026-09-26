@@ -10,6 +10,8 @@ const browser = await chromium.launch();
 const ctx = await browser.newContext({
   viewport: { width: 390, height: 844 }, geolocation: { latitude: 52.5301, longitude: 13.4101 },
   permissions: ["geolocation"], timezoneId: "Europe/Berlin",
+  // Like a real phone: some map servers turn away browsers that call themselves "HeadlessChrome".
+  userAgent: "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36",
 });
 const page = await ctx.newPage();
 page.on("response", (r) => { if (r.url().includes("overpass")) console.log("map server", r.status(), r.url()); });
