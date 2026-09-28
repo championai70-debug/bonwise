@@ -57,6 +57,18 @@ class ServerTests(unittest.TestCase):
             self.get("/static/../app.py")
         self.assertEqual(cm.exception.code, 404)
 
+    def test_answers_are_marked_as_bonwise(self):
+        # sw.js and app.js keep only answers with this header (not Render's wake-up page).
+        for path in ("/", "/static/app.js", "/manifest.webmanifest", "/offline.html", "/api/health"):
+            with urllib.request.urlopen(self.base + path) as r:
+                self.assertEqual(r.headers.get("X-Bonwise"), "1", path)
+        with self.assertRaises(urllib.error.HTTPError) as cm:
+            self.get("/nope")
+        self.assertEqual(cm.exception.headers.get("X-Bonwise"), "1")
+        sw = self.get("/sw.js")[2].decode()
+        self.assertIn('"X-Bonwise"', sw)
+        self.assertIn('const PAGE = "/"', sw)
+
     def test_installable_app_files(self):
         s, ct, body = self.get("/manifest.webmanifest")
         self.assertEqual(ct, "application/manifest+json")

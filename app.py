@@ -148,6 +148,9 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", cache)
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "no-referrer")
+        # Marks answers that really come from Bonwise. While Render wakes a sleeping free
+        # server it answers with its own page; the service worker and app.js use this to tell.
+        self.send_header("X-Bonwise", "1")
         self.end_headers()
         if self.command != "HEAD":
             self.wfile.write(body)
