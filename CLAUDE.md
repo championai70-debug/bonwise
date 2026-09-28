@@ -36,7 +36,7 @@ python3 -m unittest discover -s tests -t .   # all tests, no network or token ne
 | `bonwise/trip.py` | "Going shopping?": typed list (any language) → cheapest shops nearby (`POST /api/trip`) |
 | `bonwise/service.py` | Scan pipeline (AI → OCR fallback → advice) |
 | `static/index.html`, `static/app.js` | Front end, vanilla JS, no build step. One screen: greeting + budget, one search box and four big buttons always on top; below them one panel (home results, list, shops, receipts, settings via ⚙), switched by `showTab`. Searching or scanning switches to home by itself. `body.simple` (Simple view, on by default) hides `.adv` elements |
-| `static/sw.js`, `static/manifest.webmanifest` | PWA / Android app shell |
+| `static/sw.js`, `static/manifest.webmanifest` | PWA / Android app shell. The app page and its script open from the phone's copy at once and refresh in the background, so a sleeping server never shows Render's "starting" page; only answers with the `X-Bonwise: 1` header (set in `_send`) are kept. `/api/` is never cached |
 | `android/`, `.github/workflows/android-apk.yml` | Test APK (Trusted Web Activity, package `com.onrender.bonwise.preview`), built by GitHub Actions and published at the `android-preview` release |
 | `store-kit/` | Google Play listing texts, graphics, data-safety answers, marketing plan |
 
@@ -63,6 +63,8 @@ python3 -m unittest discover -s tests -t .   # all tests, no network or token ne
 GitHub `main` → Render auto-deploys (Docker, see `Dockerfile`). The Android app needs no
 new release for web changes. Live site: https://bonwise.onrender.com
 Check after deploy: `/api/health`, then scan the sample receipt.
+Render's free plan sleeps after 15 minutes without visits; the "Keep site awake" workflow
+(`.github/workflows/keep-awake.yml`) visits `/api/health` every 10 minutes. On a paid plan it can be switched off.
 
 ## Roadmap
 

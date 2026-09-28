@@ -415,6 +415,7 @@
     var timer = setTimeout(function () { late = true; mine.abort(); }, 150000);
     return fetch(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload), signal: mine.signal })
       .then(function (r) {
+        if (!ours(r)) throw { code: "waking", message: WAKING };
         return r.json().catch(function () { return { error: "server", message: "The server sent an answer that couldn’t be read (HTTP " + r.status + ")." }; })
           .then(function (j) { if (!r.ok || j.error) throw { code: j.error || "server", message: j.message || ("HTTP " + r.status) }; return j; });
       }, function (e) {
@@ -528,12 +529,27 @@
       note.textContent = "The AI isn’t switched on for this server yet, so receipts are read with Tesseract OCR.";
     }
   }
-  fetch("/api/health").then(function (r) { return r.json(); }).then(function (h) {
-    health = h; showReader();
-    if (h.contact) $("feedbackLink").href = "mailto:" + h.contact + "?subject=" + encodeURIComponent("Bonwise feedback");
-    else $("feedbackLink").hidden = true;
-  })
-    .catch(function () { health = null; showReader(); });
+  /* The page opens from this phone's copy (sw.js) even while the free server is still
+     waking up (up to about a minute). Ask until the server answers; after a short wait a
+     small "Connecting…" note shows, instead of the host's own "starting" page. */
+  var WAKING = "Bonwise is waking up. Try again in a few seconds.";
+  function ours(r) { return r.headers.get("X-Bonwise") === "1"; }
+  function loadHealth(tries) {
+    var slow = setTimeout(function () { $("wakeNote").hidden = false; }, 2500);
+    fetch("/api/health").then(function (r) { if (!ours(r)) throw 0; return r.json(); }).then(function (h) {
+      clearTimeout(slow); $("wakeNote").hidden = true;
+      health = h; showReader();
+      if (h.contact) $("feedbackLink").href = "mailto:" + h.contact + "?subject=" + encodeURIComponent("Bonwise feedback");
+      else $("feedbackLink").hidden = true;
+      if (tries) syncNow();
+    }).catch(function () {
+      clearTimeout(slow);
+      if (tries < 30 && navigator.onLine !== false) { $("wakeNote").hidden = false; setTimeout(function () { loadHealth(tries + 1); }, 3000); }
+      else { $("wakeNote").hidden = true; if (!health) showReader(); }
+    });
+  }
+  loadHealth(0);
+  window.addEventListener("online", function () { if (!health) loadHealth(0); });
 
   /* ---------- price check: the items on the current receipt ---------- */
   function renderPC() {
@@ -564,7 +580,7 @@
     }).join("");
     $("pcNote").textContent = "Real prices: ALDI SÜD shelf prices and sneaker offers on günstiger.de / billiger.de, checked " + (marketInfo.checked || "23 Sep 2026") + ". Estimates are typical discounter prices.";
   }
-  fetch("/api/prices").then(function (r) { return r.json(); }).then(function (p) { marketInfo = p.market; }).catch(function () {});
+  fetch("/api/prices").then(function (r) { if (!ours(r)) throw 0; return r.json(); }).then(function (p) { marketInfo = p.market; }).catch(function () {});
 
 
   /* =====================================================================
@@ -573,6 +589,7 @@
   function api(path, body) {
     return fetch(path, body === undefined ? {} : { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })
       .then(function (r) {
+        if (!ours(r)) throw { status: 503, code: "waking", message: WAKING };
         return r.json().catch(function () { return {}; }).then(function (j) {
           if (!r.ok || j.error) throw { status: r.status, code: j.error || "server", message: j.message || "The server didn’t answer. Try again." };
           return j;
