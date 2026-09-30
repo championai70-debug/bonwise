@@ -37,7 +37,10 @@ python3 -m unittest discover -s tests -t .   # all tests, no network or token ne
 | `bonwise/trip.py` | "Going shopping?": typed list (any language) → cheapest shops nearby (`POST /api/trip`) |
 | `bonwise/service.py` | Scan pipeline (AI → OCR fallback → advice) |
 | `static/index.html`, `static/app.js` | Front end, vanilla JS, no build step. One screen: greeting + budget, one search box and four big buttons always on top; below them one panel (home results, list, shops, receipts, settings via ⚙), switched by `showTab`. Searching or scanning switches to home by itself. `body.simple` (Simple view, on by default) hides `.adv` elements |
+| `i18n/strings.tsv`, `tools/build_i18n.py`, `static/i18n.js`, `bonwise/i18n.py` | Languages: English, German, Turkish, Arabic (right-to-left), Hindi. One table for the app and the server. The app wraps texts in `t()`/`tn()` and translates the page's words at start; the phone's language is used unless chosen in Settings, and sent as `X-Lang`. The server translates `message`/`notice`/`tip`/`hint`/`alt` in every answer (`{placeholder}` sentences are matched as patterns). After changing texts: `python3 tools/build_i18n.py --add`, fill in the translations, then `python3 tools/build_i18n.py` (a test fails if anything is missing). Typed lists in Hindi/Arabic script and Turkish letters: `trip.native()`, `data.NATIVE_WORDS` |
 | `static/sw.js`, `static/manifest.webmanifest` | PWA / Android app shell. The app page and its script open from the phone's copy at once and refresh in the background, so a sleeping server never shows Render's "starting" page; only answers with the `X-Bonwise: 1` header (set in `_send`) are kept. `/api/` is never cached |
+| `storage.count()`, `/stats` (`static/stats.html`, `stats.js`) | Usage counts: daily totals only (no IDs, IPs, cookies), shown on the private `/stats` page behind `STATS_KEY` |
+| `tools/monitor.py`, `.github/workflows/monitor.yml` | Hourly live check (page, CSP, German list search, reading receipt lines); a failed run emails the owner |
 | `android/`, `.github/workflows/android-apk.yml` | Test APK (Trusted Web Activity, package `com.onrender.bonwise.preview`), built by GitHub Actions and published at the `android-preview` release |
 | `store-kit/` | Google Play listing texts, graphics, data-safety answers, marketing plan |
 
@@ -57,12 +60,13 @@ python3 -m unittest discover -s tests -t .   # all tests, no network or token ne
   with an `updated` timestamp.
 - The page loads `app.js?v=<mtime>` so browsers never mix a new page with an old script.
   If you add another static script or stylesheet, add it to that list in `app.py`.
-- User-facing text: plain, short English. Prices in euros (`€1.19`).
+- User-facing text: plain, short English in the code, always through `t()` (app) or the table (server), with German, Turkish, Arabic and Hindi in `i18n/strings.tsv`. Prices via `eur()` (`€1.19`, `1,19 €` in German).
+- **Counting:** only daily totals via `storage.count()`; never store IDs, IPs or anything per visitor.
 - **Security** (see `SECURITY.md`): keep every limit, the `SECURITY_HEADERS` (CSP) and the
   encrypted household storage. No inline `<script>` or `on…=` handlers (the CSP blocks them);
   if `app.js` calls a new outside service, add it to `connect-src` and the privacy page.
   Never log query strings, bodies or IPs. No Google Fonts or other third-party files: serve them from `static/`.
-- Never commit secrets. `HF_TOKEN`, `HOUSEHOLD_SECRET`, `IMPRESSUM`, `CONTACT_EMAIL`, `ASSETLINKS_JSON` live
+- Never commit secrets. `HF_TOKEN`, `HOUSEHOLD_SECRET`, `STATS_KEY`, `IMPRESSUM`, `CONTACT_EMAIL`, `ASSETLINKS_JSON` live
   in Render's environment settings, not in the code.
 
 ## Deploy
@@ -72,6 +76,7 @@ new release for web changes. Live site: https://bonwise.onrender.com
 Check after deploy: `/api/health`, then scan the sample receipt.
 Render's free plan sleeps after 15 minutes without visits; the "Keep site awake" workflow
 (`.github/workflows/keep-awake.yml`) visits `/api/health` every 10 minutes. On a paid plan it can be switched off.
+The "Monitor" workflow checks the live app every hour and fails (email) when something is broken.
 
 ## Roadmap
 

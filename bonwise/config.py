@@ -73,6 +73,10 @@ DATA_DIR = os.environ.get("DATA_DIR", str(ROOT / "data"))
 # the phones' copies fill the server again at their next sync.
 HOUSEHOLD_SECRET = os.environ.get("HOUSEHOLD_SECRET", "")
 
+# Key for the private usage page (/stats): any long random text, set on Render. Without it
+# the page is switched off.
+STATS_KEY = os.environ.get("STATS_KEY", "")
+
 # Legal notice (Impressum), required for commercial apps and websites in Germany.
 # Multi-line text: name, postal address, email (and phone if you have one).
 IMPRESSUM = os.environ.get("IMPRESSUM", "").strip()

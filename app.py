@@ -7,6 +7,9 @@ Tesseract are optional (they power the backup reader). Settings are in
 bonwise/config.py and can be set as environment variables or in a .env file.
 """
 
+import copy
+import gzip
+import hmac
 import ipaddress
 import json
 from html import escape as html_escape
@@ -18,7 +21,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from bonwise import advisor, ai_reader, config, data, places, service, storage, trip
+from bonwise import advisor, ai_reader, config, data, i18n, places, service, storage, trip
 
 STATIC = Path(__file__).resolve().parent / "static"
 mimetypes.add_type("font/woff2", ".woff2")
@@ -111,6 +114,7 @@ limiter = RateLimiter(config.HOURLY_LIMIT)
 api_limiter = RateLimiter(300)        # syncs, list prices, shop searches
 household_limiter = RateLimiter(5)    # new household codes per visitor per hour
 report_limiter = RateLimiter(30)      # anonymous price reports per visitor per hour
+stats_limiter = RateLimiter(20)       # tries at the private stats page per visitor per hour
 # All visitors together: caps what the AI can cost per hour, even if someone uses many addresses.
 global_limiter = RateLimiter(config.GLOBAL_HOURLY_LIMIT)
 
@@ -134,15 +138,16 @@ def assetlinks():
 def list_prices(names):
     """Best known price for each shopping-list item: our ALDI SÜD shelf prices and community prices."""
     names = [str(n).strip()[:80] for n in (names or []) if str(n).strip()][:100]
-    community = storage.best_prices(names)
+    plain = {n: trip.native(n) for n in names}   # "दूध" -> "milk", "süt" -> "milk"
+    community = storage.best_prices(list(plain.values()))
     out = []
     for n in names:
         entry = {"name": n, "aldi": None, "community": None}
-        a = advisor.advise_item({"name": n, "en": n, "price": None})
+        a = advisor.advise_item({"name": plain[n], "en": plain[n], "price": None})
         m = a.get("market")
         if m and not m.get("sport"):
             entry["aldi"] = {"price": m["forYours"], "product": m["name"], "size": m["yourSize"], "store": m["store"]}
-        c = community.get(storage.price_key(n))
+        c = community.get(storage.price_key(plain[n]))
         if c:
             entry["community"] = {"price": c["price"], "chain": c["chain"], "day": c["day"], "reports": c["reports"]}
         found = trip.resolve(n)["open"]
@@ -207,11 +212,23 @@ class Handler(BaseHTTPRequestHandler):
     # ---------- helpers ----------
     def _send(self, status, body, ctype="application/json; charset=utf-8", cache="no-store"):
         if isinstance(body, (dict, list)):
+            if i18n.lang() != "en":
+                body = i18n.translate_payload(copy.deepcopy(body))
             body = json.dumps(body, ensure_ascii=False).encode("utf-8")
         elif isinstance(body, str):
             body = body.encode("utf-8")
+        # Text is sent compressed when the browser accepts it (about 4x smaller on a phone).
+        zipped = (len(body) > 1400 and "gzip" in (self.headers.get("Accept-Encoding") or "")
+                  and (ctype.startswith(("text/", "application/json", "application/javascript", "application/manifest"))))
+        if zipped:
+            body = gzip.compress(body, 6)
+        if status >= 500 or status == 429:
+            self._count("error.5xx" if status >= 500 else "limit.429")
         self.send_response(status)
         self.send_header("Content-Type", ctype)
+        if zipped:
+            self.send_header("Content-Encoding", "gzip")
+        self.send_header("Vary", "Accept-Encoding")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", cache)
         for name, value in SECURITY_HEADERS.items():
@@ -254,13 +271,26 @@ class Handler(BaseHTTPRequestHandler):
     def do_HEAD(self):
         self.do_GET()
 
+    def _start(self):
+        i18n.set_lang(self.headers.get("X-Lang", ""), self.headers.get("Accept-Language", ""))
+
+    def _count(self, key):
+        """Add 1 to today's total for `key` (no user, device or address is stored). Visits
+        from Bonwise's own checks (keep-awake, monitor) don't count."""
+        ua = self.headers.get("User-Agent", "") if self.headers else ""
+        if ua.startswith("curl/") or "Bonwise" in ua:
+            return
+        storage.count(key)
+
     def do_GET(self):
+        self._start()
         path = urlparse(self.path).path
         if path in ("/", "/index.html"):
+            self._count("open")
             # Point the page at this exact version of its script and styles, so a browser or CDN
             # never pairs a new page with an old, cached app.js after an update.
             html = (STATIC / "index.html").read_text(encoding="utf-8")
-            for name in ("app.js", "fonts/fonts.css"):
+            for name in ("i18n.js", "app.js", "fonts/fonts.css"):
                 stamp = int((STATIC / name).stat().st_mtime)
                 html = html.replace('/static/%s"' % name, '/static/%s?v=%d"' % (name, stamp))
             return self._send(200, html, "text/html; charset=utf-8", "no-cache")
@@ -307,15 +337,20 @@ class Handler(BaseHTTPRequestHandler):
             except places.PlacesError:
                 return self._send(502, {"error": "places", "message": "The map service didn’t answer. Try again in a minute."})
         if path == "/api/health":
+            if self.headers.get("X-Lang"):
+                self._count("lang." + i18n.lang())
             return self._send(200, service.health())
+        if path == "/stats":
+            return self._file(STATIC / "stats.html", cache="no-store")
         if path == "/api/prices":
             return self._send(200, prices_payload(), cache="public, max-age=600")
         return self._send(404, {"error": "not_found"})
 
     def do_POST(self):
+        self._start()
         path = urlparse(self.path).path
         if path not in ("/api/scan", "/api/scan-text", "/api/test-ai", "/api/household/new", "/api/household/sync", "/api/household/delete",
-                        "/api/prices/report", "/api/list/prices", "/api/trip", "/api/shops"):
+                        "/api/prices/report", "/api/list/prices", "/api/trip", "/api/shops", "/api/stats"):
             return self._send(404, {"error": "not_found"})
         origin = self.headers.get("Origin")
         hosts = {h.strip() for h in (self.headers.get("Host", ""), self.headers.get("X-Forwarded-Host", "")) if h}
@@ -323,6 +358,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(403, {"error": "forbidden", "message": "Requests from other websites aren't allowed."})
         try:
             body = self._json_body() or {}
+            if path == "/api/stats":
+                return self._stats()
             if path.startswith(("/api/household/", "/api/prices/", "/api/list/", "/api/trip", "/api/shops")):
                 return self._data_api(path, body)
             # Scans and the AI test cost AI credits: per-visitor limit, then a limit for everyone.
@@ -338,11 +375,16 @@ class Handler(BaseHTTPRequestHandler):
                 if not isinstance(image, str) or not image:
                     raise service.ScanError("bad_request", "No photo was sent.", 400)
                 media = body.get("mediaType") if body.get("mediaType") in ("image/jpeg", "image/png", "image/webp") else "image/jpeg"
+                self._count("scan.photo")
                 result = service.scan_image(image, media, body.get("context"), use_ai=body.get("useAi", True) is not False)
             else:
+                self._count("scan.text")
                 result = service.scan_text(body.get("text"), body.get("context"), use_ai=body.get("useAi", True) is not False)
+            self._count("reader." + str((result.get("receipt") or {}).get("reader") or "none").replace("-", "_"))
             return self._send(200, result)
         except service.ScanError as e:
+            if path in ("/api/scan", "/api/scan-text"):
+                self._count("scan.fail")
             return self._send(e.status, {"error": e.code, "message": e.message})
         except Exception as e:  # noqa: BLE001 - never leak a stack trace to the browser
             print("error:", repr(e), flush=True)
@@ -353,6 +395,7 @@ class Handler(BaseHTTPRequestHandler):
         if not api_limiter.allow(client):
             return self._send(429, {"error": "too_many", "message": "Too many requests. Try again in a while."})
         try:
+            self._count(path[5:].replace("/", "."))   # household.new, trip, shops, list.prices …
             if path == "/api/household/new":
                 if not household_limiter.allow(client):
                     return self._send(429, {"error": "too_many", "message": "Too many new households. Try again later."})
@@ -373,6 +416,17 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, {"items": list_prices(body.get("items"))})
         except storage.HouseholdError as e:
             return self._send(e.status, {"error": e.code, "message": e.message})
+
+    def _stats(self):
+        """Daily totals for the owner's private page (/stats), behind STATS_KEY."""
+        if not config.STATS_KEY:
+            return self._send(404, {"error": "off", "message": "The stats page is off. Set STATS_KEY on the server to turn it on."})
+        if not stats_limiter.allow(self._client()):
+            return self._send(429, {"error": "too_many", "message": "Too many tries. Try again later."})
+        given = self.headers.get("X-Stats-Key", "")
+        if not hmac.compare_digest(given.encode(), config.STATS_KEY.encode()):
+            return self._send(403, {"error": "forbidden", "message": "Wrong key."})
+        return self._send(200, {"days": storage.stats(60)})
 
     def _test_ai(self):
         if not config.HF_TOKEN:

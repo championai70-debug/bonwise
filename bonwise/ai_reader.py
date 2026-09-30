@@ -13,7 +13,7 @@ import time
 import urllib.error
 import urllib.request
 
-from . import config
+from . import config, i18n
 from .textutil import round2
 
 INSTRUCTIONS = (
@@ -169,6 +169,10 @@ def _context_line(ctx):
 
 def _build_messages(image_b64=None, media_type="image/jpeg", text=None, context=None):
     prompt = INSTRUCTIONS + _context_line(context)
+    if i18n.lang() != "en":
+        name = i18n.NAMES[i18n.lang()]
+        prompt += ("\nThe shopper reads %s: write the tips in %s, and give each item \"local\": its product name in %s "
+                   "(short, like \"en\"). Keep \"en\" in English." % (name, name, name))
     if text:
         prompt += "\n\nThe receipt was typed or pasted as text (it may have typos):\n" + text[:6000]
     parts = []
@@ -246,7 +250,7 @@ def _clean(res, model):
             discount = None
         raw = str(it.get("raw") or it.get("en"))[:120]
         items.append({
-            "raw": raw, "en": str(it.get("en") or "")[:80], "price": price, "original": original, "discount": discount, "flag": "",
+            "raw": raw, "en": str(it.get("en") or "")[:80], "local": str(it.get("local") or "")[:80], "price": price, "original": original, "discount": discount, "flag": "",
             "pfand": bool(it.get("deposit")) or bool(re.search(r"pfand|deposit", raw, re.I)),
             "cat": str(it.get("category") or "")[:24],
             "cheaper": it.get("cheaper") if isinstance(it.get("cheaper"), dict) else None,

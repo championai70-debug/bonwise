@@ -173,3 +173,28 @@ class TripServerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class MultilingualListTests(unittest.TestCase):
+    """Lists typed in Hindi, Arabic and Turkish (with their own letters) are understood."""
+
+    def test_hindi_script(self):
+        self.assertEqual(trip.parse_list("दूध, चावल और अंडे")[0], ["milk", "rice", "eggs"])
+        self.assertEqual(trip.parse_list("मुझे दूध और पनीर चाहिए")[0], ["milk", "paneer"])
+
+    def test_arabic_script(self):
+        self.assertEqual(trip.parse_list("حليب، خبز، دجاج")[0], ["milk", "bread", "chicken"])
+        self.assertEqual(trip.parse_list("الحليب والخبز")[0], ["milk", "bread"])  # "the milk and the bread"
+
+    def test_turkish_letters(self):
+        self.assertEqual(trip.parse_list("süt, ekmek ve peynir")[0], ["milk", "bread", "cheese"])
+        self.assertEqual(trip.parse_list("Süt ve tereyağı")[0], ["milk", "butter"])
+
+    def test_resolve_native_words(self):
+        self.assertEqual(trip.resolve("दूध")["name"], "Milk")
+        self.assertEqual(trip.resolve("حليب")["name"], "Milk")
+        self.assertEqual(trip.resolve("süt")["name"], "Milk")
+
+    def test_plan_in_hindi(self):
+        items = trip.plan(text="दूध और चावल")["items"]
+        self.assertEqual([it["name"] for it in items], ["Milk", "Rice"])

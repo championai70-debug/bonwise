@@ -18,6 +18,8 @@ steps to reproduce. You'll get an answer within a week.
 | Slow or huge requests | 30 s idle timeout per connection, 12 MB body limit | `app.py` |
 | Leaking data in logs | Logs hold method, path and status only: no query strings, bodies or IP addresses | `app.py` (`log_request`) |
 | Data sent to third parties | Fonts served by Bonwise itself (no Google Fonts); phone talks only to Bonwise and the two OpenStreetMap services named in the CSP | `static/fonts/`, CSP |
+| Usage numbers | Daily totals only, no IDs/IPs/cookies; the `/stats` page needs `STATS_KEY` (compared in constant time, 20 tries per hour) | `bonwise/storage.py`, `app.py` (`_stats`) |
+| Outages | Hourly live check; a failed run emails the owner | `tools/monitor.py`, `.github/workflows/monitor.yml` |
 | Secrets in code | Tokens only in Render's environment settings; turn on GitHub secret scanning and push protection (Settings → Code security) | – |
 | Old GitHub Actions | Dependabot updates them weekly | `.github/dependabot.yml` |
 

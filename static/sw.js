@@ -4,10 +4,11 @@
      sleeping server (Render's free plan spins down after a quiet while).
    - Only Bonwise's own page, script, icons and manifest are kept. Answers from /api/
      (receipts, prices, household) always come fresh from the server; nothing personal is cached. */
-const CACHE = "bonwise-v3";
+const CACHE = "bonwise-v4";
 const PAGE = "/";
 const SHELL = ["/offline.html", "/manifest.webmanifest", "/static/icons/icon-192.png", "/static/favicon.png"];
-const SCRIPT = /\/static\/app\.js\?v=\d+/;
+// Versioned files the page points to (app.js?v=…, i18n.js?v=…, fonts.css?v=…).
+const VERSIONED = /\/static\/[\w\/.-]+\.(?:js|css)\?v=\d+/g;
 
 // Only answers that really come from Bonwise are kept (not Render's wake-up page).
 function ours(res) { return !!res && res.ok && res.headers.get("X-Bonwise") === "1"; }
@@ -16,20 +17,25 @@ function keep(cache, url) {
   return fetch(url, { cache: "no-store" }).then((res) => (ours(res) ? cache.put(url, res) : null)).catch(() => null);
 }
 
-// Fetch the newest page and the exact script it points to; store both only when both arrived.
+// Fetch the newest page and the exact files it points to; store them only when all arrived,
+// then drop older versions of those files.
 function refreshPage() {
   return fetch(PAGE, { cache: "no-store" }).then((res) => {
     if (!ours(res)) return null;
     return res.clone().text().then((html) => {
-      const m = html.match(SCRIPT);
-      const script = m ? fetch(m[0]).then((r) => (ours(r) ? r : Promise.reject(new Error("script")))) : Promise.resolve(null);
-      return script.then((js) => caches.open(CACHE).then((c) =>
-        (js ? c.put(m[0], js) : Promise.resolve())
-          .then(() => c.put(PAGE, res))
-          .then(() => c.keys())
-          .then((keys) => Promise.all(keys
-            .filter((k) => { const u = new URL(k.url); return u.pathname === "/static/app.js" && (!m || u.pathname + u.search !== m[0]); })
-            .map((k) => c.delete(k))))));
+      const wanted = [...new Set(html.match(VERSIONED) || [])];
+      return Promise.all(wanted.map((u) => fetch(u).then((r) => (ours(r) ? [u, r] : Promise.reject(new Error(u))))))
+        .then((files) => caches.open(CACHE).then((c) =>
+          Promise.all(files.map(([u, r]) => c.put(u, r)))
+            .then(() => c.put(PAGE, res))
+            .then(() => c.keys())
+            .then((keys) => {
+              const keepPaths = new Set(wanted.map((u) => u.split("?")[0]));
+              return Promise.all(keys.filter((k) => {
+                const u = new URL(k.url);
+                return keepPaths.has(u.pathname) && u.search && !wanted.includes(u.pathname + u.search);
+              }).map((k) => c.delete(k)));
+            })));
     });
   }).catch(() => null);
 }
