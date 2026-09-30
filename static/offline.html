@@ -13,7 +13,7 @@
   img{width:72px;height:72px;border-radius:16px}
   h1{font-size:21px;margin:14px 0 6px}
   p{margin:0 0 18px;color:var(--ink-2)}
-  button{font:inherit;font-weight:700;border:0;border-radius:12px;padding:12px 20px;background:var(--accent);color:var(--accent-ink);cursor:pointer}
+  .btn{display:inline-block;font-weight:700;border-radius:12px;padding:12px 20px;background:var(--accent);color:var(--accent-ink);text-decoration:none}
 </style>
 </head>
 <body>
@@ -21,7 +21,7 @@
     <img src="/static/icons/icon-192.png" alt="">
     <h1>You’re offline</h1>
     <p>Bonwise needs the internet to read receipts. Your budget and saved receipts are safe on this phone.</p>
-    <button onclick="location.reload()">Try again</button>
+    <a class="btn" href="/">Try again</a>
   </div>
 </body>
 </html>

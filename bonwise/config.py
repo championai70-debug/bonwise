@@ -42,6 +42,11 @@ AI_TOTAL_TIMEOUT = float(os.environ.get("AI_TOTAL_TIMEOUT", "110"))
 
 # Scans per visitor (IP address) per hour, so a shared link can't use up your credits.
 HOURLY_LIMIT = int(os.environ.get("HOURLY_LIMIT", "20"))
+# The app runs behind Render's proxy, which adds the visitor's address to X-Forwarded-For.
+# Set TRUST_FORWARDED=0 if the server is ever reachable directly (then that header is ignored).
+TRUST_FORWARDED = os.environ.get("TRUST_FORWARDED", "1") != "0"
+# Scans per hour for all visitors together: a ceiling on AI costs even if someone uses many addresses.
+GLOBAL_HOURLY_LIMIT = int(os.environ.get("GLOBAL_HOURLY_LIMIT", "600"))
 
 HOST = os.environ.get("HOST", "0.0.0.0")
 PORT = int(os.environ.get("PORT", "7860"))
@@ -61,6 +66,12 @@ CONTACT_EMAIL = os.environ.get("CONTACT_EMAIL", "").strip()
 # Where the SQLite database lives. On Render, attach a persistent disk and set DATA_DIR=/data;
 # without one, the data is rebuilt from the phones after a restart.
 DATA_DIR = os.environ.get("DATA_DIR", str(ROOT / "data"))
+
+# Optional extra secret for encrypting household data on the server (any long random text,
+# set on Render). With it, even someone who has both the database and a household's code
+# can't read that household's data without this secret too. If it is changed or lost,
+# the phones' copies fill the server again at their next sync.
+HOUSEHOLD_SECRET = os.environ.get("HOUSEHOLD_SECRET", "")
 
 # Legal notice (Impressum), required for commercial apps and websites in Germany.
 # Multi-line text: name, postal address, email (and phone if you have one).

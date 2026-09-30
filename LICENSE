@@ -1,0 +1,14 @@
+Copyright (c) 2026 the owner of Bonwise. All rights reserved.
+
+This source code is published for viewing only. No licence is granted to copy,
+modify, distribute, sublicense, publish (including in app stores) or use it, in
+whole or in part, to run a competing or derived service, without written
+permission from the owner. The name "Bonwise", its logo and its app listings
+may not be used without permission.
+
+Parts that come from others keep their own licences:
+- static/fonts/: Bricolage Grotesque, Figtree and IBM Plex Mono, SIL Open Font
+  License 1.1 (see static/fonts/LICENSE-*.txt).
+- bonwise/open_prices.json: Open Prices by Open Food Facts, Open Database License
+  (ODbL) 1.0, https://prices.openfoodfacts.org
+- Shop locations come live from OpenStreetMap, (c) OpenStreetMap contributors, ODbL.

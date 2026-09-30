@@ -4,6 +4,9 @@
 # Run it from GitHub → Actions → "Map servers check" → Run workflow.
 name: Map servers check
 
+permissions:
+  contents: read
+
 on:
   workflow_dispatch:
   pull_request:

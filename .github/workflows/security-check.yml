@@ -1,0 +1,22 @@
+# Live check of the security layer (headers, rate limits that can't be skipped with a
+# faked address). Run it from GitHub → Actions → "Security check" → Run workflow.
+name: Security check
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  first:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 tools/check_live_security.py "${{ vars.APP_URL || 'https://bonwise.onrender.com' }}"
+  second:
+    needs: first
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 tools/check_live_security.py "${{ vars.APP_URL || 'https://bonwise.onrender.com' }}" --second
