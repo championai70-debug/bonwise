@@ -194,13 +194,48 @@ ALIASES = {
     "namak": "salt", "tel": "cooking oil", "phal": "fruit", "kela": "banana", "seb": "apples",
     "murgi": "chicken", "murga": "chicken", "machli": "fish", "machhli": "fish", "biskut": "biscuits",
     "paani": "water", "pani": "water", "chana": "chickpeas",
-    # Turkish
-    "sut": "milk", "ekmek": "bread", "yumurta": "eggs", "peynir": "cheese", "sebze": "vegetables",
-    "meyve": "fruit", "tavuk": "chicken", "pirinc": "rice", "seker": "sugar",
+    # Turkish (ş ç ğ ı are written s c g i first; ü ö become ue oe like in German)
+    "sut": "milk", "suet": "milk", "ekmek": "bread", "yumurta": "eggs", "peynir": "cheese", "sebze": "vegetables",
+    "meyve": "fruit", "tavuk": "chicken", "pirinc": "rice", "seker": "sugar", "tereyag": "butter", "tereyagi": "butter",
+    "sogan": "onion", "domates": "tomato", "patates": "potato", "muz": "banana", "elma": "apples", "kahve": "coffee",
+    "cay": "tea", "tuz": "salt", "un": "flour", "makarna": "pasta", "zeytinyagi": "olive oil", "salatalik": "cucumber",
+    "biber": "peppers", "deterjan": "detergent", "sabun": "soap", "sampuan": "shampoo", "su": "water", "kiyma": "mince",
+    "et": "meat", "balik": "fish", "dondurma": "ice cream", "cikolata": "chocolate", "bira": "beer", "sarap": "wine",
+    "mercimek": "lentils", "nohut": "chickpeas", "sucuk": "sausages", "yogurt": "yoghurt", "yoguert": "yoghurt",
+    "portakal suyu": "orange juice", "meyve suyu": "juice", "tuvalet kagidi": "toilet paper", "bebek bezi": "nappies",
     # English variants
     "loo roll": "toilet paper", "toilet roll": "toilet paper", "washing powder": "detergent",
     "laundry": "detergent", "spuds": "potato",
 }
+
+# Product words typed in Hindi (Devanagari) or Arabic script -> a word the price guide knows.
+# Arabic words are also found with "al-" (ال) and "and" (و) in front. Words without an English
+# product in the guide keep a Latin spelling ("paneer"), so they still show up in the list.
+NATIVE_WORDS = {
+    # Hindi
+    "दूध": "milk", "दही": "yoghurt", "मक्खन": "butter", "पनीर": "paneer", "अंडे": "eggs", "अंडा": "eggs", "अण्डे": "eggs",
+    "चावल": "rice", "आटा": "flour", "चीनी": "sugar", "नमक": "salt", "तेल": "cooking oil", "प्याज़": "onion", "प्याज": "onion",
+    "आलू": "potato", "टमाटर": "tomato", "सब्ज़ी": "vegetables", "सब्जी": "vegetables", "सब्ज़ियाँ": "vegetables",
+    "फल": "fruit", "केला": "banana", "केले": "banana", "सेब": "apples", "चिकन": "chicken", "मुर्गी": "chicken",
+    "मछली": "fish", "मांस": "meat", "ब्रेड": "bread", "रोटी": "bread", "बिस्कुट": "biscuits", "चाय": "tea",
+    "कॉफ़ी": "coffee", "कॉफी": "coffee", "पानी": "water", "दाल": "lentils", "चना": "chickpeas", "छोले": "chickpeas",
+    "साबुन": "soap", "शैम्पू": "shampoo", "टूथपेस्ट": "toothpaste", "खीरा": "cucumber", "गाजर": "carrots",
+    "पास्ता": "pasta", "चॉकलेट": "chocolate", "जूस": "juice", "मिर्च": "peppers", "गोभी": "cauliflower",
+    # Arabic
+    "حليب": "milk", "لبن": "milk", "زبدة": "butter", "جبن": "cheese", "جبنة": "cheese", "بيض": "eggs", "خبز": "bread",
+    "أرز": "rice", "ارز": "rice", "رز": "rice", "دقيق": "flour", "طحين": "flour", "سكر": "sugar", "ملح": "salt",
+    "زيت": "cooking oil", "بصل": "onion", "بطاطس": "potato", "بطاطا": "potato", "طماطم": "tomato", "بندورة": "tomato",
+    "خضار": "vegetables", "خضروات": "vegetables", "فواكه": "fruit", "فاكهة": "fruit", "موز": "banana", "تفاح": "apples",
+    "دجاج": "chicken", "فراخ": "chicken", "سمك": "fish", "لحم": "meat", "شاي": "tea", "قهوة": "coffee", "ماء": "water",
+    "مياه": "water", "عدس": "lentils", "حمص": "chickpeas", "صابون": "soap", "شامبو": "shampoo", "خيار": "cucumber",
+    "جزر": "carrots", "معكرونة": "pasta", "مكرونة": "pasta", "شوكولاتة": "chocolate", "عصير": "juice", "زبادي": "yoghurt",
+    "حفاضات": "nappies", "مناديل": "kitchen roll",
+    # several words
+    "زيت زيتون": "olive oil", "معجون أسنان": "toothpaste", "ورق تواليت": "toilet paper", "टॉयलेट पेपर": "toilet paper",
+}
+# "and" and filler words in those languages (removed or used to split the list).
+NATIVE_AND = {"और", "व", "و", "ve", "ile"}
+NATIVE_FILLER = {"मुझे", "चाहिए", "लेना", "है", "कुछ", "भी", "أريد", "اشتري", "بعض", "almam", "lazim", "gerek", "icin", "biraz"}
 
 # Products the price guide has no price for: we still know which shops sell them.
 # (keys, English name, category)

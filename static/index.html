@@ -369,6 +369,13 @@ body{padding-bottom:env(safe-area-inset-bottom)}
 .eco-chip.high{background:var(--bad-soft);color:var(--bad)}
 .eco-chip.sw{background:var(--sunk);color:var(--ink-2);font-weight:500}
 .trip-eco{margin:10px 0 0;font-size:13.5px;color:var(--ink-2)}
+/* language chips on the welcome card */
+.lang-chips{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin-top:16px}
+.lang-chips button{font:inherit;font-size:13px;font-weight:600;border:1.5px solid var(--line);background:var(--surface);color:var(--ink-2);border-radius:99px;padding:4px 11px;cursor:pointer}
+.lang-chips button[aria-pressed="true"]{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+/* right-to-left (Arabic): prices and codes stay left-to-right */
+[dir="rtl"] .num,[dir="rtl"] .price,[dir="rtl"] #hhCode,[dir="rtl"] .kg{direction:ltr;unicode-bidi:isolate}
+[dir="rtl"] .tip .arrow{transform:scaleX(-1)}
 .pill2.grey{background:var(--sunk);color:var(--ink-2)}
 /* shopping list */
 .slist{list-style:none;margin:10px 0 0;padding:0}
@@ -470,9 +477,9 @@ body.simple .adv{display:none!important}
 </head>
 <body>
 
-<div class="app">
+<main class="app">
   <header class="top">
-    <div class="logo"><span class="logo-mark">€</span>Bonwise</div>
+    <h1 class="logo"><span class="logo-mark" aria-hidden="true">€</span>Bonwise</h1>
     <div class="top-r">
       <span class="month" id="monthLabel">September 2026</span>
       <button class="icon-btn" type="button" data-tab="more" aria-label="Settings and household"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
@@ -621,7 +628,7 @@ body.simple .adv{display:none!important}
     <div class="card-h"><h2 id="recH">Staying within your budget</h2></div>
     <ul class="recs" id="recs"></ul>
     <div class="ai-box" id="aiBox" hidden>
-      <span class="label" id="aiLabel">Claude’s tips for this shop</span>
+      <span class="label" id="aiLabel">AI tips for this shop</span>
       <ul id="aiTips"></ul>
     </div>
   </section>
@@ -655,6 +662,7 @@ body.simple .adv{display:none!important}
       <button class="btn" id="sampleBtn" type="button">Try a sample receipt</button>
       <button class="linkbtn" id="pasteToggle" type="button">Paste receipt text</button>
     </div>
+    <div class="lang-chips" id="langChips" role="group" aria-label="Language"></div>
   </section>
 
   <p class="more-toggle"><button class="linkbtn" id="simpleToggle" type="button">Show all details</button></p>
@@ -757,6 +765,10 @@ body.simple .adv{display:none!important}
     <section class="card" aria-labelledby="stH">
       <div class="card-h"><h2 id="stH">Settings</h2></div>
       <div class="setting">
+        <h3 id="langH">Language</h3>
+        <select class="field" id="setLang" aria-labelledby="langH" style="max-width:220px"></select>
+      </div>
+      <div class="setting">
         <label class="switch"><input type="checkbox" id="setSimple"><span><b style="color:var(--ink)">Simple view</b><br>Shows only what you need most: your budget, “Going shopping?”, “Just shopped?” and your swaps. Turn it off to see every number and chart.</span></label>
       </div>
       <div class="setting">
@@ -765,7 +777,7 @@ body.simple .adv{display:none!important}
       <div class="setting">
         <h3>Return window</h3>
         <p class="muted">Many German shops let you return items within 14–30 days (online orders: 14 days by law). Bonwise reminds you before it ends.</p>
-        <div class="row2"><input class="field" id="setReturn" type="number" min="0" max="365" inputmode="numeric" style="max-width:110px"><span class="muted">days after purchase (for clothes, shoes, electronics and household goods)</span></div>
+        <div class="row2"><input class="field" id="setReturn" type="number" min="0" max="365" inputmode="numeric" style="max-width:110px" aria-label="Return window in days"><span class="muted">days after purchase (for clothes, shoes, electronics and household goods)</span></div>
       </div>
       <div class="setting">
         <h3>Start fresh</h3>
@@ -780,9 +792,10 @@ body.simple .adv{display:none!important}
   </div>
 
 
-</div>
+</main>
 
 <p class="wake-note" id="wakeNote" role="status" hidden><i aria-hidden="true"></i>Connecting to Bonwise…</p>
+<script src="/static/i18n.js"></script>
 <script src="/static/app.js"></script>
 </body>
 </html>

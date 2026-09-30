@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Bonwise usage</title>
+<link rel="stylesheet" href="/static/fonts/fonts.css">
+<style>
+  :root{--ground:#EEF2EE;--surface:#FFFFFF;--ink:#14201A;--ink-2:#4A5A51;--line:#D5DDD7;--accent:#0E7A52;--accent-ink:#FFFFFF;--bad:#B0432E}
+  @media (prefers-color-scheme:dark){:root{--ground:#0F1512;--surface:#18201C;--ink:#E7EFEA;--ink-2:#A3B5AA;--line:#2A3530;--accent:#3CC48E;--accent-ink:#06140D;--bad:#E8836A}}
+  body{margin:0;background:var(--ground);color:var(--ink);font:15px/1.5 "Figtree",system-ui,sans-serif;padding:16px}
+  main{max-width:980px;margin:0 auto}
+  h1{font-family:"Bricolage Grotesque",system-ui,sans-serif;font-size:26px;margin:8px 0 4px}
+  p{color:var(--ink-2);margin:0 0 14px}
+  form{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 16px}
+  input{font:inherit;padding:9px 12px;border:1.5px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);min-width:0;flex:1 1 220px}
+  button{font:inherit;font-weight:700;border:0;border-radius:10px;padding:9px 16px;background:var(--accent);color:var(--accent-ink);cursor:pointer}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px;overflow-x:auto}
+  table{border-collapse:collapse;width:100%;font-size:14px}
+  th,td{padding:6px 8px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--line)}
+  th:first-child,td:first-child{text-align:left}
+  thead th{color:var(--ink-2);font-weight:600;font-size:12.5px}
+  tbody tr.sum td{font-weight:700;border-top:2px solid var(--ink)}
+  td{font-family:"IBM Plex Mono",ui-monospace,monospace}
+  .err{color:var(--bad);font-weight:600}
+  .langs{margin-top:14px}
+</style>
+</head>
+<body>
+<main>
+  <h1>Bonwise usage</h1>
+  <p>Daily totals only: no users, devices, IP addresses or cookies are recorded. Visits from Bonwise’s own checks aren’t counted.</p>
+  <form id="f"><input id="key" type="password" autocomplete="current-password" placeholder="Stats key (STATS_KEY on Render)" aria-label="Stats key"><button>Show</button></form>
+  <p id="msg" class="err" hidden></p>
+  <div class="card" id="out" hidden></div>
+  <p class="langs" id="langs"></p>
+</main>
+<script src="/static/stats.js"></script>
+</body>
+</html>

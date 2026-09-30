@@ -49,6 +49,8 @@ def _db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, name TEXT NOT NULL,
                 chain TEXT NOT NULL, price REAL NOT NULL, day TEXT NOT NULL, created REAL NOT NULL);
             CREATE INDEX IF NOT EXISTS prices_key ON prices(key);
+            CREATE TABLE IF NOT EXISTS stats (
+                day TEXT NOT NULL, key TEXT NOT NULL, n INTEGER NOT NULL, PRIMARY KEY (day, key));
         """)
         _conn.commit()
     return _conn
@@ -310,4 +312,38 @@ def best_prices(keys, days=90):
                 entry["reports"] += n
                 if entry["price"] is None or price < entry["price"]:
                     entry.update(price=price, chain=chain, day=day)
+    return out
+
+
+# ---------- usage counts ----------
+# Daily totals only ("2026-10-01 scan.photo 42"): no user, device, IP address or cookie, so
+# nobody can be followed from one day or request to the next. Kept for 400 days.
+STAT_KEY = re.compile(r"^[a-z0-9_.]{1,40}$")
+
+
+def count(key, n=1):
+    if not STAT_KEY.match(key):
+        return
+    day = time.strftime("%Y-%m-%d")
+    try:
+        with _lock:
+            db = _db()
+            db.execute("INSERT INTO stats(day, key, n) VALUES (?, ?, ?) ON CONFLICT(day, key) DO UPDATE SET n = n + ?",
+                       (day, key, n, n))
+            db.commit()
+    except sqlite3.Error:
+        pass  # counting must never break the app
+
+
+def stats(days=30):
+    """{day: {key: n}} for the last `days` days, newest first; older rows are removed."""
+    since = time.strftime("%Y-%m-%d", time.localtime(time.time() - (days - 1) * 86400))
+    cut = time.strftime("%Y-%m-%d", time.localtime(time.time() - 400 * 86400))
+    out = {}
+    with _lock:
+        db = _db()
+        db.execute("DELETE FROM stats WHERE day < ?", (cut,))
+        db.commit()
+        for day, key, n in db.execute("SELECT day, key, n FROM stats WHERE day >= ? ORDER BY day DESC", (since,)):
+            out.setdefault(day, {})[key] = n
     return out

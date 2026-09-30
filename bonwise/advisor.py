@@ -222,7 +222,7 @@ def advise_receipt(receipt, community=None, chain="", key_fn=None):
                             + (" + " + _eur(best["ship"]) + " shipping" if best["ship"] else " incl. shipping")
                             + " at " + best["shop"] + " (" + best["src"] + "). Brand shop price: " + _eur(sp["list"]) + ".")
         cat = "Pfand" if it.get("pfand") else ("Clothing & shoes" if sp else (it.get("cat") or a["cat"]))
-        row = {"raw": raw, "en": en or a["en"], "cat": cat, "price": price, "original": it.get("original"), "aiPrice": it.get("aiPrice"), "ocrPrice": it.get("ocrPrice"),
+        row = {"raw": raw, "en": en or a["en"], "local": (it.get("local") or "")[:80], "cat": cat, "price": price, "original": it.get("original"), "aiPrice": it.get("aiPrice"), "ocrPrice": it.get("ocrPrice"),
                "pfand": bool(it.get("pfand")), "flag": it.get("flag") or "", "tip": a["tip"], "alt": a["alt"],
                "altPrice": a["altPrice"], "save": a["save"], "market": a["market"]}
         # AI estimate only where the real-price data and the built-in guide found nothing

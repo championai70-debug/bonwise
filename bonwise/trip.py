@@ -23,7 +23,7 @@ FILLER = {"i", "im", "i'm", "am", "we", "going", "go", "to", "the", "at", "for",
           "needs", "want", "get", "some", "a", "an", "please", "shopping", "shop", "today", "tomorrow", "also",
           "my", "list", "ich", "brauche", "kaufen", "einkaufen", "noch", "bitte", "etwas", "zum", "zu", "bei",
           "mujhe", "khareedne", "kharidne", "ja", "raha", "rahi", "hu", "hoon", "hai", "lena", "lene", "ke", "liye"}
-SPLIT = re.compile(r"(?<!\d),|,(?!\d)|[;\n+&/•·]|\s(?:and|und|aur|plus|n)\s")
+SPLIT = re.compile(r"(?<!\d),|,(?!\d)|[;\n+&/•·]|\s(?:and|und|aur|plus|n|ve)\s")
 # Words that describe a product without making it a different one.
 MODIFIERS = {"bio", "organic", "fresh", "frisch", "frische", "whole", "voll", "fettarm", "fettarme", "low", "fat", "light",
              "skimmed", "large", "small", "big", "free", "range", "freiland", "pack", "packung", "classic", "original",
@@ -99,9 +99,45 @@ def _segment(words):
     return items
 
 
+TR_LETTERS = str.maketrans({"ş": "s", "Ş": "s", "ç": "c", "Ç": "c", "ğ": "g", "Ğ": "g", "ı": "i", "İ": "i"})
+_NATIVE_MULTI = sorted((k for k in data.NATIVE_WORDS if " " in k), key=len, reverse=True)
+
+
+def native(text):
+    """Turkish letters and Hindi/Arabic product words -> what the rest of the matching reads:
+    "süt ve ekmek" -> "süt , ekmek", "दूध और चावल" -> "milk , rice", "والخبز" -> "bread"."""
+    t = str(text or "").translate(TR_LETTERS)
+    t = t.replace("،", ",").replace("؛", ",").replace("।", ",")
+    for k in _NATIVE_MULTI:
+        t = t.replace(k, " " + data.NATIVE_WORDS[k] + " ")
+    out = []
+    for tok in re.split(r"(\s+|,)", t):
+        w = tok.strip()
+        if not w or not re.search(r"[\u0600-\u06FF\u0900-\u097F]", w) and w.lower() not in data.NATIVE_AND | data.NATIVE_FILLER:
+            out.append(tok)
+            continue
+        if w in data.NATIVE_AND or w.lower() in data.NATIVE_AND:
+            out.append(",")
+            continue
+        if w in data.NATIVE_FILLER or w.lower() in data.NATIVE_FILLER:
+            continue
+        found = None
+        for cand in (w, w[1:] if w.startswith("و") else None):
+            if not cand:
+                continue
+            for c in (cand, cand[2:] if cand.startswith("ال") else None):
+                if c and c in data.NATIVE_WORDS:
+                    found = data.NATIVE_WORDS[c]
+                    break
+            if found:
+                break
+        out.append(found if found else tok)
+    return "".join(out)
+
+
 def parse_list(text):
     """Free text -> (items, chain the user said they're going to, or '')."""
-    text = str(text or "")[:2000]
+    text = native(str(text or "")[:2000])
     going = ""
     items, seen = [], set()
     for part in SPLIT.split(" " + text.lower() + " "):
@@ -147,7 +183,7 @@ def _size_text(v, fam):
 
 def resolve(query):
     """One typed item -> what it is, how much it usually costs and where it's cheapest known."""
-    q = str(query).strip()
+    q = native(str(query)).strip() or str(query).strip()
     count = 1
     m = COUNT.match(norm(q))
     if m:
