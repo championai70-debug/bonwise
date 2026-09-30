@@ -13,7 +13,7 @@ stored. The typed items are only used to answer this request.
 
 import re
 
-from . import advisor, data, openprices, places, storage
+from . import advisor, data, footprint, openprices, places, storage
 from .textutil import norm, pack_size, round2, size_label
 
 MAX_ITEMS = 30
@@ -424,6 +424,8 @@ def plan(text=None, items=None, lat=None, lon=None, dow=None, minute=None, radiu
             "chains": sorted(({"chain": ch, "price": round2(o["price"] * info["count"]), "date": o["date"], "product": o["product"]}
                               for ch, o in info["open"].items()), key=lambda x: x["price"])[:6],
             "hint": data.CHEAPEST_AT.get(info["cat"], "discounters (Aldi, Lidl, Penny, Netto)"),
+            "co2": (None if info["cat"] == "Clothing & shoes" else
+                    footprint.estimate(info["name"] + " " + info["size"], info["count"]) or footprint.estimate(info["query"], info["count"])),
         })
 
     return {

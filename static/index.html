@@ -349,6 +349,26 @@ body{padding-bottom:env(safe-area-inset-bottom)}
 .wake-note i{width:9px;height:9px;border-radius:50%;background:var(--accent);animation:wakepulse 1.2s ease-in-out infinite}
 @keyframes wakepulse{50%{opacity:.25}}
 @media (prefers-reduced-motion:reduce){.wake-note i{animation:none}}
+/* climate footprint */
+.eco-sum{margin:10px 0 0;color:var(--ink-2)}
+.eco-sum b{display:block;font-family:var(--display);font-weight:800;font-size:30px;letter-spacing:-.02em;color:var(--ink)}
+.eco-swap{margin:8px 0 0;padding:9px 12px;border-radius:12px;background:var(--accent-soft);color:var(--ink);font-size:14px}
+.eco-btn{margin-top:12px;font:inherit;font-weight:700;font-size:14px;border:1.5px solid var(--line);background:var(--surface);color:var(--ink);border-radius:99px;padding:7px 14px;cursor:pointer}
+.eco-btn:hover{border-color:var(--accent)}
+.eco-list{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:10px}
+.eco-list li{display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:baseline}
+.eco-list .nm{font-weight:600;overflow-wrap:anywhere}
+.eco-list .kg{font-family:var(--mono);font-size:13px;white-space:nowrap}
+.eco-list .bar{grid-column:1/-1;height:6px;border-radius:99px;background:var(--sunk);overflow:hidden}
+.eco-list .bar i{display:block;height:100%;border-radius:99px;background:var(--accent)}
+.eco-list .mid .bar i{background:var(--warn)}
+.eco-list .high .bar i{background:var(--bad)}
+.eco-list .sw{grid-column:1/-1;font-size:13px;color:var(--ink-2)}
+.eco-chip{display:inline-block;margin:5px 6px 0 0;font-size:12px;font-weight:600;border-radius:99px;padding:2px 9px;background:var(--accent-soft);color:var(--accent);white-space:nowrap}
+.eco-chip.mid{background:var(--warn-soft);color:var(--warn)}
+.eco-chip.high{background:var(--bad-soft);color:var(--bad)}
+.eco-chip.sw{background:var(--sunk);color:var(--ink-2);font-weight:500}
+.trip-eco{margin:10px 0 0;font-size:13.5px;color:var(--ink-2)}
 .pill2.grey{background:var(--sunk);color:var(--ink-2)}
 /* shopping list */
 .slist{list-style:none;margin:10px 0 0;padding:0}
@@ -567,6 +587,16 @@ body.simple .adv{display:none!important}
     <div class="near-box" id="swapNear" aria-live="polite"></div>
     <ul class="swaps" id="swaps"></ul>
     <div class="plan-bar"><span id="planHint">Tick the swaps you’ll make next time</span><b class="num" id="planPick">€0 / month</b></div>
+  </section>
+
+  <!-- Climate footprint of the food on this receipt (Poore & Nemecek 2018) -->
+  <section class="card eco" id="ecoCard" aria-labelledby="ecoH" hidden>
+    <div class="card-h"><h2 id="ecoH"><span class="eco-globe" aria-hidden="true">🌍</span> Climate footprint</h2><span class="src-tag est">Estimate</span></div>
+    <p class="eco-sum"><b class="num" id="ecoKg">~0 kg CO₂e</b> <span id="ecoOf"></span></p>
+    <p class="eco-swap" id="ecoSwap" hidden></p>
+    <button class="eco-btn" id="ecoMore" type="button" aria-expanded="false" aria-controls="ecoList">Show each item</button>
+    <ul class="eco-list" id="ecoList" hidden></ul>
+    <p class="pc-note" id="ecoNote"></p>
   </section>
 
   <!-- 4 · Receipt -->

@@ -197,6 +197,7 @@ def advise_receipt(receipt, community=None, chain="", key_fn=None):
     """receipt: {store, date, total, currency, items: [{raw, en?, price, pfand?, cat?, flag?, ocrPrice?, cheaper?}]}
     community: optional {price_key: {byChain: {CHAIN: price}}} from other users' receipts.
     Returns the same receipt with every item advised, plus summary numbers."""
+    from . import footprint  # here, not at the top: footprint uses this module's lookup()
     currency = str(receipt.get("currency") or "EUR").upper()
     foreign = currency != "EUR"
     rows = []
@@ -243,6 +244,8 @@ def advise_receipt(receipt, community=None, chain="", key_fn=None):
             row.update(altPrice=c_price, save=c_diff, alt="same product at " + c_chain,
                        tip="Bonwise users paid " + _eur(c_price) + " for this at " + c_chain + " recently",
                        market={"community": True, "store": c_chain, "forYours": c_price, "yourSize": ""})
+        if not row["pfand"] and cat != "Clothing & shoes":
+            row["co2"] = footprint.estimate(row["en"] + " " + raw)
         rows.append(row)
 
     out = dict(receipt)
@@ -253,6 +256,7 @@ def advise_receipt(receipt, community=None, chain="", key_fn=None):
     out["couldSave"] = round2(sum(r["save"] for r in rows if r["save"] and r["save"] > 0))
     out["discounts"] = round2(sum(r["original"] - r["price"] for r in rows
                                   if r.get("original") is not None and r["price"] is not None and r["original"] > r["price"]))
+    out["co2"] = footprint.receipt_summary(rows)
     return out
 
 

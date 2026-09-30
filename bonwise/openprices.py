@@ -39,6 +39,13 @@ KINDS = {
 }
 NOT_KINDS = {"Milk": ("plant-based", "milk-substitute", "flavoured-milks", "chocolate")}
 
+# Pet food is never compared with food for people ("Feine Pastete mit Huhn" is cat food,
+# not chicken), unless the user asks for pet food. Some entries have no category, so the
+# name and brand are checked too.
+PET_CATS = ("pet-food", "dog-food", "cat-food", "dog-and-cat-food", "cat-and-dog-food")
+PET_WORDS = {"futter", "tierfutter", "katzenfutter", "hundefutter", "katze", "katzen", "hund", "hunde", "dog", "cat",
+             "pablo", "4paws", "whiskas", "felix", "sheba", "pedigree", "cesar", "kitekat", "coshida", "perfect fit"}
+
 # Loose fruit and veg are priced per kg (or per piece) in Open Prices.
 CATEGORIES = {"Bananas": "en:bananas", "Apples": "en:apples", "Tomatoes": "en:tomatoes", "Potatoes": "en:potatoes",
               "Onions": "en:onions", "Cucumber": "en:cucumbers"}
@@ -60,7 +67,10 @@ def _load():
                 name = norm(e.get("n", "") + " " + e.get("b", ""))
                 toks = set(re.findall(r"[a-z][a-z0-9\-]+", name))
                 toks |= {part for t in toks for part in t.split("-") if part}  # "coca-cola" -> coca, cola
-                items.append((toks, " " + name + " ", e))
+                pet = (any(c in PET_CATS for c in (e.get("c") or ())) or bool(toks & PET_WORDS)
+                       or any(" " + w + " " in " " + name + " " for w in PET_WORDS if " " in w)
+                       or any(t.endswith("futter") for t in toks))
+                items.append((toks, " " + name + " ", dict(e, pet=pet)))
             _db = {"meta": {k: raw.get(k) for k in ("source", "generated", "since", "prices")},
                    "items": items, "categories": raw.get("categories") or {}}
     return _db
@@ -112,10 +122,14 @@ def lookup(query, keys=None, size=None, en=None):
     db = _load()
     found = []
     organic = bool(re.search(r"\b(bio|organic)\b", norm(query)))
+    qtoks = set(norm(query).split())
+    wants_pet = en == "Pet food" or bool(qtoks & PET_WORDS) or any(t.endswith("futter") for t in qtoks)
     if keys:
         singles = [k for k in keys if " " not in k and len(k) >= 3]
         phrases = [" " + k + " " for k in keys if " " in k]
         for toks, name, e in db["items"]:
+            if e["pet"] and not wants_pet:
+                continue
             if ((any(k in toks for k in singles) or any(p in name for p in phrases)) and _same_size(e.get("s"), size)
                     and _kind_ok(e, en) and _organic_ok(toks, organic)):
                 found.append(e)
@@ -124,6 +138,8 @@ def lookup(query, keys=None, size=None, en=None):
         if not words:
             return {}
         for toks, name, e in db["items"]:
+            if e["pet"] and not wants_pet:
+                continue
             if (all(w in toks or (len(w) >= 4 and any(t.startswith(w) for t in toks)) for w in words)
                     and _same_size(e.get("s"), size) and _organic_ok(toks, organic)):
                 found.append(e)

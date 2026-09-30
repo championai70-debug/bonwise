@@ -160,7 +160,7 @@
     else if (missing) { w.hidden = false; w.textContent = missing + " price" + (missing > 1 ? "s" : "") + " couldn’t be read — type " + (missing > 1 ? "them" : "it") + " in from your receipt."; }
     else if (cur.printedTotal != null && Math.abs(cur.printedTotal - t) >= 0.01) { w.hidden = false; w.textContent = "The items add up to " + eur(t) + " but the receipt total says " + eur(cur.printedTotal) + ". Check the prices above, or remove lines that aren’t products."; }
     else w.hidden = true;
-    renderBudget(); renderSavings(); renderRecs(); renderPC();
+    renderBudget(); renderSavings(); renderRecs(); renderPC(); renderEco();
   }
   $("items").addEventListener("input", function (e) {
     if (!e.target.classList.contains("price")) return;
@@ -199,7 +199,7 @@
     cur = null;
     if (ctl) { ctl.abort(); ctl = null; }
     stopTimer(); setBusy(false);
-    ["receiptCard", "saveCard", "swapCard", "recCard", "progress", "pcCard"].forEach(function (id) { $(id).hidden = true; });
+    ["receiptCard", "saveCard", "swapCard", "recCard", "progress", "pcCard", "ecoCard"].forEach(function (id) { $(id).hidden = true; });
     $("pcList").innerHTML = "";
     renderBudget();
   }
@@ -550,6 +550,48 @@
   }
   loadHealth(0);
   window.addEventListener("online", function () { if (!health) loadHealth(0); });
+
+  /* ---------- climate footprint (Poore & Nemecek 2018, global averages per kg) ---------- */
+  var ECO_SRC = "Estimates from Poore & Nemecek (2018, Science), the largest study of food’s climate impact, via Our World in Data: global averages per kg, farm to shop. Items the study doesn’t cover (like butter, bread or non-food) have no number.";
+  function kgTxt(x) { return "~" + (x >= 10 ? Math.round(x) : x.toFixed(1)) + " kg CO₂e"; }
+  // One small label for an item: its footprint, and a greener swap when the study has one.
+  function ecoChips(c) {
+    if (!c) return "";
+    var main = c.kg != null ? kgTxt(c.kg) : kgTxt(c.perKg) + " per kg";
+    var h = '<span class="eco-chip ' + c.level + '" title="Climate footprint, estimate">🌱 ' + main + '</span>';
+    if (c.swap) h += '<span class="eco-chip sw">' + esc(c.swap.name) + ": " + c.swap.pct + "% less CO₂</span>";
+    return h;
+  }
+  function renderEco() {
+    // Worked out from the items (not the scan's summary), so edited or removed lines count right.
+    var card = $("ecoCard");
+    var list = cur ? cur.items.filter(function (it) { return it.co2 && it.co2.kg != null; }) : [];
+    card.hidden = !list.length;
+    if (card.hidden) { $("ecoList").innerHTML = ""; return; }
+    var top = list.reduce(function (a, it) { return it.co2.kg > a.co2.kg ? it : a; });
+    var sum = { kg: list.reduce(function (a, it) { return a + it.co2.kg; }, 0), top: top.en || top.raw, topKg: top.co2.kg,
+      swapSave: list.reduce(function (a, it) { return a + (it.co2.swap && it.co2.swap.save > 0 ? it.co2.swap.save : 0); }, 0) };
+    $("ecoKg").textContent = kgTxt(sum.kg);
+    $("ecoOf").textContent = "for " + (list.length === 1 ? "1 food item" : list.length + " food items") + " on this receipt. Biggest: " + (sum.top || "") + " (" + Math.round(sum.topKg / sum.kg * 100) + "%).";
+    var sw = $("ecoSwap");
+    sw.hidden = !(sum.swapSave > 0.05);
+    if (!sw.hidden) sw.textContent = "🌱 Greener swaps could cut about " + kgTxt(sum.swapSave).slice(1) + " (" + Math.round(sum.swapSave / sum.kg * 100) + "%). Tap “Show each item” to see them.";
+    var max = Math.max.apply(null, list.map(function (it) { return it.co2.kg; }));
+    list = list.slice().sort(function (a, b) { return b.co2.kg - a.co2.kg; });
+    $("ecoList").innerHTML = list.map(function (it) {
+      var c = it.co2;
+      return '<li class="' + c.level + '"><span class="nm">' + esc(it.en || it.raw) + '</span><span class="kg">' + kgTxt(c.kg) + '</span>' +
+        '<span class="bar"><i style="width:' + Math.max(3, Math.round(c.kg / max * 100)) + '%"></i></span>' +
+        (c.swap && c.swap.kg != null ? '<span class="sw">' + esc(c.swap.name) + " instead: " + kgTxt(c.swap.kg) + " (" + c.swap.pct + "% less)</span>" : "") + '</li>';
+    }).join("");
+    $("ecoNote").textContent = ECO_SRC;
+  }
+  $("ecoMore").addEventListener("click", function () {
+    var open = $("ecoList").hidden;
+    $("ecoList").hidden = !open;
+    this.setAttribute("aria-expanded", String(open));
+    this.textContent = open ? "Hide items" : "Show each item";
+  });
 
   /* ---------- price check: the items on the current receipt ---------- */
   function renderPC() {
@@ -1059,8 +1101,14 @@
       // Real prices at other chains, cheapest first (from Open Prices).
       var also = (it.chains || []).filter(function (c) { return !(it.best && shops[it.best.shop] && shops[it.best.shop].chain === c.chain && it.best.src === "open"); }).slice(0, 4);
       if (also.length && !it.online && !it.tip) where += '<span class="also">' + also.map(function (c) { return esc(c.chain) + " " + eur(c.price); }).join(" · ") + '</span>';
+      if (it.co2) where += '<span class="eco-line">' + ecoChips(it.co2) + '</span>';
       return '<li><span class="nm">' + esc(it.name) + (size ? '<small>' + esc(size) + '</small>' : "") + typed + '</span><span class="amt num">' + amt + '</span><span class="where">' + where + '</span></li>';
     }).join("") + '</ul>';
+    var ecoKnown = tripItems.filter(function (it) { return it.co2 && it.co2.kg != null; });
+    if (ecoKnown.length) {
+      var ecoSum = ecoKnown.reduce(function (a, it) { return a + it.co2.kg; }, 0);
+      html += '<p class="trip-eco">🌍 Climate footprint of ' + (ecoKnown.length === tripItems.length ? "this list" : ecoKnown.length + " of these items") + ": <b>" + kgTxt(ecoSum) + "</b> <span class=\"src-tag est\">Estimate</span></p>";
+    }
     var others = shops.filter(function (x) { return x.covers > 0; });
     if (others.length > 1) {
       html += '<details class="cmpshops"><summary>Compare ' + others.length + ' shops</summary><ul class="shops">' + others.map(function (x) {
