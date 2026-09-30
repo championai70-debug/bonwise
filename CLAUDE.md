@@ -55,7 +55,11 @@ python3 -m unittest discover -s tests -t .   # all tests, no network or token ne
 - The page loads `app.js?v=<mtime>` so browsers never mix a new page with an old script.
   If you add another static script or stylesheet, add it to that list in `app.py`.
 - User-facing text: plain, short English. Prices in euros (`€1.19`).
-- Never commit secrets. `HF_TOKEN`, `IMPRESSUM`, `CONTACT_EMAIL`, `ASSETLINKS_JSON` live
+- **Security** (see `SECURITY.md`): keep every limit, the `SECURITY_HEADERS` (CSP) and the
+  encrypted household storage. No inline `<script>` or `on…=` handlers (the CSP blocks them);
+  if `app.js` calls a new outside service, add it to `connect-src` and the privacy page.
+  Never log query strings, bodies or IPs. No Google Fonts or other third-party files: serve them from `static/`.
+- Never commit secrets. `HF_TOKEN`, `HOUSEHOLD_SECRET`, `IMPRESSUM`, `CONTACT_EMAIL`, `ASSETLINKS_JSON` live
   in Render's environment settings, not in the code.
 
 ## Deploy

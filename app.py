@@ -7,6 +7,7 @@ Tesseract are optional (they power the backup reader). Settings are in
 bonwise/config.py and can be set as environment variables or in a .env file.
 """
 
+import ipaddress
 import json
 from html import escape as html_escape
 import mimetypes
@@ -20,6 +21,66 @@ from urllib.parse import parse_qs, urlparse
 from bonwise import advisor, ai_reader, config, data, places, service, storage, trip
 
 STATIC = Path(__file__).resolve().parent / "static"
+mimetypes.add_type("font/woff2", ".woff2")
+
+# Browser security rules sent with every answer.
+# CSP: scripts only from this site (no inline scripts, so injected HTML can't run code);
+# the phone may only call this site and the two OpenStreetMap map services; the page can't
+# be framed by other sites (clickjacking). Change connect-src if app.js calls a new service.
+SECURITY_HEADERS = {
+    "Content-Security-Policy": "; ".join([
+        "default-src 'self'", "script-src 'self'", "style-src 'self' 'unsafe-inline'", "font-src 'self'",
+        "img-src 'self' data: blob:", "connect-src 'self' https://overpass-api.de https://photon.komoot.io",
+        "worker-src 'self'", "manifest-src 'self'", "object-src 'none'", "base-uri 'none'",
+        "form-action 'self'", "frame-ancestors 'none'"]),
+    "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+    "X-Frame-Options": "DENY",
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+    "Permissions-Policy": "geolocation=(self), camera=(self), microphone=(self), payment=(), usb=(), bluetooth=(), serial=(), interest-cohort=()",
+    "Cross-Origin-Opener-Policy": "same-origin",
+}
+
+# Proxies in front of the app (Render's load balancer uses Cloudflare). The visitor's real
+# address is the right-most X-Forwarded-For entry that isn't one of these; entries further
+# left come from the visitor and can be faked, so they're never used for rate limits.
+TRUSTED_PROXIES = [ipaddress.ip_network(n) for n in (
+    "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10", "127.0.0.0/8", "169.254.0.0/16",
+    "::1/128", "fc00::/7", "fe80::/10",
+    # Cloudflare, https://www.cloudflare.com/ips/
+    "173.245.48.0/20", "103.21.244.0/22", "103.22.200.0/22", "103.31.4.0/22", "141.101.64.0/18",
+    "108.162.192.0/18", "190.93.240.0/20", "188.114.96.0/20", "197.234.240.0/22", "198.41.128.0/17",
+    "162.158.0.0/15", "104.16.0.0/13", "104.24.0.0/14", "172.64.0.0/13", "131.0.72.0/22",
+    "2400:cb00::/32", "2606:4700::/32", "2803:f800::/32", "2405:b500::/32", "2405:8100::/32",
+    "2a06:98c0::/29", "2c0f:f248::/32")]
+
+
+def _ip(text):
+    try:
+        return ipaddress.ip_address(text.strip().split("%")[0])
+    except ValueError:
+        return None
+
+
+def client_key(peer, forwarded):
+    """Rate-limit key for a request: the visitor's IP (IPv6 by its /64, which one home or
+    phone gets). Behind Render (TRUST_FORWARDED on) it is the right-most X-Forwarded-For
+    entry that isn't a known proxy: Render appends the real address on the right, while
+    anything to its left is sent by the visitor and can be faked."""
+    ip = _ip(peer)
+    if config.TRUST_FORWARDED and forwarded:
+        for part in reversed([p for p in forwarded.split(",") if p.strip()]):
+            cand = _ip(part)
+            if cand is None:
+                break
+            ip = cand
+            if not any(cand in n for n in TRUSTED_PROXIES):
+                break
+    if ip is None:
+        return str(peer)
+    if ip.version == 6:
+        return str(ipaddress.ip_network(str(ip) + "/64", strict=False))
+    return str(ip)
 
 
 class RateLimiter:
@@ -39,14 +100,19 @@ class RateLimiter:
             if len(q) >= self.limit:
                 return False
             q.append(now)
-            if len(self.hits) > 5000:
-                self.hits.clear()
+            if len(self.hits) > 20000:
+                # Forget visitors whose window has passed (never everyone's limits at once).
+                for k in [k for k, v in self.hits.items() if not v or now - v[-1] > self.window]:
+                    del self.hits[k]
             return True
 
 
 limiter = RateLimiter(config.HOURLY_LIMIT)
 api_limiter = RateLimiter(300)        # syncs, list prices, shop searches
 household_limiter = RateLimiter(5)    # new household codes per visitor per hour
+report_limiter = RateLimiter(30)      # anonymous price reports per visitor per hour
+# All visitors together: caps what the AI can cost per hour, even if someone uses many addresses.
+global_limiter = RateLimiter(config.GLOBAL_HOURLY_LIMIT)
 
 
 def assetlinks():
@@ -133,8 +199,10 @@ def prices_payload():
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "Bonwise/1.0"
+    server_version = "Bonwise"
+    sys_version = ""              # don't announce the Python version
     protocol_version = "HTTP/1.1"
+    timeout = 30                  # seconds a connection may sit idle (stops slow-sending clients)
 
     # ---------- helpers ----------
     def _send(self, status, body, ctype="application/json; charset=utf-8", cache="no-store"):
@@ -146,8 +214,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", cache)
-        self.send_header("X-Content-Type-Options", "nosniff")
-        self.send_header("Referrer-Policy", "no-referrer")
+        for name, value in SECURITY_HEADERS.items():
+            self.send_header(name, value)
         # Marks answers that really come from Bonwise. While Render wakes a sleeping free
         # server it answers with its own page; the service worker and app.js use this to tell.
         self.send_header("X-Bonwise", "1")
@@ -156,11 +224,13 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(body)
 
     def _client(self):
-        fwd = self.headers.get("X-Forwarded-For", "")
-        return fwd.split(",")[0].strip() if fwd else self.client_address[0]
+        return client_key(self.client_address[0], self.headers.get("X-Forwarded-For", ""))
 
     def _json_body(self):
-        size = int(self.headers.get("Content-Length") or 0)
+        try:
+            size = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            raise service.ScanError("bad_request", "The request couldn't be read.", 400)
         if size <= 0:
             return None
         if size > config.MAX_BODY:
@@ -171,8 +241,14 @@ class Handler(BaseHTTPRequestHandler):
         except (ValueError, UnicodeDecodeError):
             raise service.ScanError("bad_request", "The request couldn't be read.", 400)
 
-    def log_message(self, fmt, *args):  # quieter, no request bodies or IPs in logs
+    def log_message(self, fmt, *args):  # quieter: no request bodies, IPs or query strings in logs
         print("%s %s" % (time.strftime("%H:%M:%S"), fmt % args), flush=True)
+
+    def log_request(self, code="-", size="-"):
+        # The query string can hold a position (/api/shops?lat=…), which must never be logged.
+        line = str(getattr(self, "requestline", "")).split(" ")
+        path = line[1].split("?")[0] if len(line) > 1 else "-"
+        self.log_message('"%s %s" %s', line[0][:10], path[:100], getattr(code, "value", code))
 
     # ---------- routes ----------
     def do_HEAD(self):
@@ -184,7 +260,7 @@ class Handler(BaseHTTPRequestHandler):
             # Point the page at this exact version of its script and styles, so a browser or CDN
             # never pairs a new page with an old, cached app.js after an update.
             html = (STATIC / "index.html").read_text(encoding="utf-8")
-            for name in ("app.js",):
+            for name in ("app.js", "fonts/fonts.css"):
                 stamp = int((STATIC / name).stat().st_mtime)
                 html = html.replace('/static/%s"' % name, '/static/%s?v=%d"' % (name, stamp))
             return self._send(200, html, "text/html; charset=utf-8", "no-cache")
@@ -247,13 +323,16 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(403, {"error": "forbidden", "message": "Requests from other websites aren't allowed."})
         try:
             body = self._json_body() or {}
-            if path == "/api/test-ai":
-                return self._send(200, self._test_ai())
             if path.startswith(("/api/household/", "/api/prices/", "/api/list/", "/api/trip", "/api/shops")):
                 return self._data_api(path, body)
+            # Scans and the AI test cost AI credits: per-visitor limit, then a limit for everyone.
             if not limiter.allow(self._client()):
                 return self._send(429, {"error": "too_many", "message":
                                         "That's the scan limit for this hour (%d). Try again later." % config.HOURLY_LIMIT})
+            if not global_limiter.allow("all"):
+                return self._send(429, {"error": "busy", "message": "Bonwise is very busy right now. Try again in a few minutes."})
+            if path == "/api/test-ai":
+                return self._send(200, self._test_ai())
             if path == "/api/scan":
                 image = body.get("image")
                 if not isinstance(image, str) or not image:
@@ -284,6 +363,8 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/household/delete":
                 return self._send(200, {"deleted": storage.delete_household(body.get("code"))})
             if path == "/api/prices/report":
+                if not report_limiter.allow(client):
+                    return self._send(429, {"error": "too_many", "message": "Too many price reports. Try again later."})
                 return self._send(200, {"kept": storage.report_prices(body.get("store"), body.get("day"), body.get("items"))})
             if path == "/api/trip":
                 return self._send(*plan_trip(body))

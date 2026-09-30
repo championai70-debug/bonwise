@@ -3,7 +3,9 @@
 Two things live here:
 - Households: a shared copy of receipts, shopping list, savings plan and budget, so
   several phones (a couple, flatmates, a new phone) see the same data. A household is
-  found by a random code; only a SHA-256 hash of the code is stored.
+  found by a random code; only a SHA-256 hash of the code is stored, and the data is
+  encrypted with a key made from the code (plus HOUSEHOLD_SECRET, if set). So a copy of
+  the database alone doesn't reveal anyone's receipts.
 - Community prices: anonymous price reports (product, shop chain, price, day) taken
   from receipts people add, so everyone sees where the same product was cheaper.
   No user or household id is stored with a price.
@@ -12,13 +14,16 @@ Every phone keeps its own full copy, so if the server's database is ever lost (f
 example on a free host without a persistent disk) the next sync fills it again.
 """
 
+import base64
 import hashlib
+import hmac
 import json
 import re
 import secrets
 import sqlite3
 import threading
 import time
+import zlib
 from pathlib import Path
 
 from . import config, data
@@ -99,12 +104,65 @@ def pretty_code(raw):
     return "BW-" + "-".join(raw[i:i + 4] for i in range(0, len(raw), 4))
 
 
+# ---------- encryption at rest ----------
+# Python's standard library has no AES, so this uses keyed BLAKE2b (a standard keyed hash
+# and PRF) in counter mode as the stream cipher, and a second keyed BLAKE2b over nonce and
+# ciphertext as the tag (encrypt-then-MAC, separate keys, random 16-byte nonce per write).
+SEALED = "e1:"
+
+
+def _keys(code):
+    base = hashlib.blake2b(normalize_code(code).encode(), key=config.HOUSEHOLD_SECRET.encode()[:64],
+                           person=b"bonwise-house").digest()
+    return (hashlib.blake2b(b"enc", key=base, digest_size=32).digest(),
+            hashlib.blake2b(b"mac", key=base, digest_size=32).digest())
+
+
+def _stream(key, nonce, n):
+    blocks = (hashlib.blake2b(nonce + i.to_bytes(8, "big"), key=key).digest() for i in range((n + 63) // 64))
+    return b"".join(blocks)[:n]
+
+
+def _xor(a, b):
+    return (int.from_bytes(a, "big") ^ int.from_bytes(b, "big")).to_bytes(len(a), "big")
+
+
+def seal(code, text):
+    enc, mac = _keys(code)
+    nonce = secrets.token_bytes(16)
+    plain = zlib.compress(text.encode("utf-8"), 6)
+    body = nonce + _xor(plain, _stream(enc, nonce, len(plain)))
+    return SEALED + base64.b64encode(body + hashlib.blake2b(body, key=mac, digest_size=32).digest()).decode()
+
+
+def unseal(code, stored):
+    """-> the JSON text, or None if it can't be opened (wrong key, damaged). Rows written
+    before encryption was added are plain JSON and are read as they are."""
+    if not stored.startswith(SEALED):
+        return stored
+    try:
+        raw = base64.b64decode(stored[len(SEALED):], validate=True)
+    except ValueError:
+        return None
+    if len(raw) < 48:
+        return None
+    body, tag = raw[:-32], raw[-32:]
+    enc, mac = _keys(code)
+    if not hmac.compare_digest(tag, hashlib.blake2b(body, key=mac, digest_size=32).digest()):
+        return None
+    nonce, data = body[:16], body[16:]
+    try:
+        return zlib.decompress(_xor(data, _stream(enc, nonce, len(data)))).decode("utf-8")
+    except (zlib.error, UnicodeDecodeError):
+        return None
+
+
 def new_household():
     raw = "".join(secrets.choice(CODE_ALPHABET) for _ in range(12))
     with _lock:
         db = _db()
         db.execute("INSERT INTO households(id, data, updated) VALUES (?, ?, ?)",
-                   (_hash(raw), json.dumps(_empty_state()), time.time()))
+                   (_hash(raw), seal(raw, json.dumps(_empty_state())), time.time()))
         db.commit()
     return pretty_code(raw)
 
@@ -153,12 +211,19 @@ def sync_household(code, client_state, create=False):
         if row is None and not create:
             raise HouseholdError("unknown_code", "No household with that code. Check the code, or create a new one.", 404)
         if row is None:
-            db.execute("INSERT INTO households(id, data, updated) VALUES (?, ?, ?)", (hid, json.dumps(_empty_state()), time.time()))
-        merged = merge_states(json.loads(row[0]) if row else _empty_state(), client_state)
+            db.execute("INSERT INTO households(id, data, updated) VALUES (?, ?, ?)", (hid, seal(code, json.dumps(_empty_state())), time.time()))
+        # If the stored copy can't be opened (e.g. HOUSEHOLD_SECRET changed), the phones'
+        # copies rebuild it, as after a lost database.
+        text = unseal(code, row[0]) if row else None
+        try:
+            server_state = json.loads(text) if text else _empty_state()
+        except ValueError:
+            server_state = _empty_state()
+        merged = merge_states(server_state if isinstance(server_state, dict) else _empty_state(), client_state)
         blob = json.dumps(merged, ensure_ascii=False, separators=(",", ":"))
         if len(blob.encode()) > MAX_HOUSEHOLD_BYTES:
             raise HouseholdError("too_large", "This household has too much data to sync. Delete some old receipts.", 413)
-        db.execute("UPDATE households SET data = ?, updated = ? WHERE id = ?", (blob, time.time(), hid))
+        db.execute("UPDATE households SET data = ?, updated = ? WHERE id = ?", (seal(code, blob), time.time(), hid))
         db.commit()
     return merged
 

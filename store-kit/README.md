@@ -125,6 +125,7 @@ ask for a German app version.)
 
 - **Does your app collect or share any of the required user data types?** Yes
 - **Is all of the user data collected by your app encrypted in transit?** Yes (HTTPS)
+  (Household data is also encrypted at rest on the server with a key made from the household code.)
 - **Do you provide a way for users to request that their data is deleted?** Yes
   (in the app: More → "Delete household data" and "Start fresh"; or by email)
 
