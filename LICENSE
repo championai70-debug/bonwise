@@ -11,4 +11,6 @@ Parts that come from others keep their own licences:
   License 1.1 (see static/fonts/LICENSE-*.txt).
 - bonwise/open_prices.json: Open Prices by Open Food Facts, Open Database License
   (ODbL) 1.0, https://prices.openfoodfacts.org
+- bonwise/footprint_data.json: Poore & Nemecek (2018), Science, via Our World in Data,
+  Creative Commons BY 4.0.
 - Shop locations come live from OpenStreetMap, (c) OpenStreetMap contributors, ODbL.

@@ -21,6 +21,13 @@ class OpenPricesTests(unittest.TestCase):
         self.assertEqual({c: v["price"] for c, v in found.items()}, {"EDEKA": 0.85, "LIDL": 0.89})  # not soap, not oat drink
         self.assertEqual(trip.resolve("doodh")["open"], found)
 
+    def test_pet_food_is_not_food(self):
+        # "Feine Pastete mit Huhn" is cat food (no category in the data), never the price of chicken.
+        found = trip.resolve("chicken")["open"]
+        self.assertNotIn("NETTO", found)
+        self.assertEqual(found["LIDL"]["product"], "Hähnchen Brustfilet")
+        self.assertIn("NETTO", openprices.lookup("Pablo Pastete Huhn"))  # asked for by name: shown
+
     def test_organic_only_with_organic(self):
         self.assertEqual(list(trip.resolve("bio milk")["open"]), ["REWE"])
 
