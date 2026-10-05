@@ -22,9 +22,13 @@ wait_for() {
   adb exec-out screencap -p > emulator.png
   return 1
 }
+# Tap the element showing this text; scroll down first while it is below the screen.
 tap() {
-  dump > ui.xml
-  python3 - "$1" <<'PY' | { read -r x y; adb shell input tap "$x" "$y"; }
+  local h
+  h=$(adb shell wm size | grep -o '[0-9]*x[0-9]*' | tail -1 | cut -dx -f2)
+  for _ in 1 2 3 4 5 6; do
+    dump > ui.xml
+    read -r x y < <(python3 - "$1" <<'PY'
 import re, sys, xml.etree.ElementTree as ET
 want = sys.argv[1]
 for n in ET.parse('ui.xml').iter('node'):
@@ -35,10 +39,21 @@ for n in ET.parse('ui.xml').iter('node'):
 else:
     print(0, 0)
 PY
+)
+    if [ "$y" -gt 0 ] && [ "$y" -lt $((h * 85 / 100)) ]; then
+      echo "Tap \"$1\" at $x,$y"
+      adb shell input tap "$x" "$y"
+      return 0
+    fi
+    adb shell input swipe $((h / 4)) $((h * 3 / 4)) $((h / 4)) $((h / 4)) 300
+    sleep 1
+  done
+  echo "::error::Could not tap: $1"
+  return 1
 }
 
 wait_for "Welcome to SalesPlan" || exit 1
-tap "Try it with sample data"
+tap "Try it with sample data" || exit 1
 wait_for "Checked: placed" || exit 1
 adb exec-out screencap -p > emulator.png
 echo "The app works: sample plan calculated and checked."

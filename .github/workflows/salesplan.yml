@@ -105,6 +105,7 @@ jobs:
           api-level: 34
           target: google_apis
           arch: x86_64
+          profile: pixel_6
           disable-animations: true
           script: bash salesplan/android/smoke-test.sh salesplan.apk
       - uses: actions/upload-artifact@v4
