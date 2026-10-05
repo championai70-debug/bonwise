@@ -6,9 +6,13 @@
 //    segment, features (tags), new or replacing an article. Target: log(1 + units next season).
 // 2. Backtest: trained on older seasons, tested on the latest season it has not seen, compared with the
 //    simple rule "same as last season". The model is only used when it is better.
-// 3. Customer layer: pooled prediction × this customer's share of the article. The share is smoothed
-//    toward the customer's share of the segment, so customers with little history get the brand-wide
-//    picture and customers with a lot of history get their own pattern (empirical Bayes shrinkage).
+// 3. Per customer, two candidates are tested on that customer's real sales in the unseen season:
+//    a) "shared": the pooled prediction × this customer's share of the article. The share is smoothed
+//       toward the customer's share of the segment, so customers with little history get the
+//       brand-wide picture and customers with a lot of history get their own pattern (empirical Bayes).
+//    b) "own": a model trained on this customer's history only (when there is enough of it).
+//    The better one is used; if neither beats "same as last season", that rule is used.
+// There is no pre-trained model: every model is trained here, from the user's own data, when asked.
 
 import { segKey, SIMILAR_MIN } from './engine.js';
 
@@ -158,7 +162,7 @@ function makeFeaturizer(rows, catalog) {
   }));
   const names = [
     'Units last season', 'Units two seasons ago', 'Sell-through last season', 'Repeat rate last season', 'Trend',
-    'Price', 'Price vs segment', 'Replaces an article', 'Based on a look-alike', 'New article', 'Seasons on sale',
+    'Price vs segment', 'Replaces an article', 'Based on a look-alike', 'New article', 'Seasons on sale',
     ...segs.map((s) => `Segment: ${s}`), ...tags.map((t) => `Feature: ${t}`),
   ];
   const idsBySeg = new Map();
@@ -205,7 +209,6 @@ function makeFeaturizer(rows, catalog) {
       L1 && L1.st !== null ? L1.st : -1,
       L1 && L1.repeat !== null ? L1.repeat : -1,
       L1 && L2 ? log1p(L1.units) - log1p(L2.units) : 0,
-      x.price > 0 ? Math.log(x.price) : -1,
       x.price > 0 && segMedian.get(x.segment) ? x.price / segMedian.get(x.segment) : -1,
       fromPred,
       fromAlike,
@@ -359,8 +362,8 @@ export function spearman(a, b) {
   return da > 0 && db > 0 ? num / Math.sqrt(da * db) : null;
 }
 
-/** Share of the real top-k sellers that are also in the predicted top k. */
-export function topHit(pred, actual, k = 10) {
+/** Share of the real top-k sellers that are also in the predicted top k (k = top third, max 10). */
+export function topHit(pred, actual, k = Math.max(1, Math.min(10, Math.round(pred.length / 3)))) {
   const kk = Math.min(k, pred.length);
   if (!kk) return null;
   const top = (v) => new Set(v.map((x, i) => [x, i]).sort((a, b) => b[0] - a[0]).slice(0, kk).map(([, i]) => i));
@@ -380,7 +383,7 @@ function score(items) {
     const a = list.map((x) => x.actual);
     const r = spearman(p, a);
     if (r !== null) { rho += r * list.length; rhoW += list.length; }
-    const h = topHit(p, a, 10);
+    const h = topHit(p, a);
     if (h !== null && list.length > 3) { hit += h * list.length; hitW += list.length; }
     for (const x of list) { ape += Math.abs(x.pred - x.actual); apeW += x.actual; }
   }
@@ -433,7 +436,9 @@ export const MIN_TRAIN_ROWS = 30;
 
 /**
  * Learn from history and predict next season's units for every catalogue article.
- * Returns { status, used, seasons, nextAfter, trainRows, backtest, importance, customer, predictions, notes }.
+ * Returns { status, method, seasons, nextAfter, trainRows, ownRows, backtest, importance, customer, predictions, notes }.
+ *   method: 'shared' (model on all customers, adjusted to this customer), 'own' (model on this customer's
+ *           history only) or 'rule'; with a customer, both models are tested and the better one is used.
  *   status: 'model' (tested model used), 'rule' (model not better, "same as last season" used),
  *           'untested' (too few seasons to test; model and rule averaged), 'none' (not enough data)
  */
@@ -468,50 +473,77 @@ export function learn(historyRows, catalog, { customer = '', onProgress = null }
     return x[0] >= 0 ? expm1(x[0]) : null;
   };
   let trees = 120;
+  let ownTrees = 120;
   let tested = false;
-  let modelWins = true;
+  let method = 'shared'; // 'shared' (all customers, adjusted), 'own' (this customer only) or 'rule'
+  const cAgg = cust ? aggregate(rows, cust) : null;
+  // Examples from this customer's own history only (for the customer's own model).
+  const exOwn = [];
+  if (cust) {
+    for (const key of cAgg.keys()) {
+      const [id, season] = key.split('\u0000');
+      const t = fz.sIndex.get(season);
+      if (t < 1) continue;
+      exOwn.push({ id, t, x: features(cAgg, id, t), y: log1p(cAgg.get(key).units), seg: info(id).segment });
+    }
+  }
 
   // Backtest on the latest season, if there is an earlier season to learn from.
   const trainEx = ex.filter((e) => e.t < lastT);
   const valEx = ex.filter((e) => e.t === lastT);
   if (trainEx.length >= MIN_TRAIN_ROWS && valEx.length >= 5) {
     const m = trainGBM(trainEx.map((e) => e.x), trainEx.map((e) => e.y), {
-      valX: valEx.map((e) => e.x), valY: valEx.map((e) => e.y), trees: 300, onTree: (k) => onProgress?.(k / 600),
+      valX: valEx.map((e) => e.x), valY: valEx.map((e) => e.y), trees: 300, onTree: (k) => onProgress?.(k / 900),
     });
     trees = Math.max(20, m.bestIter);
     // Segment middle values from the training seasons for articles the rule cannot handle.
     const segMid = new Map();
     for (const e of trainEx) { if (!segMid.has(e.seg)) segMid.set(e.seg, []); segMid.get(e.seg).push(expm1(e.y)); }
     const mid = (seg) => { const v = (segMid.get(seg) || [0]).sort((a, b) => a - b); return v[v.length >> 1]; };
-    let items;
-    let base;
+    const results = {};
     if (cust) {
       const before = seasons.slice(Math.max(0, lastT - 2), lastT);
       const cs = customerShares(rows, cust, before, info);
-      const cAgg = aggregate(rows, cust);
-      items = []; base = [];
-      for (const e of valEx) {
-        const actual = cAgg.get(`${e.id}\u0000${seasons[lastT]}`)?.units || 0;
-        const pooled = expm1(predictGBM(m, e.x));
-        items.push({ seg: e.seg, pred: pooled * cs.share(e.id, info(e.id).predecessor), actual });
+      const actual = (e) => cAgg.get(`${e.id}\u0000${seasons[lastT]}`)?.units || 0;
+      results.shared = score(valEx.map((e) => ({ seg: e.seg, pred: expm1(predictGBM(m, e.x)) * cs.share(e.id, info(e.id).predecessor), actual: actual(e) })));
+      results.rule = score(valEx.map((e) => {
         const own = ruleUnits(e.id, lastT, cAgg);
-        base.push({ seg: e.seg, pred: own ?? (ruleUnits(e.id, lastT) ?? mid(e.seg)) * cs.overall, actual });
+        return { seg: e.seg, pred: own ?? (ruleUnits(e.id, lastT) ?? mid(e.seg)) * cs.overall, actual: actual(e) };
+      }));
+      // A model that learns from this customer's history alone, if there is enough of it.
+      const ownTrain = exOwn.filter((e) => e.t < lastT);
+      const ownVal = exOwn.filter((e) => e.t === lastT);
+      if (ownTrain.length >= MIN_TRAIN_ROWS && ownVal.length >= 5) {
+        const mo = trainGBM(ownTrain.map((e) => e.x), ownTrain.map((e) => e.y), {
+          valX: ownVal.map((e) => e.x), valY: ownVal.map((e) => e.y), trees: 300, onTree: (k) => onProgress?.(1 / 3 + k / 900),
+        });
+        ownTrees = Math.max(20, mo.bestIter);
+        results.own = score(valEx.map((e) => ({ seg: e.seg, pred: expm1(predictGBM(mo, features(cAgg, e.id, lastT))), actual: actual(e) })));
+      } else {
+        notes.push(`${cust} has too little history of its own for a separate model (${exOwn.length} examples), so the model learns from all customers and adjusts to ${cust}.`);
       }
     } else {
-      items = valEx.map((e) => ({ seg: e.seg, pred: expm1(predictGBM(m, e.x)), actual: expm1(e.y) }));
-      base = valEx.map((e) => ({ seg: e.seg, pred: ruleUnits(e.id, lastT) ?? mid(e.seg), actual: expm1(e.y) }));
+      results.shared = score(valEx.map((e) => ({ seg: e.seg, pred: expm1(predictGBM(m, e.x)), actual: expm1(e.y) })));
+      results.rule = score(valEx.map((e) => ({ seg: e.seg, pred: ruleUnits(e.id, lastT) ?? mid(e.seg), actual: expm1(e.y) })));
     }
-    const sm = score(items);
-    const sb = score(base);
-    out.backtest = { season: seasons[lastT], articles: valEx.length, model: sm, rule: sb, trees };
+    // Pick the method that predicted the unseen season best: ranking first, then units error.
+    const better = (a, b) => (a.spearman ?? -1) > (b.spearman ?? -1) + 0.02
+      || ((a.spearman ?? -1) >= (b.spearman ?? -1) - 0.02 && (a.error ?? 9) < (b.error ?? 9));
+    method = 'shared';
+    if (results.own && better(results.own, results.shared)) method = 'own';
+    if (!better(results[method], results.rule)) method = 'rule';
+    out.backtest = { season: seasons[lastT], articles: valEx.length, model: results.shared, own: results.own || null, rule: results.rule, trees };
     tested = true;
-    modelWins = (sm.spearman ?? -1) > (sb.spearman ?? -1) + 0.01 || ((sm.spearman ?? -1) >= (sb.spearman ?? -1) - 0.01 && (sm.error ?? 9) < (sb.error ?? 9));
   } else {
     notes.push('Three or more seasons are needed to test the model on a season it has not seen.');
   }
 
   // Final model on all seasons, then predict the next season for every article in the list.
-  const model = trainGBM(ex.map((e) => e.x), ex.map((e) => e.y), { trees, onTree: (k) => onProgress?.(0.5 + k / (2 * trees)) });
+  const useOwn = method === 'own';
+  const finalEx = useOwn ? exOwn : ex;
+  const model = trainGBM(finalEx.map((e) => e.x), finalEx.map((e) => e.y), {
+    trees: useOwn ? ownTrees : trees, onTree: (k) => onProgress?.(2 / 3 + k / (3 * (useOwn ? ownTrees : trees))),
+  });
   const total = model.gain.reduce((s, g) => s + g, 0) || 1;
   out.importance = fz.names.map((name, i) => ({ name, share: model.gain[i] / total }))
     .filter((x) => x.share > 0.005).sort((a, b) => b.share - a.share).slice(0, 8);
@@ -519,25 +551,29 @@ export function learn(historyRows, catalog, { customer = '', onProgress = null }
   const T = seasons.length; // the season after the last one in the history
   const recent = seasons.slice(Math.max(0, T - 2));
   const cs = cust ? customerShares(rows, cust, recent, info) : null;
-  const cAgg = cust ? aggregate(rows, cust) : null;
   const segMidAll = new Map();
   for (const e of ex) { if (!segMidAll.has(e.seg)) segMidAll.set(e.seg, []); segMidAll.get(e.seg).push(expm1(e.y)); }
   const midAll = (seg) => { const v = (segMidAll.get(seg) || [0]).sort((a, b) => a - b); return v[v.length >> 1]; };
   for (const a of catalog) {
-    const x = features(agg, a.id, T);
-    const pooledModel = expm1(predictGBM(model, x));
     let rule = ruleUnits(a.id, T);
     if (cust) {
       const own = ruleUnits(a.id, T, cAgg);
       rule = own ?? (rule ?? midAll(info(a.id).segment)) * cs.overall;
     } else rule = rule ?? midAll(info(a.id).segment);
-    const modelUnits = cust ? pooledModel * cs.share(a.id, a.predecessor) : pooledModel;
+    let modelUnits;
+    if (useOwn) modelUnits = expm1(predictGBM(model, features(cAgg, a.id, T)));
+    else {
+      const pooled = expm1(predictGBM(model, features(agg, a.id, T)));
+      modelUnits = cust ? pooled * cs.share(a.id, a.predecessor) : pooled;
+    }
     let units;
     if (!tested) units = (modelUnits + rule) / 2;
-    else units = modelWins ? modelUnits : rule;
+    else units = method === 'rule' ? rule : modelUnits;
     out.predictions[a.id] = Math.max(0, Math.round(units * 10) / 10);
   }
-  out.status = !tested ? 'untested' : modelWins ? 'model' : 'rule';
+  out.status = !tested ? 'untested' : method === 'rule' ? 'rule' : 'model';
+  out.method = tested ? method : 'shared';
+  out.ownRows = exOwn.length;
   if (cust) out.customer = { name: cust, share: cs.overall, units: cs.units };
   return out;
 }

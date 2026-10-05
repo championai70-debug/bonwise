@@ -1,83 +1,79 @@
-// Sample data so people can try the app before importing their own. Made-up articles.
+// Example data so people can try the app before using their own: a made-up food wholesaler that
+// supplies four kinds of shops. Nothing here is real data.
 
 const rows = [
-  // id, name, segment, asp, pack, moq, supply, lastUnits, sellIn, sellOut, openStock, repeat, predecessor, tags
-  ['FB-101', 'Pro Speed boot', 'Football', 120, 1, 200, 30000, 21000, 22000, 19400, 1500, 0.42, '', 'boot;firm ground;speed'],
-  ['FB-102', 'Classic Court shoe', 'Football', 110, 1, 200, null, 17500, 18000, 15900, 1200, 0.38, '', 'lifestyle;leather;classic'],
-  ['FB-103', 'Home jersey 26/27', 'Football', 59.9, 1, 100, null, null, null, null, null, null, 'FB-113', 'jersey;home;replica'],
-  ['FB-104', 'Match shorts', 'Football', 40, 1, 100, null, 26000, 27000, 22400, 2600, 0.31, '', 'shorts;match'],
-  ['FB-105', 'Control boot', 'Football', 95, 1, 100, null, 9800, 11000, 8100, 900, 0.29, '', 'boot;firm ground;control'],
-  ['FB-106', 'Junior boot', 'Football', 55, 1, 100, null, 12100, 13000, 10500, 800, 0.24, '', 'boot;junior;firm ground'],
-  ['FB-107', 'Training ball', 'Football', 25, 6, 120, null, 30500, 32000, 27800, 3000, 0.36, '', 'ball;training'],
-  ['FB-108', 'Match ball', 'Football', 140, 1, 50, 6000, 4300, 4500, 4100, 200, 0.18, '', 'ball;match;premium'],
-  ['FB-109', 'Goalkeeper gloves', 'Football', 65, 1, 50, null, 5200, 6000, 4100, 700, 0.27, '', 'gloves;goalkeeper'],
-  ['FB-110', 'Shin guards', 'Football', 22, 10, 200, null, 18400, 20000, 15200, 2500, 0.22, '', 'protection;shin'],
-  ['FB-111', 'Club socks (3 pack)', 'Football', 15, 12, 240, null, 40200, 42000, 37100, 4100, 0.48, '', 'socks;club'],
-  ['FB-112', 'Speed boot – new colour', 'Football', 125, 1, 200, null, null, null, null, null, null, '', 'boot;firm ground;speed;new colour'],
-  ['FB-113', 'Home jersey 25/26', 'Football', 59.9, 1, 100, null, 28800, 30000, 26500, 900, 0.21, '', 'jersey;home;replica'],
-  ['RN-201', 'Cloud runner', 'Running', 140, 1, 100, null, 15800, 16500, 14900, 1100, 0.44, '', 'shoe;cushioned;road'],
-  ['RN-202', 'Tempo racer', 'Running', 160, 1, 50, 8000, 6100, 6500, 5900, 300, 0.33, '', 'shoe;race;carbon'],
-  ['RN-203', 'Trail grip', 'Running', 130, 1, 50, null, 5200, 6000, 4300, 600, 0.29, '', 'shoe;trail'],
-  ['RN-204', 'Daily trainer', 'Running', 100, 1, 100, null, 19600, 21000, 17300, 1900, 0.39, '', 'shoe;daily;road'],
-  ['RN-205', 'Run tee', 'Running', 30, 6, 120, null, 24800, 26000, 20500, 2400, 0.26, '', 'tee;apparel'],
-  ['RN-206', 'Run shorts', 'Running', 35, 6, 120, null, 18300, 20000, 15100, 2200, 0.24, '', 'shorts;apparel'],
-  ['RN-207', 'Rain jacket', 'Running', 90, 1, 50, null, 4100, 5000, 3000, 900, 0.17, '', 'jacket;apparel;rain'],
-  ['RN-208', 'Cloud runner 2', 'Running', 145, 1, 100, null, null, null, null, null, null, 'RN-201', 'shoe;cushioned;road'],
-  ['RN-209', 'Running socks', 'Running', 14, 12, 240, null, 22100, 24000, 20500, 2200, 0.5, '', 'socks'],
-  ['TR-301', 'Gym trainer', 'Training', 90, 1, 100, null, 14200, 15000, 12800, 1300, 0.34, '', 'shoe;gym'],
-  ['TR-302', 'Training tights', 'Training', 45, 6, 120, null, 21500, 23000, 19600, 2000, 0.41, '', 'tights;apparel'],
-  ['TR-303', 'Hoodie', 'Training', 70, 1, 100, null, 16400, 17500, 14100, 1700, 0.3, '', 'hoodie;apparel'],
-  ['TR-304', 'Track pants', 'Training', 60, 1, 100, null, 15200, 16000, 13200, 1500, 0.32, '', 'pants;apparel'],
-  ['TR-305', 'Sports bra', 'Training', 40, 6, 120, null, 17800, 19000, 16500, 1300, 0.46, '', 'bra;apparel'],
-  ['TR-306', 'Gym bag', 'Training', 50, 1, 50, null, 6200, 7000, 4900, 900, 0.12, '', 'bag;accessory'],
-  ['TR-307', 'Yoga mat', 'Training', 35, 4, 80, null, 5800, 6500, 4400, 900, 0.15, '', 'mat;accessory'],
-  ['TR-308', 'Water bottle', 'Training', 15, 12, 240, null, 14600, 16000, 12900, 1800, 0.21, '', 'bottle;accessory'],
-  ['OR-401', 'Retro court sneaker', 'Originals', 100, 1, 200, null, 16800, 17500, 16200, 900, 0.37, '', 'sneaker;retro;leather'],
-  ['OR-402', 'Terrace classic', 'Originals', 110, 1, 200, 12000, 12900, 13500, 13100, 400, 0.4, '', 'sneaker;retro;suede'],
-  ['OR-403', 'Track top', 'Originals', 80, 1, 100, null, 9100, 10000, 8000, 900, 0.28, '', 'jacket;apparel;retro'],
-  ['OR-404', 'Logo tee', 'Originals', 35, 6, 120, null, 15400, 17000, 12600, 2200, 0.23, '', 'tee;apparel'],
-  ['OR-405', 'Bucket hat', 'Originals', 30, 6, 60, null, 4300, 5000, 3200, 700, 0.11, '', 'hat;accessory'],
-  ['OR-406', 'Retro runner', 'Originals', 120, 1, 100, null, 7600, 8500, 6400, 1000, 0.26, '', 'sneaker;retro;runner'],
-  ['OR-407', 'Platform sneaker', 'Originals', 115, 1, 100, null, null, null, null, null, null, '', 'sneaker;retro;leather;platform'],
+  // id, name, segment, price, pack, moq, supply, lastUnits, sellIn, sellOut, openStock, repeat, predecessor, tags
+  ['DA-101', 'Whole milk 1 L', 'Dairy', 0.95, 12, 600, null, 310000, 320000, 301000, 9000, 0.62, '', 'milk;fresh;everyday'],
+  ['DA-102', 'Greek yogurt 500 g', 'Dairy', 2.1, 6, 300, null, 120000, 126000, 112000, 6000, 0.48, '', 'yogurt;fresh;protein'],
+  ['DA-103', 'Butter 250 g', 'Dairy', 2.4, 20, 400, null, 140000, 146000, 133000, 5000, 0.55, '', 'butter;everyday;baking'],
+  ['DA-104', 'Mature cheddar 200 g', 'Dairy', 2.9, 10, 200, null, 90000, 96000, 82000, 5000, 0.41, '', 'cheese;everyday'],
+  ['DA-105', 'Oat drink 1 L', 'Dairy', 1.8, 8, 240, null, 70000, 74000, 66000, 3000, 0.44, '', 'oat;plant-based;organic'],
+  ['DA-106', 'Vanilla ice cream 900 ml', 'Dairy', 3.5, 6, 120, 60000, 95000, 100000, 91000, 4000, 0.3, '', 'ice cream;frozen'],
+  ['DA-107', 'Oat drink barista 1 L', 'Dairy', 2.1, 8, 240, null, null, null, null, null, null, 'DA-105', 'oat;plant-based;organic;barista'],
+  ['BK-201', 'Sourdough loaf 750 g', 'Bakery', 3.2, 8, 80, null, 85000, 90000, 80000, 2000, 0.38, '', 'bread;fresh;sourdough'],
+  ['BK-202', 'Wholegrain toast 500 g', 'Bakery', 1.6, 10, 200, null, 160000, 168000, 151000, 4000, 0.46, '', 'bread;toast;wholegrain'],
+  ['BK-203', 'Butter croissants, 4 pack', 'Bakery', 2.3, 12, 240, null, 110000, 118000, 101000, 3000, 0.33, '', 'pastry;breakfast'],
+  ['BK-204', 'Rye bread 500 g', 'Bakery', 1.9, 10, 100, null, 60000, 64000, 55000, 2000, 0.35, '', 'bread;rye;wholegrain'],
+  ['BK-205', 'Pretzel rolls, 6 pack', 'Bakery', 1.7, 12, 120, null, 75000, 80000, 69000, 3000, 0.29, '', 'rolls;snack bread'],
+  ['BK-206', 'Christmas stollen 750 g', 'Bakery', 6.9, 6, 60, 30000, 2000, 2400, 1900, 300, 0.15, '', 'cake;christmas'],
+  ['BK-207', 'Spelt sourdough 750 g', 'Bakery', 3.6, 8, 80, null, null, null, null, null, null, '', 'bread;fresh;sourdough;spelt'],
+  ['SN-301', 'Salted crisps 150 g', 'Snacks', 1.49, 12, 240, null, 200000, 210000, 190000, 6000, 0.4, '', 'crisps;salty'],
+  ['SN-302', 'Paprika crisps 150 g', 'Snacks', 1.49, 12, 240, null, 150000, 158000, 141000, 5000, 0.37, '', 'crisps;salty;paprika'],
+  ['SN-303', 'Tortilla chips 200 g', 'Snacks', 1.79, 12, 120, null, 90000, 96000, 83000, 4000, 0.31, '', 'chips;salty;party'],
+  ['SN-304', 'Dark chocolate 100 g', 'Snacks', 1.99, 20, 200, null, 120000, 126000, 113000, 5000, 0.52, '', 'chocolate;sweet'],
+  ['SN-305', 'Protein bar 60 g', 'Snacks', 1.69, 24, 240, null, 80000, 84000, 77000, 2000, 0.45, '', 'bar;protein;on-the-go'],
+  ['SN-306', 'Salted peanuts 200 g', 'Snacks', 1.59, 12, 120, null, 70000, 75000, 64000, 3000, 0.34, '', 'nuts;salty;party'],
+  ['BV-401', 'Sparkling water 1.5 L', 'Drinks', 0.59, 6, 600, null, 420000, 430000, 412000, 9000, 0.66, '', 'water;drinks'],
+  ['BV-402', 'Apple juice 1 L', 'Drinks', 1.39, 6, 300, null, 160000, 168000, 151000, 5000, 0.43, '', 'juice;drinks'],
+  ['BV-403', 'Iced tea peach 0.5 L', 'Drinks', 1.19, 12, 240, null, 180000, 186000, 173000, 4000, 0.36, '', 'iced tea;drinks;on-the-go'],
+  ['BV-404', 'Cola 1.5 L', 'Drinks', 1.29, 6, 300, null, 240000, 248000, 229000, 6000, 0.5, '', 'cola;drinks;party'],
+  ['BV-405', 'Cold brew coffee 250 ml', 'Drinks', 2.29, 12, 120, null, 50000, 54000, 48000, 1500, 0.39, '', 'coffee;drinks;on-the-go'],
+  ['BV-406', 'Orange juice 1 L (old recipe)', 'Drinks', 1.49, 6, 300, null, 130000, 136000, 122000, 5000, 0.41, '', 'juice;drinks'],
+  ['BV-407', 'Orange juice, not from concentrate 1 L', 'Drinks', 1.79, 6, 300, null, null, null, null, null, null, 'BV-406', 'juice;drinks;premium'],
 ];
 
 export const SAMPLE = {
   articles: rows.map(([id, name, segment, asp, pack, moq, supply, lastUnits, sellIn, sellOut, openStock, repeatRate, predecessor, tags]) => ({
     id, name, segment, asp, pack, moq, supply, lastUnits, sellIn, sellOut, openStock, repeatRate, predecessor, tags,
-    // last season's jersey is sold out and replaced by the new one
-    active: id !== 'FB-113',
+    // the old orange juice is replaced by the new recipe
+    active: id !== 'BV-406',
   })),
   plan: {
-    customer: 'City Sports (sample)',
-    season: 'Spring/Summer 2027',
+    customer: 'FreshMart (example)',
+    season: 'Winter 2026/27',
     budgetMode: 'growth',
-    lastSeason: 27272727.27,
-    growthPct: 10,
-    budget: 30000000,
+    lastSeason: 0, // set below: FreshMart's sales in the last winter
+    growthPct: 5,
+    budget: 0,
+    historyCustomer: 'FreshMart',
     segments: [
-      { name: 'Football', pct: 40 },
-      { name: 'Running', pct: 25 },
-      { name: 'Training', pct: 20 },
-      { name: 'Originals', pct: 15 },
+      { name: 'Dairy', pct: 30 },
+      { name: 'Bakery', pct: 20 },
+      { name: 'Snacks', pct: 25 },
+      { name: 'Drinks', pct: 25 },
     ],
   },
 };
 
-// ---------- sample sales history: 6 seasons × 4 customers, made up but with real patterns ----------
-// Retro and speed styles grow, classics shrink, warm clothes sell more in autumn/winter, and each
-// customer has its own taste (City Sports, a big chain: running and retro; Sport Max: football boots; Run Lab: road
-// and trail shoes). The model should find these patterns; "same as last season" cannot.
+// ---------- example sales history: 6 half-year seasons × 4 customers ----------
+// Made up, but with patterns a real wholesaler sees, so the model has something to learn:
+// - summer vs winter: ice cream, iced tea and water sell in summer; chocolate, stollen, butter in winter
+// - trends: plant-based, protein and cold brew grow; cola shrinks
+// - each customer has its own taste: FreshMart (big supermarket chain) buys everything; Green Basket
+//   (organic shops) buys organic, plant-based and wholegrain; Quick Stop (kiosks and petrol stations)
+//   buys drinks and snacks to go; Corner Shops buy everyday basics.
+// "Same as last season" cannot see these patterns; a model that learns from several seasons can.
 
-const SEASONS = ['FW23', 'SS24', 'FW24', 'SS25', 'FW25', 'SS26'];
+export const SAMPLE_SEASONS = ['Winter 2023/24', 'Summer 2024', 'Winter 2024/25', 'Summer 2025', 'Winter 2025/26', 'Summer 2026'];
 const CUSTOMERS = {
-  'City Sports': { size: 2.2, share: { Football: 0.22, Running: 0.45, Training: 0.35, Originals: 0.38 }, likes: { retro: 1.4, cushioned: 1.2, junior: 0.6 } },
-  'Sport Max': { share: { Football: 0.55, Running: 0.2, Training: 0.3, Originals: 0.22 }, likes: { boot: 1.3, ball: 1.2, retro: 0.7 } },
-  'Run Lab': { share: { Football: 0.05, Running: 0.3, Training: 0.15, Originals: 0.1 }, likes: { road: 1.5, trail: 1.6, apparel: 0.6 } },
-  'Web Shop': { share: { Football: 0.18, Running: 0.05, Training: 0.2, Originals: 0.3 }, likes: { accessory: 1.4, tee: 1.2 } },
+  FreshMart: { size: 2.5, share: { Dairy: 0.35, Bakery: 0.3, Snacks: 0.32, Drinks: 0.33 }, likes: {} },
+  'Green Basket': { share: { Dairy: 0.12, Bakery: 0.15, Snacks: 0.05, Drinks: 0.06 }, likes: { organic: 2, 'plant-based': 1.8, wholegrain: 1.6, sourdough: 1.4, cola: 0.2, crisps: 0.4 } },
+  'Quick Stop': { share: { Dairy: 0.08, Bakery: 0.1, Snacks: 0.3, Drinks: 0.38 }, likes: { 'on-the-go': 1.8, drinks: 1.2, salty: 1.2, bread: 0.4, butter: 0.3 } },
+  'Corner Shops': { share: { Dairy: 0.2, Bakery: 0.2, Snacks: 0.18, Drinks: 0.2 }, likes: { everyday: 1.2 } },
 };
-const STARTS = { 'RN-202': 2, 'RN-203': 1, 'OR-406': 3 }; // launched later
-const TREND = { retro: 1.12, speed: 1.1, carbon: 1.1, cushioned: 1.06, classic: 0.9, junior: 0.97, rain: 0.95 };
-const WINTER = { hoodie: 1.4, pants: 1.3, jacket: 1.45, gloves: 1.3, tights: 1.15, shorts: 0.7, tee: 0.75, bra: 0.9, bottle: 0.8 };
+const STARTS = { 'SN-305': 2, 'BV-405': 3 }; // launched later
+const TREND = { 'plant-based': 1.12, protein: 1.1, coffee: 1.18, cola: 0.95, toast: 0.97 };
+const WINTER = { 'ice cream': 0.3, 'iced tea': 0.45, water: 0.65, coffee: 0.8, chocolate: 1.5, christmas: 12, butter: 1.25, juice: 1.15, party: 1.2 };
 
 function rng(seed) {
   let a = seed >>> 0;
@@ -97,26 +93,35 @@ export function sampleHistory() {
   for (const a of SAMPLE.articles) {
     if (a.lastUnits === null) continue; // new articles have no history
     const tags = String(a.tags).split(';');
-    const trend = tags.reduce((m, t) => m * (TREND[t] || 1), 1) * (0.97 + 0.06 * rand());
+    const trend = tags.reduce((m, t) => m * (TREND[t] || 1), 1) * (0.98 + 0.04 * rand());
     const winter = tags.reduce((m, t) => m * (WINTER[t] || 1), 1);
-    const st = a.sellOut && a.sellIn ? a.sellOut / (a.sellIn + (a.openStock || 0)) : 0.75;
-    SEASONS.forEach((season, t) => {
+    const st = a.sellOut && a.sellIn ? a.sellOut / (a.sellIn + (a.openStock || 0)) : 0.9;
+    SAMPLE_SEASONS.forEach((season, t) => {
       if (t < (STARTS[a.id] ?? 0)) return;
       const ramp = STARTS[a.id] !== undefined && t === STARTS[a.id] ? 0.6 : 1;
-      const total = a.lastUnits * trend ** (t - 5) * (season.startsWith('FW') ? winter : 1) * ramp;
+      const total = a.lastUnits * trend ** (t - 5) * (season.startsWith('Winter') ? winter : 1) * ramp;
       for (const [customer, c] of Object.entries(CUSTOMERS)) {
         const like = tags.reduce((m, tg) => m * (c.likes[tg] || 1), 1);
-        const units = Math.round(total * c.share[a.segment] * like * (c.size || 1) * noise(0.12));
+        const units = Math.round(total * c.share[a.segment] * like * (c.size || 1) * noise(0.1));
         if (units <= 0) continue;
         out.push({
           season, id: a.id, customer, units, sellIn: units,
-          sellOut: Math.round(units * Math.min(1, st * noise(0.06))),
-          openStock: Math.round(units * 0.08),
-          repeatRate: Math.round(Math.min(1, (a.repeatRate || 0.2) * noise(0.1)) * 100) / 100,
+          sellOut: Math.round(units * Math.min(1, st * noise(0.04))),
+          openStock: Math.round(units * 0.03),
+          repeatRate: Math.round(Math.min(1, (a.repeatRate || 0.3) * noise(0.08)) * 100) / 100,
           price: a.asp, segment: a.segment, tags: a.tags,
         });
       }
     });
   }
   return out;
+}
+
+// The example budget: FreshMart's sales value last winter, plus 5% growth.
+{
+  const p = SAMPLE.plan;
+  const lastWinter = sampleHistory().filter((r) => r.customer === 'FreshMart' && r.season === 'Winter 2025/26')
+    .reduce((s, r) => s + r.units * r.price, 0);
+  p.lastSeason = Math.round(lastWinter / 1000) * 1000;
+  p.budget = Math.round(p.lastSeason * (1 + p.growthPct / 100) * 100) / 100;
 }

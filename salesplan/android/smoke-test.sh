@@ -52,8 +52,9 @@ PY
   return 1
 }
 
-wait_for "Welcome to SalesPlan" || exit 1
-tap "Try it with sample data" || exit 1
+wait_for "How much should each customer order" || exit 1
+tap "See an example" || exit 1
 wait_for "Checked: placed" || exit 1
+wait_for "Predicted demand" || exit 1
 adb exec-out screencap -p > emulator.png
-echo "The app works: sample plan calculated and checked."
+echo "The app works: example loaded, model trained on the phone, plan calculated and checked."

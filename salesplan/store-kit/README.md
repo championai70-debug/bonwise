@@ -14,7 +14,7 @@ gets. It is built for sales reps, account managers and shop owners of any size.
 
 HOW IT WORKS
 1. Budget and split. Enter the budget, or last season plus growth, and split it across your segments,
-   for example Football 40%, Running 25%, Training 20%, Originals 15%.
+   for example Dairy 30%, Bakery 20%, Snacks 25%, Drinks 25%.
 2. Score the articles. SalesPlan scores every article from last season's sales, sell-through and repeat
    purchase rate, or from your own model's score. You set the weights. New articles borrow the numbers of
    the article they replace or of their closest look-alike.

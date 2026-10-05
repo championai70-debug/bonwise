@@ -95,10 +95,12 @@ function cleanModel(m) {
   }
   const measures = (x) => ({ spearman: num01(x?.spearman), top10: num01(x?.top10), error: num01(x?.error) });
   const bt = m.backtest && typeof m.backtest === 'object'
-    ? { season: str(m.backtest.season, 40), articles: n0(m.backtest.articles), model: measures(m.backtest.model), rule: measures(m.backtest.rule), trees: n0(m.backtest.trees) }
+    ? { season: str(m.backtest.season, 40), articles: n0(m.backtest.articles), model: measures(m.backtest.model), own: m.backtest.own ? measures(m.backtest.own) : null, rule: measures(m.backtest.rule), trees: n0(m.backtest.trees) }
     : null;
   return {
     status: m.status,
+    method: ['shared', 'own', 'rule'].includes(m.method) ? m.method : 'shared',
+    ownRows: n0(m.ownRows),
     at: n0(m.at),
     forCustomer: str(m.forCustomer, 80),
     seasons: (Array.isArray(m.seasons) ? m.seasons : []).slice(0, 60).map((x) => str(x, 40)),
@@ -356,6 +358,16 @@ function homeView() {
         h('h1', null, 'Your plans'),
         h('p', { class: 'muted' }, 'Budget → split → articles → money and units. One plan per customer and season.')),
       h('button', { class: 'btn primary', onclick: newPlan }, icon('plus'), 'New plan')),
+    isExample() ? h('div', { class: 'card info data-note' }, icon('chart', 22), h('div', null,
+      h('b', null, 'This is an example: a made-up food wholesaler.'),
+      h('p', null, 'To plan with your own numbers, import two files in Articles:'),
+      h('ol', { class: 'small' },
+        h('li', null, 'Your article list: article, segment, price (pack size and minimum order if you have them).'),
+        h('li', null, 'Your sales history: season, article, customer, units. The more seasons, the better. With 3 or more, the app can test its predictions.')),
+      h('p', { class: 'small' }, 'Then make a plan for a customer and tap "Train the model". It learns from your data only.'),
+      h('div', { class: 'row gap wrap' },
+        h('a', { class: 'btn small primary', href: '#/catalog' }, icon('upload', 16), 'Use my own data'),
+        h('button', { class: 'btn small ghost', onclick: clearExample }, icon('trash', 16), 'Remove the example')))) : null,
   ]);
   if (!data.settings.tipLockSeen) {
     vault.isLocked().then((locked) => {
@@ -365,7 +377,7 @@ function homeView() {
         h('div', null, h('strong', null, 'Protect your prices and plans'), h('p', null, 'Turn on the app lock. Everything gets encrypted on this phone.')),
         h('div', { class: 'row gap' },
           h('button', { class: 'btn small primary', onclick: () => setLock() }, 'Turn on'),
-          h('button', { class: 'btn small ghost', onclick: () => { data.settings.tipLockSeen = true; touch(); render(); } }, 'Later'))), box.children[1] || null);
+          h('button', { class: 'btn small ghost', onclick: () => { data.settings.tipLockSeen = true; touch(); render(); } }, 'Later'))), null);
     });
   }
   if (!data.catalog.articles.length) {
@@ -396,27 +408,42 @@ function homeView() {
 function welcomeView() {
   return h('section', { class: 'view welcome' },
     h('div', { class: 'welcome-art' }, logo(72)),
-    h('h1', null, `Welcome to ${APP}`),
-    h('p', { class: 'lead' }, 'Turn a customer budget into a clear order: how much money and how many units for every article.'),
+    h('h1', null, 'How much should each customer order?'),
+    h('p', { class: 'lead' }, 'Give a customer\'s budget. Get money and units for every article.'),
     h('ol', { class: 'steps' },
-      h('li', null, h('b', null, 'Budget and split'), h('span', null, 'e.g. 30 million, Football 40%, Running 25%…')),
-      h('li', null, h('b', null, 'Score the articles'), h('span', null, 'last season sales, sell-through, repeat buys, or your own model score')),
-      h('li', null, h('b', null, 'Get money and units'), h('span', null, 'with caps, minimum orders, pack sizes and supply limits'))),
+      h('li', null, h('b', null, 'Budget and split'), h('span', null, 'e.g. €4 million: Dairy 30%, Bakery 20%, Snacks 25%, Drinks 25%')),
+      h('li', null, h('b', null, 'Predict next season'), h('span', null, 'from your past seasons, for this customer')),
+      h('li', null, h('b', null, 'Money and units per article'), h('span', null, 'with pack sizes, minimum orders and stock limits'))),
+    h('div', { class: 'card info data-note' }, icon('chart', 22), h('div', null,
+      h('b', null, 'Predictions need your own sales data.'),
+      h('p', null, 'Import your past seasons: which customer bought how many units of which article. The app learns from that on this phone and predicts the next season. There is no ready-made model.'))),
     h('div', { class: 'stack' },
-      h('button', { class: 'btn primary big', onclick: loadSample }, icon('spark'), 'Try it with sample data'),
-      h('button', { class: 'btn big', onclick: () => go('catalog') }, icon('upload'), 'Start with my own articles')),
+      h('button', { class: 'btn primary big', onclick: loadSample }, icon('spark'), 'See an example (food wholesaler)'),
+      h('button', { class: 'btn big', onclick: () => go('catalog') }, icon('upload'), 'Start with my own data')),
     h('p', { class: 'muted small center' }, icon('shield', 16), ' Your data stays on this device. No account, no cloud, no tracking.'));
 }
 
 async function loadSample() {
   data.catalog = { articles: SAMPLE.articles.map(cleanArticle), source: 'Sample data', updated: Date.now() };
   data.history = { rows: sampleHistory().map(cleanHistoryRow), source: 'Sample sales history', updated: Date.now() };
-  const p = cleanPlan({ ...SAMPLE.plan, id: uid(), rules: data.settings.rules, historyCustomer: 'City Sports', created: Date.now(), updated: Date.now() });
+  const p = cleanPlan({ ...SAMPLE.plan, id: uid(), rules: data.settings.rules, created: Date.now(), updated: Date.now() });
   data.plans.push(p);
   touch();
-  toast('Sample data loaded. Training the model on its sales history…');
+  toast('Example loaded. Training the model on its sales history…');
   await trainModel(p);
   go(`plan/${p.id}/result`);
+}
+
+const isExample = () => data.catalog.source === 'Sample data' || data.history.source === 'Sample sales history';
+
+async function clearExample() {
+  if (!(await confirmBox('Remove the example?', 'The example articles, sales history and example plans are deleted. Your own data stays.', 'Remove', true))) return;
+  if (data.catalog.source === 'Sample data') data.catalog = { articles: [], source: '', updated: Date.now() };
+  if (data.history.source === 'Sample sales history') data.history = { rows: [], source: '', updated: Date.now() };
+  data.plans = data.plans.filter((x) => !/\(example\)|\(sample\)$/.test(x.customer));
+  touch();
+  render();
+  toast('Example removed.');
 }
 
 function catalogSegments() {
@@ -767,8 +794,13 @@ function modelCard(p, redraw) {
     card.append(h('p', null, 'Not trained yet. Training takes a few seconds and stays on this phone.'));
   } else {
     const bt = m.backtest;
+    const who = m.customer ? m.customer.name : 'all customers';
     const head = {
-      model: ['ok', 'Using the model: it predicted better than "same as last season".'],
+      model: ['ok', m.method === 'own'
+        ? `Using a model trained only on ${who}'s own history. It predicted the test season best.`
+        : m.customer
+          ? `Using the model trained on all customers, adjusted to ${who}. It predicted the test season best.`
+          : 'Using the model trained on all customers. It predicted the test season better than "same as last season".'],
       rule: ['bad', 'The model was not better than "same as last season", so last season\'s numbers are used.'],
       untested: ['bad', 'Only two seasons: the model could not be tested yet, so it is averaged with last season.'],
       none: ['bad', 'Not enough history to learn from. Scores use the article list (simple rule).'],
@@ -776,13 +808,16 @@ function modelCard(p, redraw) {
     append(card, [
       h('div', { class: `check ${head[0]}` }, icon(head[0] === 'ok' ? 'check' : 'alert', 18), head[1]),
       modelStale(p) ? h('p', { class: 'error small' }, 'History, articles or customer changed since training. Train again.') : null,
-      bt ? h('div', { class: 'table-wrap' }, h('table', { class: 'small' },
-        h('caption', { class: 'muted' }, `Test: trained without ${bt.season}, then asked to predict it (${bt.articles} articles).`),
-        h('thead', null, h('tr', null, h('th', null, ''), h('th', null, 'Model'), h('th', null, 'Same as last season'))),
-        h('tbody', null,
-          h('tr', null, h('td', null, 'Ranking (1 = perfect order)'), h('td', null, h('b', null, two(bt.model.spearman))), h('td', null, two(bt.rule.spearman))),
-          h('tr', null, h('td', null, 'Real top 10 found'), h('td', null, h('b', null, pct0(bt.model.top10))), h('td', null, pct0(bt.rule.top10))),
-          h('tr', null, h('td', null, 'Units off by'), h('td', null, h('b', null, pct0(bt.model.error))), h('td', null, pct0(bt.rule.error)))))) : null,
+      bt ? h('p', { class: 'muted small' }, `Test: each method learned without ${bt.season}, then predicted it (${bt.articles} articles).`) : null,
+      bt ? h('div', { class: 'table-wrap' }, h('table', { class: 'small compare' },
+        h('thead', null, h('tr', null, h('th', null, 'Method'), h('th', null, 'Ranking', h('small', null, '1 = perfect')), h('th', null, 'Top sellers', h('small', null, 'found')), h('th', null, 'Units', h('small', null, 'off by')))),
+        h('tbody', null, [
+          ['shared', m.customer ? `All customers, adjusted to ${who}` : 'Model, all customers', bt.model],
+          bt.own ? ['own', `${who} only`, bt.own] : null,
+          ['rule', 'Same as last season', bt.rule],
+        ].filter(Boolean).map(([key, label, x]) => h('tr', { class: m.method === key ? 'used' : '' },
+          h('td', null, label, m.method === key ? h('span', { class: 'chip small ok' }, icon('check', 12), 'used') : null),
+          h('td', null, two(x.spearman)), h('td', null, pct0(x.top10)), h('td', null, pct0(x.error))))))) : null,
       m.customer ? h('p', { class: 'small' }, `For ${m.customer.name}: ${pct0(m.customer.share)} of all units in recent seasons. Where they bought a lot, their own pattern counts; where they bought little, the brand-wide picture fills in.`) : null,
       m.notes.map((x) => h('p', { class: 'muted small' }, x)),
       m.importance.length ? h('div', { class: 'importance' }, h('b', { class: 'small' }, 'What the model looks at most'),
@@ -794,9 +829,17 @@ function modelCard(p, redraw) {
         ? h('p', { class: 'muted small' }, 'The model already uses sell-through and repeat buys. ',
           h('button', { class: 'link', onclick: () => { Object.assign(p.rules.weights, { demand: 100, sellThrough: 0, repeat: 0 }); touch(p); redraw(); } }, 'Rank by the prediction only'))
         : null,
-      h('p', { class: 'muted small' }, `Trained ${fmtDateTime(m.at)} on ${fmtNum(m.trainRows)} examples.`),
+      h('p', { class: 'muted small' }, `Trained ${fmtDateTime(m.at)} on this phone, from your own sales history (${fmtNum(hi.rows)} rows) and nothing else.`),
     ]);
   }
+  card.append(h('details', { class: 'how' }, h('summary', null, 'How is this prediction made?'),
+    h('ol', { class: 'small' },
+      h('li', null, 'No ready-made model and no internet data. When you tap "Train", a new model is built on this phone from the sales history you imported.'),
+      h('li', null, 'It learns from earlier seasons how units change from one season to the next: last season, the same season a year before, trend, sell-through, repeat buys, price level, segment and product features.'),
+      h('li', null, 'For this customer it tries two models: one trained on all customers and adjusted to this customer\'s share of each article, and one trained on this customer\'s history alone. It needs at least 30 article-seasons of this customer for the second.'),
+      h('li', null, 'Both are tested on the latest season, which they did not see during training, and compared with "same as last season". The best one is used.'),
+      h('li', null, 'New customers with no history get the all-customers prediction. New articles take the history of the article they replace, or of the closest look-alike.'),
+      h('li', null, 'Train again whenever you add a season or change the customer.'))));
   append(card, [h('div', { class: 'row gap wrap' }, trainBtn), progress]);
   return card;
 }
@@ -1137,19 +1180,19 @@ async function clearHistory() {
 
 function columnsHelp() {
   const rows = [
-    ['id', 'Article number (needed, or a name)', 'FB-101'],
-    ['name', 'Article name', 'Pro Speed boot'],
-    ['segment', 'Category / group (needed)', 'Football'],
-    ['asp', 'Price per unit you sell at (needed)', '120'],
-    ['pack', 'Units per pack or case', '6'],
-    ['moq', 'Minimum order in units', '200'],
-    ['supply', 'Most units available', '30000'],
-    ['last_units', 'Units sold last season', '21000'],
-    ['sell_in / sell_out / open_stock', 'For sell-through', '22000 / 19400 / 1500'],
-    ['repeat_rate', 'Repeat purchase rate', '42% or 0.42'],
+    ['id', 'Article number (needed, or a name)', 'DA-101'],
+    ['name', 'Article name', 'Whole milk 1 L'],
+    ['segment', 'Category / group (needed)', 'Dairy'],
+    ['asp', 'Price per unit you sell at (needed)', '0.95'],
+    ['pack', 'Units per pack or case', '12'],
+    ['moq', 'Minimum order in units', '600'],
+    ['supply', 'Most units available', '500000'],
+    ['last_units', 'Units sold last season', '310000'],
+    ['sell_in / sell_out / open_stock', 'For sell-through', '320000 / 301000 / 9000'],
+    ['repeat_rate', 'Repeat purchase rate', '62% or 0.62'],
     ['ml_score', 'Your own model score or forecast (optional)', '0.87'],
-    ['predecessor', 'Article this one replaces', 'FB-113'],
-    ['tags', 'Features to find look-alikes', 'boot;speed;black'],
+    ['predecessor', 'Article this one replaces', 'DA-105'],
+    ['tags', 'Features to find look-alikes', 'oat;plant-based;organic'],
     ['active', 'no = leave out', 'yes'],
   ];
   return h('details', { class: 'card' },
@@ -1456,7 +1499,7 @@ function helpView() {
   return h('section', { class: 'view stack' },
     h('h1', null, 'How it works'),
     h('ol', { class: 'steps big' },
-      h('li', null, h('b', null, 'Budget and split'), h('span', null, 'Pool per segment = budget × its %. Example: 30 M × 40% = 12 M for Football.')),
+      h('li', null, h('b', null, 'Budget and split'), h('span', null, 'Pool per segment = budget × its %. Example: €4 M × 30% = €1.2 M for Dairy.')),
       h('li', null, h('b', null, 'Score every article'), h('span', null, 'Score = a1 × demand + a2 × sell-through + a3 × repeat buys. Each signal is 0–100 within its segment.')),
       h('li', null, h('b', null, 'Share the pool'), h('span', null, 'Each article gets pool × its score ÷ all scores. Caps, floors, minimum orders and supply limits are applied, and what is freed up is shared again until nothing changes.')),
       h('li', null, h('b', null, 'Money to units'), h('span', null, 'Units = money ÷ price, rounded down to whole packs. Money left from rounding buys one more pack for the articles that lost most.'))),
@@ -1465,9 +1508,11 @@ function helpView() {
       'It learns from your sales history (Articles → Sales history), right on the phone. The model is gradient-boosted decision trees, the same method as XGBoost and LightGBM.',
       'For every article and season it looks at the seasons before: units, sell-through, repeat rate, trend, price, segment and features. It learns how those turn into next season\'s units.',
       'Then it tests itself: it trains without the latest season, predicts it, and compares with the simple rule "same as last season". The model is only used when it is better. The plan shows the test result.'),
-    qa('How is it made for one customer?',
-      'First the model predicts each article for all customers together, because that has the most data. Then it uses this customer\'s share of each article in recent seasons.',
-      'Where the customer bought a lot, their own share counts. Where they bought little, their share of the whole segment fills in.'),
+    qa('Is there a ready-made model?',
+      'No. Nothing is trained in advance and nothing comes from the internet: a general model would not know your products, your customers or your seasons. The app trains a new model on this phone, from the sales history you import, every time you tap "Train".'),
+    qa('Does every customer get their own prediction?',
+      'Yes. Each plan trains for its customer. The app tries two models: one trained on all your customers together and adjusted to this customer\'s share of each article, and one trained only on this customer\'s history.',
+      'Both are tested on the latest season, which they did not see during training. The better one is used. A big customer with a long history often gets their own model. A small customer gets the all-customers model, because a few rows are not enough to learn from.'),
     qa('What if there is no history for a customer?',
       'A new customer gets the brand-wide prediction: the top sellers across all customers, scaled to their budget. After one or two seasons with them, their own pattern takes over.',
       'With no sales history at all, the app says so. It then ranks by the last-season numbers in your article list, which is a rule, not a prediction. Brand-new articles take the numbers of the article they replace, or of their closest look-alike.'),

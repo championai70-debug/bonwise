@@ -43,37 +43,56 @@ test('rank measures', () => {
   assert.equal(topHit([5, 4, 3, 2, 1], [9, 8, 1, 1, 1], 2), 1);
 });
 
-test('sample history: model is tested on the last season and beats "same as last season"', () => {
+test('example history: model is tested on the last season and beats "same as last season"', () => {
   const r = learn(history, catalog);
   assert.equal(r.status, 'model');
-  assert.equal(r.backtest.season, 'SS26');
+  assert.equal(r.backtest.season, 'Summer 2026');
   assert.ok(r.backtest.model.spearman > r.backtest.rule.spearman, JSON.stringify(r.backtest));
   assert.ok(r.backtest.model.error < r.backtest.rule.error);
   for (const a of catalog) assert.ok(Number.isFinite(r.predictions[a.id]) && r.predictions[a.id] >= 0, a.id);
-  assert.equal(r.importance[0].name, 'Units last season');
   // new articles: from predecessor or look-alike, not zero
-  assert.ok(r.predictions['FB-103'] > 10000, 'new jersey from its predecessor');
-  assert.ok(r.predictions['FB-112'] > 5000, 'new boot from its look-alike');
+  assert.ok(r.predictions['BV-407'] > 50000, 'new orange juice from the old recipe');
+  assert.ok(r.predictions['BK-207'] > 10000, 'new spelt sourdough from its look-alike');
 });
 
-test('customer layer: each customer gets its own mix, unknown customers the brand-wide one', () => {
-  const runLab = learn(history, catalog, { customer: 'Run Lab' });
-  const sportMax = learn(history, catalog, { customer: 'Sport Max' });
+test('seasons: winter after summer is predicted from the last winter, not the last summer', () => {
+  const r = learn(history, catalog, { customer: 'FreshMart' });
+  const fm = (id, season) => history.find((h) => h.customer === 'FreshMart' && h.id === id && h.season === season).units;
+  // ice cream: summer high, winter low; stollen: the other way round
+  assert.ok(r.predictions['DA-106'] < fm('DA-106', 'Summer 2026') * 0.6, 'ice cream drops in winter');
+  assert.ok(r.predictions['BK-206'] > fm('BK-206', 'Summer 2026') * 5, 'stollen rises in winter');
+});
+
+test('per customer: both models are tested and each customer gets its own mix', () => {
+  const quick = learn(history, catalog, { customer: 'Quick Stop' });
+  const green = learn(history, catalog, { customer: 'Green Basket' });
   const all = learn(history, catalog);
-  const ratio = (r) => r.predictions['RN-204'] / r.predictions['FB-101'];
-  assert.ok(ratio(runLab) > 5 * ratio(sportMax), 'Run Lab sells running, Sport Max football boots');
-  assert.equal(runLab.customer.name, 'Run Lab');
+  for (const r of [quick, green]) {
+    assert.ok(['shared', 'own', 'rule'].includes(r.method));
+    assert.ok(r.backtest.own, 'own-history model was tested too');
+    assert.ok(r.ownRows >= 30);
+  }
+  const ratio = (r) => r.predictions['DA-105'] / r.predictions['BV-404'];
+  assert.ok(ratio(green) > 5 * ratio(quick), 'organic shops: oat drink; kiosks: cola');
+  assert.equal(quick.customer.name, 'Quick Stop');
   const unknown = learn(history, catalog, { customer: 'Brand new shop' });
-  assert.deepEqual(unknown.predictions, all.predictions);
+  assert.deepEqual(unknown.predictions, all.predictions, 'a customer without history gets the brand-wide prediction');
+  assert.equal(unknown.method, 'shared');
   assert.match(unknown.notes.join(), /No history for "Brand new shop"/);
 });
 
 test('too little history: says so instead of guessing', () => {
   assert.equal(learn([], catalog).status, 'none');
-  const one = history.filter((h) => h.season === 'SS26');
+  const one = history.filter((h) => h.season === 'Summer 2026');
   assert.equal(learn(one, catalog).status, 'none');
-  const two = history.filter((h) => h.season === 'SS26' || h.season === 'FW25');
-  const r2 = learn(two, catalog);
+  const two = history.filter((h) => h.season === 'Summer 2026' || h.season === 'Winter 2025/26');
+  const small = learn(two, catalog);
+  assert.equal(small.status, 'none');
+  assert.match(small.notes.join(), /at least 30 are needed/);
+  // two seasons with enough articles: trained, but it cannot be tested yet
+  const many = [];
+  for (let i = 0; i < 40; i++) for (const [k, season] of ['2025', '2026'].entries()) many.push(cleanHistoryRow({ season, id: `X${i}`, units: 100 + i * 10 + k * 5, segment: 'A', price: 1 + i / 10 }));
+  const r2 = learn(many, many.filter((h) => h.season === '2026').map((h) => cleanArticle({ id: h.id, segment: 'A', asp: h.price })));
   assert.equal(r2.status, 'untested');
   assert.equal(r2.backtest, null);
 });
@@ -88,17 +107,18 @@ test('history file: columns in English or German', () => {
   assert.equal(r.customer, 'Laden Nord');
   assert.deepEqual(rowsToHistory(parseCSV('foo,bar\n1,2\n')).missing, ['season', 'id', 'units']);
   const s = historySummary(history);
-  assert.deepEqual(s.customers, ['City Sports', 'Run Lab', 'Sport Max', 'Web Shop']);
+  assert.deepEqual(s.customers, ['Corner Shops', 'FreshMart', 'Green Basket', 'Quick Stop']);
   assert.equal(s.seasons.length, 6);
 });
 
 test('engine: predictions drive demand and still add up to the cent', () => {
-  const r = learn(history, catalog, { customer: 'City Sports' });
+  const r = learn(history, catalog, { customer: 'FreshMart' });
   const scores = scoreArticles(catalog, { weights: { demand: 1, sellThrough: 0, repeat: 0 } }, r.predictions);
-  const fb = catalog.filter((a) => a.segment === 'Football').sort((a, b) => scores.get(b.id).score - scores.get(a.id).score);
+  const fb = catalog.filter((a) => a.segment === 'Dairy').sort((a, b) => scores.get(b.id).score - scores.get(a.id).score);
   const best = fb[0];
   for (const a of fb) assert.ok(r.predictions[best.id] * best.asp >= r.predictions[a.id] * a.asp - 1e-6);
-  const plan = allocate({ budget: 30000000, segments: SAMPLE.plan.segments, articles: catalog, predictions: r.predictions });
+  const plan = allocate({ budget: SAMPLE.plan.budget, segments: SAMPLE.plan.segments, articles: catalog, predictions: r.predictions });
+  assert.equal(SAMPLE.plan.budget, Math.round(SAMPLE.plan.lastSeason * 105) / 100, 'example budget = last winter + 5%');
   assert.ok(plan.checks.ok);
   assert.ok(plan.segments[0].rows.every((row) => row.predicted !== null));
 });

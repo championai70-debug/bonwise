@@ -396,3 +396,16 @@ th { color: var(--muted); font-weight: 650; font-size: .8rem; }
 button.link { all: unset; color: var(--primary); font-weight: 650; cursor: pointer; text-decoration: underline; }
 button.link:focus-visible { outline: 3px solid var(--focus); }
 .model-card .meter { margin-top: .6rem; }
+.data-note { align-items: flex-start; border: 1px solid color-mix(in srgb, var(--primary) 30%, var(--border)); }
+.data-note .icon { color: var(--primary); margin-top: .1rem; }
+.data-note ol { margin: .3rem 0 .6rem; padding-left: 1.2rem; }
+.data-note p { margin: .3rem 0; }
+.welcome .data-note { margin-bottom: 1rem; }
+details.how { margin-top: .8rem; border-top: 1px solid var(--border); padding-top: .6rem; }
+details.how summary { cursor: pointer; font-weight: 650; color: var(--primary); }
+details.how ol { margin: .5rem 0 0; padding-left: 1.2rem; display: flex; flex-direction: column; gap: .35rem; }
+.compare th small { display: block; font-weight: 500; }
+.compare td:first-child { min-width: 7.5rem; }
+.compare th, .compare td { padding-left: .35rem; padding-right: .35rem; }
+.compare tr.used td { font-weight: 700; }
+.compare tr.used td:first-child .chip { margin-left: .35rem; }

@@ -83,22 +83,22 @@ test('new articles borrow from predecessor, then look-alike, then segment median
   assert.equal(s.get('lonely').source, 'median');
 });
 
-test('allocate: slide example – €30M, 40/25/20/15, every cent accounted for', () => {
+test('allocate: example plan – budget split by segment, every cent accounted for', () => {
   const r = allocate({
     budget: 30000000,
-    segments: [{ name: 'Football', pct: 40 }, { name: 'Running', pct: 25 }, { name: 'Training', pct: 20 }, { name: 'Originals', pct: 15 }],
+    segments: [{ name: 'Dairy', pct: 40 }, { name: 'Bakery', pct: 25 }, { name: 'Snacks', pct: 20 }, { name: 'Drinks', pct: 15 }],
     articles: SAMPLE.articles,
-    rules: { capPct: 20 },
+    rules: { capPct: 30 },
   });
   assert.equal(r.error, null);
-  assert.equal(r.segments[0].poolCents, 1200000000, 'Football pool €12.0M');
+  assert.equal(r.segments[0].poolCents, 1200000000, 'Dairy pool €12.0M = €30M × 40%');
   assert.ok(r.checks.ok, JSON.stringify(r.checks));
   for (const seg of r.segments) {
     assert.equal(seg.placedCents + seg.leftoverCents, seg.poolCents);
     for (const row of seg.rows) {
       assert.equal(row.valueCents, row.units * Math.round(row.asp * 100));
       assert.equal(row.units % row.pack, 0, 'whole packs');
-      assert.ok(row.valueCents <= seg.poolCents * 0.2 + 1, 'cap respected');
+      assert.ok(row.valueCents <= seg.poolCents * 0.3 + 1, 'cap respected');
     }
     assert.ok(seg.leftoverCents >= 0);
   }

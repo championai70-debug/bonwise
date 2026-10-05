@@ -9,7 +9,7 @@ The Android app bundles those same files and works offline.
 
 ## How the numbers are made
 
-1. **Pools.** Each segment's pool is budget × its %. For example, €30M × 40% = €12M for Football. Pools
+1. **Pools.** Each segment's pool is budget × its %. For example, €4M × 30% = €1.2M for Dairy. Pools
    are split to the cent, so they always add up to the budget.
 2. **Score per article**, from 0 to 1 within its segment:
    `score = a1 × demand + a2 × sell-through + a3 × repeat rate`
@@ -61,16 +61,21 @@ the history with these columns:
 2. **Test before use.** The model is trained without the latest season and then predicts it. It is
    compared with "same as last season" on three measures:
    - rank correlation;
-   - share of the real top 10 found;
+   - share of the real top sellers found (the top third of each segment, at most 10);
    - units error (WAPE).
 
    The app uses the model only if it is better. The plan shows the test.
-3. **Per customer.** The pooled model, trained on all customers, predicts each article's total. This is
-   multiplied by the customer's share of the article in the last two seasons. That share is smoothed
-   toward the customer's share of the segment (empirical Bayes):
-   `share = (customer units + k × segment share) / (all units + k)`.
-   - A customer with a lot of history gets their own pattern.
-   - A new customer gets the brand-wide ranking.
+3. **Per customer.** There is no pre-trained or internet model: every model is trained on the phone,
+   from the user's own history, when they tap "Train". For the plan's customer, two models are trained
+   and tested on that customer's real units in the held-out season:
+   - **All customers, adjusted:** the pooled model's prediction × the customer's share of the article
+     in the last two seasons. The share is smoothed toward the customer's share of the segment
+     (empirical Bayes): `share = (customer units + k × segment share) / (all units + k)`.
+   - **This customer only:** a model trained on the customer's own history. This needs at least 30
+     article-seasons.
+
+   The better one is used. If neither beats "same as last season", that rule is used. A customer with
+   no history gets the all-customers prediction.
 4. **Too little data.** The app says so:
    - With fewer than 2 seasons or 30 examples there is no model. Scores come from the article list
      (a rule).
