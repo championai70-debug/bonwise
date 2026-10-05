@@ -1,0 +1,139 @@
+# SalesPlan (salesplan/): tests, Android APK + Play Store bundle (AAB), emulator check.
+# The APK is published for testers at the "salesplan-preview" release (main branch only).
+#
+# Signing: add these repository secrets so every build is signed with the same key
+# (needed for updates and for Google Play):
+#   SALESPLAN_KEYSTORE_BASE64   base64 of a .jks upload keystore
+#   SALESPLAN_KEYSTORE_PASSWORD
+#   SALESPLAN_KEY_ALIAS         (optional, default "salesplan")
+# Without them each build gets a new temporary key (fine for testing only).
+name: SalesPlan
+
+on:
+  workflow_dispatch:
+  push:
+    paths: ["salesplan/**", ".github/workflows/salesplan.yml"]
+  pull_request:
+    paths: ["salesplan/**", ".github/workflows/salesplan.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Unit tests (engine, import, encryption)
+        run: node --test salesplan/tests/*.test.mjs
+
+  android:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14.3"
+
+      - name: Signing key
+        env:
+          KS: ${{ secrets.SALESPLAN_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.SALESPLAN_KEYSTORE_PASSWORD }}
+          KS_ALIAS: ${{ secrets.SALESPLAN_KEY_ALIAS || 'salesplan' }}
+        run: |
+          KEYSTORE="$RUNNER_TEMP/salesplan.jks"
+          if [ -n "$KS" ]; then
+            echo "$KS" | base64 -d > "$KEYSTORE"
+            PASS="$KS_PASS"; ALIAS="$KS_ALIAS"; KIND="the saved key (repository secrets)"
+          else
+            PASS=$(openssl rand -hex 16); ALIAS=salesplan; KIND="a new temporary key"
+            keytool -genkeypair -keystore "$KEYSTORE" -storepass "$PASS" -keypass "$PASS" -alias "$ALIAS" \
+              -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=SalesPlan" >/dev/null
+            echo "::warning::Signed with a temporary key. Add the SALESPLAN_KEYSTORE_* secrets before publishing."
+          fi
+          echo "::add-mask::$PASS"
+          {
+            echo "SP_KEYSTORE=$KEYSTORE"
+            echo "SP_STORE_PASS=$PASS"
+            echo "SP_KEY_PASS=$PASS"
+            echo "SP_KEY_ALIAS=$ALIAS"
+          } >> "$GITHUB_ENV"
+          echo "Signed with $KIND." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Build APK and App Bundle, run Android lint
+        run: gradle -p salesplan/android assembleRelease bundleRelease lintRelease -PspVersionCode=${{ github.run_number }} --no-daemon
+
+      - name: Collect
+        run: |
+          cp salesplan/android/app/build/outputs/apk/release/app-release.apk salesplan.apk
+          cp salesplan/android/app/build/outputs/bundle/release/app-release.aab salesplan.aab
+          ls -la salesplan.apk salesplan.aab
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: salesplan-android
+          path: |
+            salesplan.apk
+            salesplan.aab
+
+  emulator:
+    needs: android
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: salesplan-android
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Open the app on an Android emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          script: bash salesplan/android/smoke-test.sh salesplan.apk
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: emulator-screenshot
+          path: emulator.png
+          if-no-files-found: ignore
+
+  publish:
+    needs: emulator
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: salesplan-android
+      - name: Publish for testers
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          NOTES="Test version of SalesPlan for Android (build ${{ github.run_number }}, $(date -u +%Y-%m-%d)).
+          Download salesplan.apk on an Android phone, open it and allow installing from this source.
+          salesplan.aab is the bundle for the Google Play Console."
+          gh release view salesplan-preview >/dev/null 2>&1 || \
+            gh release create salesplan-preview --prerelease --title "SalesPlan Android (test version)" --notes "$NOTES" --target "$GITHUB_SHA"
+          gh release edit salesplan-preview --notes "$NOTES"
+          gh release upload salesplan-preview salesplan.apk salesplan.aab --clobber
+          echo "Download: https://github.com/${{ github.repository }}/releases/download/salesplan-preview/salesplan.apk" >> "$GITHUB_STEP_SUMMARY"

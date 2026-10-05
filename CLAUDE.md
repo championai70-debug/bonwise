@@ -39,6 +39,7 @@ python3 -m unittest discover -s tests -t .   # all tests, no network or token ne
 | `static/sw.js`, `static/manifest.webmanifest` | PWA / Android app shell. The app page and its script open from the phone's copy at once and refresh in the background, so a sleeping server never shows Render's "starting" page; only answers with the `X-Bonwise: 1` header (set in `_send`) are kept. `/api/` is never cached |
 | `android/`, `.github/workflows/android-apk.yml` | Test APK (Trusted Web Activity, package `com.onrender.bonwise.preview`), built by GitHub Actions and published at the `android-preview` release |
 | `store-kit/` | Google Play listing texts, graphics, data-safety answers, marketing plan |
+| `salesplan/` | **Separate app**: SalesPlan (customer budget → money and units per article), offline web app + Android WebView app with no internet permission. Own tests (`node --test salesplan/tests/*.test.mjs`), own workflow (`.github/workflows/salesplan.yml`). See `salesplan/README.md` |
 
 ## Rules
 

@@ -1,0 +1,62 @@
+// SalesPlan for Android: the web app in salesplan/web, bundled into the APK and shown in a
+// locked-down WebView. Works fully offline; the app has no internet permission.
+// Built and signed by .github/workflows/salesplan-android.yml.
+plugins {
+    id "com.android.application"
+}
+
+def versionNum = (project.findProperty("spVersionCode") ?: "1") as int
+
+android {
+    namespace "app.salesplan"
+    compileSdk 36
+
+    defaultConfig {
+        applicationId project.findProperty("spAppId") ?: "app.salesplan.planner"
+        minSdk 26
+        targetSdk 36
+        versionCode versionNum
+        versionName "1.0." + versionNum
+    }
+
+    sourceSets {
+        main {
+            // The same files as the web version: one code base for web and Android.
+            assets.srcDirs = ["../../web"]
+        }
+    }
+
+    signingConfigs {
+        release {
+            storeFile file(System.getenv("SP_KEYSTORE") ?: "missing.jks")
+            storePassword System.getenv("SP_STORE_PASS")
+            keyAlias System.getenv("SP_KEY_ALIAS")
+            keyPassword System.getenv("SP_KEY_PASS")
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
+            signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    lint {
+        abortOnError true
+        checkReleaseBuilds true
+    }
+}
+
+dependencies {
+    implementation "androidx.activity:activity:1.10.1"
+    implementation "androidx.core:core:1.16.0"
+    implementation "androidx.webkit:webkit:1.13.0"
+}

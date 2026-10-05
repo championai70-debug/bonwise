@@ -6,3 +6,9 @@ android/.gradle/
 android/build/
 android/app/build/
 *.jks
+
+# SalesPlan Android build
+salesplan/android/.gradle/
+salesplan/android/build/
+salesplan/android/app/build/
+salesplan/android/local.properties

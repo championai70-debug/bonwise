@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">SalesPlan</string>
+    <string name="no_app">No app on this phone can do this.</string>
+    <string name="webview_missing">Android System WebView is missing or too old. Please update it in Google Play.</string>
+</resources>
