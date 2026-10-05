@@ -84,15 +84,16 @@ function normWeights(w) {
 
 /**
  * Score every article 0..1 from three signals, each 0..1 within its segment:
- *  demand      – model score (ml_score column) if the segment has one, else last season's sales value
- *                (units × price), divided by the segment's best seller;
+ *  demand      – predicted units × price if the app's model made predictions, else the ml_score column
+ *                if the segment has one, else last season's sales value (units × price); divided by
+ *                the segment's best article;
  *  sellThrough – sell-out / (open stock + sell-in);
  *  repeat      – repeat purchase rate.
  * Articles without history borrow from their predecessor, else from the closest look-alike in the
  * same segment, else from the segment median, times rules.newFactor.
  * Returns Map id → { score, parts, filled, source, fromId, match }.
  */
-export function scoreArticles(articles, rules = DEFAULT_RULES) {
+export function scoreArticles(articles, rules = DEFAULT_RULES, predictions = null) {
   const w = normWeights(rules.weights);
   const factor = clamp((num(rules.newFactor) ?? 90) / 100, 0, 1.5);
   const out = new Map();
@@ -107,8 +108,14 @@ export function scoreArticles(articles, rules = DEFAULT_RULES) {
   // Pass 1: articles with their own history.
   const segInfo = new Map();
   for (const [k, list] of bySeg) {
-    const useModel = list.some((a) => a.mlScore !== null);
-    const demandRaw = (a) => (useModel ? a.mlScore : a.lastUnits !== null && a.asp > 0 ? a.lastUnits * a.asp : null);
+    const pred = (a) => (predictions && Number.isFinite(predictions[a.id]) ? predictions[a.id] : null);
+    const usePred = list.some((a) => pred(a) !== null);
+    const useModel = !usePred && list.some((a) => a.mlScore !== null);
+    const demandRaw = (a) => {
+      if (usePred) return pred(a) !== null && a.asp > 0 ? pred(a) * a.asp : null;
+      if (useModel) return a.mlScore;
+      return a.lastUnits !== null && a.asp > 0 ? a.lastUnits * a.asp : null;
+    };
     const maxDemand = Math.max(0, ...list.map((a) => demandRaw(a) ?? 0));
     const raw = list.map((a) => ({
       a,
@@ -130,7 +137,7 @@ export function scoreArticles(articles, rules = DEFAULT_RULES) {
       }
       out.set(r.a.id, { score: combine(parts), parts, filled, source: 'own', fromId: '', match: 1 });
     }
-    segInfo.set(k, { own: own.map((r) => r.a), med, useModel });
+    segInfo.set(k, { own: own.map((r) => r.a), med, useModel, usePred });
   }
 
   // Pass 2: new articles without history.
@@ -223,7 +230,8 @@ export function boundedSplit(pool, items) {
 
 /**
  * Work out one plan.
- * input: { budget, segments: [{name, pct}], articles: [cleaned], rules, excluded: [ids], pinned: [ids] }
+ * input: { budget, segments: [{name, pct}], articles: [cleaned], rules, excluded: [ids], pinned: [ids],
+ *          predictions: { id: predicted units } (optional, from model.js) }
  */
 export function allocate(input) {
   const rules = { ...DEFAULT_RULES, ...(input.rules || {}) };
@@ -247,7 +255,7 @@ export function allocate(input) {
     seen.add(segKey(s.name));
   }
 
-  const scores = scoreArticles(articles, rules);
+  const scores = scoreArticles(articles, rules, input.predictions || null);
   const byId = new Map(articles.map((a) => [a.id, a]));
   const pools = splitCents(budgetCents, segments.map((s) => Math.max(0, num(s.pct) ?? 0)));
   const capPct = clamp(num(rules.capPct) ?? 0, 0, 100);
@@ -349,7 +357,7 @@ export function allocate(input) {
       if (sc.source === 'similar') notes.push(`New: based on look-alike ${byId.get(sc.fromId)?.name || sc.fromId} (${Math.round(sc.match * 100)}% match)`);
       if (sc.source === 'median') notes.push('New: no look-alike, segment average used');
       out.rows.push({
-        id: a.id, name: a.name, score: sc.score, parts: sc.parts, filled: sc.filled, source: sc.source, fromId: sc.fromId,
+        id: a.id, name: a.name, score: sc.score, predicted: input.predictions?.[a.id] ?? null, parts: sc.parts, filled: sc.filled, source: sc.source, fromId: sc.fromId,
         match: sc.match, asp: a.asp, pack: a.pack, targetCents: Math.round(target.get(it.id)), units: p * a.pack, packs: p,
         valueCents, sharePct: pool > 0 ? (valueCents / pool) * 100 : 0, notes,
         loCents: it.lo, hiCents: it.hi,

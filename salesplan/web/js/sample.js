@@ -62,3 +62,61 @@ export const SAMPLE = {
     ],
   },
 };
+
+// ---------- sample sales history: 6 seasons × 4 customers, made up but with real patterns ----------
+// Retro and speed styles grow, classics shrink, warm clothes sell more in autumn/winter, and each
+// customer has its own taste (City Sports, a big chain: running and retro; Sport Max: football boots; Run Lab: road
+// and trail shoes). The model should find these patterns; "same as last season" cannot.
+
+const SEASONS = ['FW23', 'SS24', 'FW24', 'SS25', 'FW25', 'SS26'];
+const CUSTOMERS = {
+  'City Sports': { size: 2.2, share: { Football: 0.22, Running: 0.45, Training: 0.35, Originals: 0.38 }, likes: { retro: 1.4, cushioned: 1.2, junior: 0.6 } },
+  'Sport Max': { share: { Football: 0.55, Running: 0.2, Training: 0.3, Originals: 0.22 }, likes: { boot: 1.3, ball: 1.2, retro: 0.7 } },
+  'Run Lab': { share: { Football: 0.05, Running: 0.3, Training: 0.15, Originals: 0.1 }, likes: { road: 1.5, trail: 1.6, apparel: 0.6 } },
+  'Web Shop': { share: { Football: 0.18, Running: 0.05, Training: 0.2, Originals: 0.3 }, likes: { accessory: 1.4, tee: 1.2 } },
+};
+const STARTS = { 'RN-202': 2, 'RN-203': 1, 'OR-406': 3 }; // launched later
+const TREND = { retro: 1.12, speed: 1.1, carbon: 1.1, cushioned: 1.06, classic: 0.9, junior: 0.97, rain: 0.95 };
+const WINTER = { hoodie: 1.4, pants: 1.3, jacket: 1.45, gloves: 1.3, tights: 1.15, shorts: 0.7, tee: 0.75, bra: 0.9, bottle: 0.8 };
+
+function rng(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+export function sampleHistory() {
+  const rand = rng(20270101);
+  const noise = (sd) => Math.exp(sd * (rand() + rand() + rand() - 1.5) * 2); // about log-normal
+  const out = [];
+  for (const a of SAMPLE.articles) {
+    if (a.lastUnits === null) continue; // new articles have no history
+    const tags = String(a.tags).split(';');
+    const trend = tags.reduce((m, t) => m * (TREND[t] || 1), 1) * (0.97 + 0.06 * rand());
+    const winter = tags.reduce((m, t) => m * (WINTER[t] || 1), 1);
+    const st = a.sellOut && a.sellIn ? a.sellOut / (a.sellIn + (a.openStock || 0)) : 0.75;
+    SEASONS.forEach((season, t) => {
+      if (t < (STARTS[a.id] ?? 0)) return;
+      const ramp = STARTS[a.id] !== undefined && t === STARTS[a.id] ? 0.6 : 1;
+      const total = a.lastUnits * trend ** (t - 5) * (season.startsWith('FW') ? winter : 1) * ramp;
+      for (const [customer, c] of Object.entries(CUSTOMERS)) {
+        const like = tags.reduce((m, tg) => m * (c.likes[tg] || 1), 1);
+        const units = Math.round(total * c.share[a.segment] * like * (c.size || 1) * noise(0.12));
+        if (units <= 0) continue;
+        out.push({
+          season, id: a.id, customer, units, sellIn: units,
+          sellOut: Math.round(units * Math.min(1, st * noise(0.06))),
+          openStock: Math.round(units * 0.08),
+          repeatRate: Math.round(Math.min(1, (a.repeatRate || 0.2) * noise(0.1)) * 100) / 100,
+          price: a.asp, segment: a.segment, tags: a.tags,
+        });
+      }
+    });
+  }
+  return out;
+}

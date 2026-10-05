@@ -4,10 +4,11 @@
 import {
   DEFAULT_RULES, allocate, budgetFromGrowth, cleanArticle, evenSplit, scoreArticles, segKey, sellThrough,
 } from './engine.js';
-import { MAX_BYTES, TEMPLATE_HEADER, parseCSV, parseNumber, rowsToArticles, toCSV } from './csv.js';
+import { MAX_BYTES, MAX_HISTORY_ROWS, TEMPLATE_HEADER, parseCSV, parseNumber, rowsToArticles, rowsToHistory, toCSV } from './csv.js';
+import { cleanHistoryRow, historySummary, learn } from './model.js';
 import { readXlsx } from './xlsx.js';
 import { Vault, Wait, WrongSecret, idbBackend, makeBackup, memoryBackend, readBackup } from './vault.js';
-import { SAMPLE } from './sample.js';
+import { SAMPLE, sampleHistory } from './sample.js';
 import {
   append, clear, confirmBox, debounce, h, icon, numberInput, promptBox, sheet, toast,
 } from './ui.js';
@@ -31,6 +32,7 @@ function fresh() {
     v: 1,
     settings: { currency: 'EUR', theme: 'auto', autoLockMin: 5, rules: structuredClone(DEFAULT_RULES), tipLockSeen: false },
     catalog: { articles: [], source: '', updated: 0 },
+    history: { rows: [], source: '', updated: 0 },
     plans: [],
   };
 }
@@ -73,6 +75,40 @@ function cleanPlan(p) {
     created: n0(p.created, Date.now()),
     updated: n0(p.updated, Date.now()),
     final: p.final && typeof p.final === 'object' && p.final.result ? { at: n0(p.final.at), result: p.final.result } : null,
+    historyCustomer: str(p.historyCustomer, 80),
+    useModel: p.useModel !== false,
+    model: cleanModel(p.model),
+  };
+}
+
+const MODEL_STATUS = ['model', 'rule', 'untested', 'none'];
+const num01 = (v) => (v === null || v === undefined || !Number.isFinite(Number(v)) ? null : Number(v));
+
+/** A trained model's result, as stored with the plan (predictions per article plus how it was tested). */
+function cleanModel(m) {
+  if (!m || typeof m !== 'object' || !MODEL_STATUS.includes(m.status)) return null;
+  const predictions = {};
+  let count = 0;
+  for (const [id, v] of Object.entries(m.predictions || {})) {
+    if (++count > 20000) break;
+    if (Number.isFinite(Number(v)) && Number(v) >= 0) predictions[str(id, 80)] = Number(v);
+  }
+  const measures = (x) => ({ spearman: num01(x?.spearman), top10: num01(x?.top10), error: num01(x?.error) });
+  const bt = m.backtest && typeof m.backtest === 'object'
+    ? { season: str(m.backtest.season, 40), articles: n0(m.backtest.articles), model: measures(m.backtest.model), rule: measures(m.backtest.rule), trees: n0(m.backtest.trees) }
+    : null;
+  return {
+    status: m.status,
+    at: n0(m.at),
+    forCustomer: str(m.forCustomer, 80),
+    seasons: (Array.isArray(m.seasons) ? m.seasons : []).slice(0, 60).map((x) => str(x, 40)),
+    nextAfter: str(m.nextAfter, 40),
+    trainRows: n0(m.trainRows),
+    backtest: bt,
+    importance: (Array.isArray(m.importance) ? m.importance : []).slice(0, 10).map((x) => ({ name: str(x?.name, 80), share: n0(x?.share) })),
+    notes: (Array.isArray(m.notes) ? m.notes : []).slice(0, 6).map((x) => str(x, 200)),
+    customer: m.customer && typeof m.customer === 'object' ? { name: str(m.customer.name, 80), share: n0(m.customer.share), units: n0(m.customer.units) } : null,
+    predictions,
   };
 }
 
@@ -90,6 +126,10 @@ function sanitize(d) {
   f.catalog.articles = arts.slice(0, 20000).map(cleanArticle).filter((a) => a.id);
   f.catalog.source = str(d.catalog?.source);
   f.catalog.updated = n0(d.catalog?.updated);
+  const hist = Array.isArray(d.history?.rows) ? d.history.rows : [];
+  f.history.rows = hist.slice(0, MAX_HISTORY_ROWS).map(cleanHistoryRow).filter((r) => r.id && r.season);
+  f.history.source = str(d.history?.source);
+  f.history.updated = n0(d.history?.updated);
   f.plans = (Array.isArray(d.plans) ? d.plans : []).slice(0, 2000).map(cleanPlan);
   return f;
 }
@@ -113,7 +153,15 @@ function touch(plan) {
 
 // ---------- formatting ----------
 
-const locale = () => navigator.language || 'en';
+// Some phones report tags Intl rejects (e.g. "en-US@posix"); fall back to their language part, then English.
+let localeCache = null;
+const locale = () => {
+  if (localeCache) return localeCache;
+  for (const tag of [navigator.language, String(navigator.language || '').split(/[@_.]/)[0], 'en']) {
+    try { if (tag && Intl.getCanonicalLocales(tag).length) { localeCache = tag; break; } } catch { /* try the next */ }
+  }
+  return localeCache || 'en';
+};
 function money(cents, opts = {}) {
   const v = cents / 100;
   try {
@@ -360,12 +408,14 @@ function welcomeView() {
     h('p', { class: 'muted small center' }, icon('shield', 16), ' Your data stays on this device. No account, no cloud, no tracking.'));
 }
 
-function loadSample() {
+async function loadSample() {
   data.catalog = { articles: SAMPLE.articles.map(cleanArticle), source: 'Sample data', updated: Date.now() };
-  const p = cleanPlan({ ...SAMPLE.plan, id: uid(), rules: data.settings.rules, created: Date.now(), updated: Date.now() });
+  data.history = { rows: sampleHistory().map(cleanHistoryRow), source: 'Sample sales history', updated: Date.now() };
+  const p = cleanPlan({ ...SAMPLE.plan, id: uid(), rules: data.settings.rules, historyCustomer: 'City Sports', created: Date.now(), updated: Date.now() });
   data.plans.push(p);
   touch();
-  toast('Sample data loaded. Change anything you like.');
+  toast('Sample data loaded. Training the model on its sales history…');
+  await trainModel(p);
   go(`plan/${p.id}/result`);
 }
 
@@ -392,6 +442,55 @@ const planBudget = (p) => (p.budgetMode === 'growth' ? budgetFromGrowth(p.lastSe
 function runPlan(p) {
   return allocate({
     budget: planBudget(p), segments: p.segments, articles: data.catalog.articles, rules: p.rules, excluded: p.excluded, pinned: p.pinned,
+    predictions: planPredictions(p),
+  });
+}
+
+// ---------- prediction model ----------
+
+const planPredictions = (p) => (p.useModel && p.model && p.model.status !== 'none' && Object.keys(p.model.predictions).length ? p.model.predictions : null);
+
+let historyCache = { at: -1, summary: null };
+function historyInfo() {
+  if (historyCache.at !== data.history.updated) historyCache = { at: data.history.updated, summary: historySummary(data.history.rows) };
+  return historyCache.summary;
+}
+
+/** The history customer this plan learns from: chosen, else matched by name, else '' (all customers). */
+function modelCustomer(p) {
+  if (p.historyCustomer === '*') return '';
+  const list = historyInfo().customers;
+  if (p.historyCustomer && list.includes(p.historyCustomer)) return p.historyCustomer;
+  const name = p.customer.trim().toLowerCase();
+  if (!name || name === 'new customer') return '';
+  return list.find((c) => name.includes(c.toLowerCase()) || c.toLowerCase().includes(name)) || '';
+}
+
+const modelStale = (p) => !!p.model && (p.model.at < Math.max(data.history.updated, data.catalog.updated) || p.model.forCustomer !== modelCustomer(p));
+
+/** Train in a background worker (falls back to this thread); stores the result with the plan. */
+function trainModel(p, onProgress) {
+  const customer = modelCustomer(p);
+  const payload = { history: data.history.rows, catalog: data.catalog.articles, customer };
+  return new Promise((resolve) => {
+    const done = (r) => {
+      p.model = cleanModel({ ...r, at: Date.now(), forCustomer: customer });
+      touch(p);
+      resolve(p.model);
+    };
+    const inline = () => {
+      try { done(learn(payload.history, payload.catalog, { customer })); } catch (e) { toast(`Training failed: ${e.message}`, 'bad'); resolve(null); }
+    };
+    let w = null;
+    try { w = new Worker(new URL('./train-worker.js', import.meta.url), { type: 'module' }); } catch { w = null; }
+    if (!w) { inline(); return; }
+    w.onmessage = (e) => {
+      if (e.data.progress !== undefined) { onProgress?.(e.data.progress); return; }
+      w.terminate();
+      if (e.data.error) { toast(`Training failed: ${e.data.error}`, 'bad'); resolve(null); } else done(e.data.result);
+    };
+    w.onerror = (e) => { e.preventDefault?.(); w.terminate(); inline(); };
+    w.postMessage(payload);
   });
 }
 
@@ -572,7 +671,8 @@ function planArticles(p) {
   const search = h('input', { type: 'search', placeholder: 'Search articles', 'aria-label': 'Search articles', class: 'search' });
   const draw = () => {
     clear(list);
-    const scores = scoreArticles(data.catalog.articles, p.rules);
+    const preds = planPredictions(p);
+    const scores = scoreArticles(data.catalog.articles, p.rules, preds);
     const q = search.value.trim().toLowerCase();
     const excl = new Set(p.excluded);
     const pins = new Set(p.pinned);
@@ -582,6 +682,8 @@ function planArticles(p) {
         .sort((a, b) => scores.get(b.id).score - scores.get(a.id).score);
       const total = data.catalog.articles.filter((a) => segKey(a.segment) === segKey(s.name)).length;
       const on = data.catalog.articles.filter((a) => segKey(a.segment) === segKey(s.name) && a.active && !excl.has(a.id)).length;
+      const topSellers = new Set(preds ? data.catalog.articles.filter((a) => segKey(a.segment) === segKey(s.name) && a.active)
+        .sort((a, b) => (preds[b.id] ?? 0) * b.asp - (preds[a.id] ?? 0) * a.asp).slice(0, 3).map((a) => a.id) : []);
       const rows = arts.slice(0, 300).map((a, rank) => {
         const sc = scores.get(a.id);
         const inPlan = !excl.has(a.id);
@@ -589,8 +691,9 @@ function planArticles(p) {
         return h('div', { class: `art-row${inPlan && a.active ? '' : ' off'}` },
           h('div', { class: 'rank' }, String(rank + 1)),
           h('div', { class: 'grow' },
-            h('div', { class: 'art-name' }, a.name, pinned ? h('span', { class: 'chip small' }, icon('star', 12), 'always in') : null, !a.active ? h('span', { class: 'chip small' }, 'inactive') : null),
-            h('div', { class: 'muted small' }, [a.id, money(Math.round(a.asp * 100), { cents: true }), a.pack > 1 ? `pack ${a.pack}` : '', sourceLabel(sc)].filter(Boolean).join(' · ')),
+            h('div', { class: 'art-name' }, a.name, topSellers.has(a.id) ? h('span', { class: 'chip small ok' }, 'Top seller') : null, pinned ? h('span', { class: 'chip small' }, icon('star', 12), 'always in') : null, !a.active ? h('span', { class: 'chip small' }, 'inactive') : null),
+            h('div', { class: 'muted small' }, [a.id, money(Math.round(a.asp * 100), { cents: true }), a.pack > 1 ? `pack ${a.pack}` : '',
+              preds && preds[a.id] !== undefined ? `predicted ${fmtNum(preds[a.id])} units` : sourceLabel(sc)].filter(Boolean).join(' · ')),
             signalBars(sc)),
           h('div', { class: 'score', title: 'Score 0–100' }, fmtNum(sc.score * 100, 0)),
           h('div', { class: 'art-actions' },
@@ -611,6 +714,7 @@ function planArticles(p) {
   search.addEventListener('input', debounce(draw, 200));
   append(box, [
     finalNote(p),
+    modelCard(p, () => render()),
     rulesCard(p.rules, debounce(() => { touch(p); draw(); }, 150)),
     data.catalog.articles.length ? null : h('div', { class: 'card warn' }, icon('alert'), h('div', null, h('p', null, 'No articles yet.'), h('a', { class: 'btn small', href: '#/catalog' }, 'Add articles'))),
     search,
@@ -621,6 +725,80 @@ function planArticles(p) {
   ]);
   draw();
   return box;
+}
+
+const pct0 = (x) => (x === null || x === undefined ? '–' : fmtPct(x * 100, 0));
+const two = (x) => (x === null || x === undefined ? '–' : fmtNum(x, 2));
+
+function modelCard(p, redraw) {
+  const card = h('div', { class: 'card model-card' }, h('h2', null, icon('spark'), 'Prediction for next season'));
+  const hi = historyInfo();
+  if (!data.history.rows.length) {
+    append(card, [
+      h('p', null, 'No sales history yet, so scores come from the last-season numbers in your article list. That is a simple rule, not a prediction.'),
+      h('p', { class: 'muted small' }, 'Import your sales history (season, article, units, and customer if you have it). The app then trains a model on this phone, tests it on a season it has not seen, and predicts each article\'s units for this customer.'),
+      h('a', { class: 'btn small', href: '#/catalog' }, icon('upload', 16), 'Import sales history'),
+    ]);
+    return card;
+  }
+  const auto = modelCustomer({ ...p, historyCustomer: '' });
+  const sel = h('select', { id: 'hist-customer' },
+    h('option', { value: '', selected: !p.historyCustomer }, auto ? `Match by name (${auto})` : 'Match by name (no match: all customers)'),
+    h('option', { value: '*', selected: p.historyCustomer === '*' }, 'All customers (brand-wide)'),
+    hi.customers.map((c) => h('option', { value: c, selected: p.historyCustomer === c }, c)));
+  sel.addEventListener('change', () => { p.historyCustomer = sel.value; touch(p); redraw(); });
+  append(card, [
+    h('p', { class: 'muted small' }, `${fmtNum(hi.rows)} history rows · ${hi.seasons.length} seasons (${hi.seasons[0]} to ${hi.seasons[hi.seasons.length - 1]}) · ${hi.customers.length || 'no'} customers`),
+    hi.customers.length ? h('label', { class: 'field', for: 'hist-customer' }, h('span', null, 'Learn for which customer?'), sel) : null,
+  ]);
+  const m = p.model;
+  const bar = h('span', { class: 'fill', style: { width: '0%' } });
+  const progress = h('div', { class: 'meter', hidden: true }, bar);
+  const trainBtn = h('button', { class: `btn small${!m || modelStale(p) ? ' primary' : ''}` }, icon('spark', 16), m ? 'Train again' : 'Train the model');
+  trainBtn.addEventListener('click', async () => {
+    trainBtn.disabled = true;
+    trainBtn.textContent = 'Training…';
+    progress.hidden = false;
+    const r = await trainModel(p, (f) => { bar.style.width = `${Math.round(f * 100)}%`; });
+    if (r) toast(r.status === 'model' ? 'Model trained and tested.' : r.status === 'none' ? 'Not enough history to train.' : 'Done.');
+    redraw();
+  });
+  if (!m) {
+    card.append(h('p', null, 'Not trained yet. Training takes a few seconds and stays on this phone.'));
+  } else {
+    const bt = m.backtest;
+    const head = {
+      model: ['ok', 'Using the model: it predicted better than "same as last season".'],
+      rule: ['bad', 'The model was not better than "same as last season", so last season\'s numbers are used.'],
+      untested: ['bad', 'Only two seasons: the model could not be tested yet, so it is averaged with last season.'],
+      none: ['bad', 'Not enough history to learn from. Scores use the article list (simple rule).'],
+    }[m.status];
+    append(card, [
+      h('div', { class: `check ${head[0]}` }, icon(head[0] === 'ok' ? 'check' : 'alert', 18), head[1]),
+      modelStale(p) ? h('p', { class: 'error small' }, 'History, articles or customer changed since training. Train again.') : null,
+      bt ? h('div', { class: 'table-wrap' }, h('table', { class: 'small' },
+        h('caption', { class: 'muted' }, `Test: trained without ${bt.season}, then asked to predict it (${bt.articles} articles).`),
+        h('thead', null, h('tr', null, h('th', null, ''), h('th', null, 'Model'), h('th', null, 'Same as last season'))),
+        h('tbody', null,
+          h('tr', null, h('td', null, 'Ranking (1 = perfect order)'), h('td', null, h('b', null, two(bt.model.spearman))), h('td', null, two(bt.rule.spearman))),
+          h('tr', null, h('td', null, 'Real top 10 found'), h('td', null, h('b', null, pct0(bt.model.top10))), h('td', null, pct0(bt.rule.top10))),
+          h('tr', null, h('td', null, 'Units off by'), h('td', null, h('b', null, pct0(bt.model.error))), h('td', null, pct0(bt.rule.error)))))) : null,
+      m.customer ? h('p', { class: 'small' }, `For ${m.customer.name}: ${pct0(m.customer.share)} of all units in recent seasons. Where they bought a lot, their own pattern counts; where they bought little, the brand-wide picture fills in.`) : null,
+      m.notes.map((x) => h('p', { class: 'muted small' }, x)),
+      m.importance.length ? h('div', { class: 'importance' }, h('b', { class: 'small' }, 'What the model looks at most'),
+        m.importance.slice(0, 5).map((x) => h('div', { class: 'imp-row small' }, h('span', null, x.name), h('span', { class: 'meter thin' }, h('span', { class: 'fill', style: { width: `${Math.round(x.share * 100)}%` } })), h('span', { class: 'muted' }, pct0(x.share))))) : null,
+      m.status !== 'none' ? h('label', { class: 'check-line small' },
+        h('input', { type: 'checkbox', checked: p.useModel, onchange: (e) => { p.useModel = e.target.checked; touch(p); redraw(); } }),
+        'Use the predictions in this plan') : null,
+      m.status !== 'none' && p.useModel && (p.rules.weights.sellThrough || p.rules.weights.repeat)
+        ? h('p', { class: 'muted small' }, 'The model already uses sell-through and repeat buys. ',
+          h('button', { class: 'link', onclick: () => { Object.assign(p.rules.weights, { demand: 100, sellThrough: 0, repeat: 0 }); touch(p); redraw(); } }, 'Rank by the prediction only'))
+        : null,
+      h('p', { class: 'muted small' }, `Trained ${fmtDateTime(m.at)} on ${fmtNum(m.trainRows)} examples.`),
+    ]);
+  }
+  append(card, [h('div', { class: 'row gap wrap' }, trainBtn), progress]);
+  return card;
 }
 
 function sourceLabel(sc) {
@@ -709,6 +887,7 @@ function planResult(p) {
       r.checks.ok
         ? `Checked: placed ${money(t.placedCents, { cents: true })} + left over ${money(t.leftoverCents, { cents: true })} = budget ${money(r.budgetCents, { cents: true })}`
         : 'The totals do not add up. Please report this.'),
+    demandNote(p, r),
     r.warnings.map((w) => h('div', { class: 'card warn slim' }, icon('alert'), h('p', null, w))),
   ]);
   r.segments.forEach((s, si) => box.append(segmentResult(s, si, p)));
@@ -728,6 +907,24 @@ function planResult(p) {
   return box;
 }
 
+/** Budget compared with what the model expects this customer to buy (only with predictions). */
+function demandNote(p, r) {
+  const preds = planPredictions(p);
+  if (!preds || p.final) return null;
+  const segs = new Set(p.segments.map((x) => segKey(x.name)));
+  const excl = new Set(p.excluded);
+  let cents = 0;
+  for (const a of data.catalog.articles) {
+    if (a.active && !excl.has(a.id) && segs.has(segKey(a.segment)) && preds[a.id] !== undefined) cents += Math.round(preds[a.id] * a.asp * 100);
+  }
+  if (!cents) return null;
+  const ratio = r.budgetCents / cents;
+  const who = p.model.customer ? p.model.customer.name : 'all customers';
+  return h('div', { class: 'card info slim' }, icon('spark'), h('p', null,
+    `Predicted demand (${who}, at today's prices): ${moneyShort(cents)}. The budget is ${fmtNum(ratio, 1)}× that`,
+    ratio > 1.15 ? ', so plan on growth: more listings, stores or promotion.' : ratio < 0.85 ? ', so some demand may go unserved.' : ', which is in line.'));
+}
+
 function kpi(label, value, sub) {
   return h('div', { class: 'kpi' }, h('span', null, label), h('strong', null, value), sub ? h('small', null, sub) : null);
 }
@@ -741,6 +938,7 @@ function segmentResult(s, si, p) {
         `sell-through ${fmtNum(row.parts.sellThrough * 100, 0)} × ${fmtPct(wShare(p, 'sellThrough'), 0)} + `,
         `repeat ${fmtNum(row.parts.repeat * 100, 0)} × ${fmtPct(wShare(p, 'repeat'), 0)}`),
       row.filled?.length ? h('p', { class: 'muted small' }, `No data for ${row.filled.map((f) => ({ demand: 'demand', sellThrough: 'sell-through', repeat: 'repeat buys' })[f]).join(', ')}: segment middle value used.`) : null,
+      row.predicted !== null && row.predicted !== undefined ? h('p', null, `Predicted demand next season: ${fmtNum(row.predicted)} units.`) : null,
       h('p', null, `Share by score: ${money(row.targetCents)}. Allowed: ${money(row.loCents)} to ${money(row.hiCents)}.`),
       h('p', null, `${fmtNum(row.units)} units × ${money(Math.round(row.asp * 100), { cents: true })} = ${money(row.valueCents, { cents: true })}${row.pack > 1 ? ` (${fmtNum(row.packs)} packs of ${row.pack})` : ''}.`));
     const btn = h('button', {
@@ -859,11 +1057,82 @@ function catalogView() {
     arts.length ? search : null,
     arts.length ? chips : null,
     list,
+    historyCard(),
     columnsHelp(),
   ]);
   drawChips();
   draw();
   return box;
+}
+
+function historyCard() {
+  const rows = data.history.rows;
+  const hi = historyInfo();
+  return h('div', { class: 'card' },
+    h('h2', null, icon('chart'), 'Sales history'),
+    h('p', { class: 'muted' }, 'Past seasons per article (and per customer). The app learns from it to predict next season\'s top sellers for each customer. It stays on this phone.'),
+    rows.length
+      ? h('div', { class: 'check ok' }, icon('check', 18), `${fmtNum(rows.length)} rows · ${hi.articles} articles · ${hi.seasons.length} seasons (${hi.seasons[0]} to ${hi.seasons[hi.seasons.length - 1]}) · ${hi.customers.length} customers`)
+      : h('p', null, 'No history yet. Columns: season, article id, units (needed); customer, sell-in, sell-out, open stock, repeat rate, price (optional). Three or more seasons let the app test its predictions.'),
+    h('div', { class: 'row gap wrap' },
+      h('button', { class: 'btn small', onclick: importHistoryFlow }, icon('upload', 16), rows.length ? 'Import again' : 'Import history'),
+      h('button', { class: 'btn small', onclick: downloadHistoryTemplate }, icon('file', 16), 'Template'),
+      rows.length ? h('button', { class: 'btn small ghost danger-text', onclick: clearHistory }, icon('trash', 16), 'Remove') : null));
+}
+
+async function importHistoryFlow() {
+  const file = await pickFile('.csv,.txt,.tsv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  if (!file) return;
+  if (file.size > 4 * MAX_BYTES) { toast('The file is too big (max 40 MB).', 'bad'); return; }
+  let table;
+  try {
+    if (/\.xlsx$/i.test(file.name) || file.type.includes('spreadsheetml')) table = await readXlsx(await file.arrayBuffer());
+    else if (/\.xls$/i.test(file.name)) throw new Error('Old .xls files are not supported. In Excel choose "Save as" → .xlsx or CSV.');
+    else table = parseCSV(await file.text(), undefined, MAX_HISTORY_ROWS);
+  } catch (e) { toast(e.message || 'Could not read this file.', 'bad'); return; }
+  const res = rowsToHistory(table);
+  const cleaned = res.records.map(cleanHistoryRow).filter((r) => r.id && r.season);
+  const sum = historySummary(cleaned);
+  const choice = await sheet('Import sales history', (close) => {
+    const ok = !res.missing.length && cleaned.length;
+    return [
+      h('p', null, h('b', null, file.name)),
+      ok ? h('div', { class: 'check ok' }, icon('check', 18), `${fmtNum(cleaned.length)} rows · ${sum.articles} articles · ${sum.seasons.length} seasons · ${sum.customers.length} customers`)
+        : h('div', { class: 'check bad' }, icon('alert', 18), res.missing.length ? `Missing column: ${res.missing.join(', ')}` : 'No rows found.'),
+      ok ? h('p', { class: 'small' }, `Seasons, oldest first: ${sum.seasons.join(', ')}`) : null,
+      ok && sum.seasons.length < 3 ? h('p', { class: 'muted small' }, 'Tip: with 3 or more seasons the app can test its predictions.') : null,
+      res.unknown.length ? h('p', { class: 'muted small' }, `Not used: ${res.unknown.slice(0, 12).join(', ')}`) : null,
+      res.problems.length ? h('details', null, h('summary', null, `${res.problems.length} things to check`), h('ul', { class: 'small' }, res.problems.map((x) => h('li', null, x)))) : null,
+      h('div', { class: 'stack' },
+        ok && data.history.rows.length ? h('button', { class: 'btn', onclick: () => close('merge') }, 'Add to the history I have') : null,
+        ok ? h('button', { class: 'btn primary', onclick: () => close('replace') }, data.history.rows.length ? 'Replace my history' : 'Import') : null,
+        h('button', { class: 'btn ghost', onclick: () => close(null) }, 'Cancel')),
+    ];
+  });
+  if (!choice) return;
+  data.history = {
+    rows: (choice === 'merge' ? [...data.history.rows, ...cleaned] : cleaned).slice(0, MAX_HISTORY_ROWS),
+    source: str(file.name, 80),
+    updated: Date.now(),
+  };
+  touch();
+  render();
+  toast('History imported. Open a plan and train the model.');
+}
+
+function downloadHistoryTemplate() {
+  const comma = decimalComma();
+  const nf = (v) => (v === null || v === undefined ? '' : comma ? String(v).replace('.', ',') : String(v));
+  const rows = [['season', 'id', 'customer', 'units', 'sell_in', 'sell_out', 'open_stock', 'repeat_rate', 'price']];
+  for (const r of sampleHistory().slice(0, 8)) rows.push([r.season, r.id, r.customer, r.units, r.sellIn, r.sellOut, r.openStock, nf(r.repeatRate), nf(r.price)]);
+  saveFile('sales-history-template.csv', 'text/csv', toCSV(rows, comma ? ';' : ','));
+}
+
+async function clearHistory() {
+  if (!(await confirmBox('Remove the sales history?', 'Plans keep their last predictions until you train again.', 'Remove', true))) return;
+  data.history = { rows: [], source: '', updated: Date.now() };
+  touch();
+  render();
 }
 
 function columnsHelp() {
@@ -1191,7 +1460,17 @@ function helpView() {
       h('li', null, h('b', null, 'Score every article'), h('span', null, 'Score = a1 × demand + a2 × sell-through + a3 × repeat buys. Each signal is 0–100 within its segment.')),
       h('li', null, h('b', null, 'Share the pool'), h('span', null, 'Each article gets pool × its score ÷ all scores. Caps, floors, minimum orders and supply limits are applied, and what is freed up is shared again until nothing changes.')),
       h('li', null, h('b', null, 'Money to units'), h('span', null, 'Units = money ÷ price, rounded down to whole packs. Money left from rounding buys one more pack for the articles that lost most.'))),
-    qa('What is "demand"?', 'If your file has a model score (ml_score), for example from XGBoost or LightGBM, demand is that score divided by the best one in the segment. Otherwise it is last season\'s units × price, divided by the segment\'s best seller.'),
+    qa('What is "demand"?', 'The predicted units × price when the app has trained its model on your sales history. Without history: your own model score (ml_score column) if your file has one, else last season\'s units × price. Always divided by the best article in the segment.'),
+    qa('How does the app predict top sellers?',
+      'It learns from your sales history (Articles → Sales history), right on the phone. The model is gradient-boosted decision trees, the same method as XGBoost and LightGBM.',
+      'For every article and season it looks at the seasons before: units, sell-through, repeat rate, trend, price, segment and features. It learns how those turn into next season\'s units.',
+      'Then it tests itself: it trains without the latest season, predicts it, and compares with the simple rule "same as last season". The model is only used when it is better. The plan shows the test result.'),
+    qa('How is it made for one customer?',
+      'First the model predicts each article for all customers together, because that has the most data. Then it uses this customer\'s share of each article in recent seasons.',
+      'Where the customer bought a lot, their own share counts. Where they bought little, their share of the whole segment fills in.'),
+    qa('What if there is no history for a customer?',
+      'A new customer gets the brand-wide prediction: the top sellers across all customers, scaled to their budget. After one or two seasons with them, their own pattern takes over.',
+      'With no sales history at all, the app says so. It then ranks by the last-season numbers in your article list, which is a rule, not a prediction. Brand-new articles take the numbers of the article they replace, or of their closest look-alike.'),
     qa('What is sell-through?', 'Sell-out units ÷ (open stock + sell-in units). 80% means 8 of 10 pieces in the shops were sold.'),
     qa('How are new articles scored?', 'A new article without history takes the signals of the article it replaces (the "predecessor" column). Without one, it takes the closest look-alike in the same segment (shared features in "tags" and a similar price). Without a look-alike, it takes the segment middle value. Then × the "New articles" setting (90% by default).'),
     qa('Why is some money left over?', 'Units come in whole packs, and caps or supply limits can stop an article from taking more. The result shows the leftover per segment and why, and the totals are checked to the cent.'),

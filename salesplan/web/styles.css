@@ -383,3 +383,16 @@ th { color: var(--muted); font-weight: 650; font-size: .8rem; }
   .meter .fill { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
   .dot, .c1, .c2, .c3, .c4, .c5, .c6, .c7, .c8 { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
 }
+
+/* ---------- prediction ---------- */
+.model-card h2 .icon { color: var(--primary); }
+.model-card table { margin-top: .2rem; }
+.model-card caption { text-align: left; caption-side: top; padding: 0 0 .3rem; font-size: .82rem; }
+.model-card td:nth-child(n+2), .model-card th:nth-child(n+2) { text-align: right; white-space: nowrap; }
+.importance { display: flex; flex-direction: column; gap: .35rem; margin: .4rem 0 .6rem; }
+.imp-row { display: grid; grid-template-columns: minmax(8rem, 1.2fr) 1fr 2.6rem; gap: .6rem; align-items: center; }
+.imp-row .meter { flex: none; }
+.imp-row > span:last-child { text-align: right; }
+button.link { all: unset; color: var(--primary); font-weight: 650; cursor: pointer; text-decoration: underline; }
+button.link:focus-visible { outline: 3px solid var(--focus); }
+.model-card .meter { margin-top: .6rem; }

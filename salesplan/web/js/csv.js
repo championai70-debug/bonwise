@@ -24,14 +24,34 @@ export const COLUMNS = {
   active: ['active', 'status', 'enabled', 'aktiv'],
 };
 
-const norm = (s) => String(s ?? '').toLowerCase().replace(/[_\-./()#]+/g, ' ').replace(/\s+/g, ' ').trim();
-const LOOKUP = new Map();
-for (const [field, names] of Object.entries(COLUMNS)) for (const n of names) LOOKUP.set(norm(n), field);
+/** Columns of a sales history file: one row per article, season (and customer). */
+export const HISTORY_COLUMNS = {
+  season: ['season', 'period', 'year', 'saison', 'jahr', 'periode'],
+  id: COLUMNS.id,
+  customer: ['customer', 'account', 'client', 'store', 'retailer', 'dealer', 'kunde', 'händler', 'filiale', 'customer name', 'sold to'],
+  units: ['units', 'qty', 'quantity', 'units sold', 'sales units', 'sell in units', 'sold', 'menge', 'stück', 'absatz', 'volume'],
+  sellIn: ['sell in', 'sellin', 'shipped units'],
+  sellOut: COLUMNS.sellOut,
+  openStock: COLUMNS.openStock,
+  repeatRate: COLUMNS.repeatRate,
+  price: COLUMNS.asp,
+  segment: COLUMNS.segment,
+  tags: COLUMNS.tags,
+};
 
-export function mapHeader(header) {
+const norm = (s) => String(s ?? '').toLowerCase().replace(/[_\-./()#]+/g, ' ').replace(/\s+/g, ' ').trim();
+const lookup = (columns) => {
+  const m = new Map();
+  for (const [field, names] of Object.entries(columns)) for (const n of names) if (!m.has(norm(n))) m.set(norm(n), field);
+  return m;
+};
+const LOOKUP = lookup(COLUMNS);
+const HISTORY_LOOKUP = lookup(HISTORY_COLUMNS);
+
+export function mapHeader(header, map = LOOKUP) {
   const used = new Set();
   return header.map((h) => {
-    const f = LOOKUP.get(norm(h));
+    const f = map.get(norm(h));
     if (!f || used.has(f)) return null;
     used.add(f);
     return f;
@@ -47,7 +67,7 @@ export function detectDelimiter(text) {
 }
 
 /** RFC 4180 parser. Returns rows as arrays of strings. */
-export function parseCSV(text, delimiter) {
+export function parseCSV(text, delimiter, maxRows = MAX_ROWS) {
   let s = String(text);
   if (s.charCodeAt(0) === 0xfeff) s = s.slice(1);
   const d = delimiter || detectDelimiter(s);
@@ -68,7 +88,7 @@ export function parseCSV(text, delimiter) {
       row.push(field); field = '';
       if (row.some((c) => c.trim() !== '')) rows.push(row);
       row = [];
-      if (rows.length > MAX_ROWS + 1) throw new Error(`Too many rows (max ${MAX_ROWS}).`);
+      if (rows.length > maxRows + 1) throw new Error(`Too many rows (max ${maxRows}).`);
     } else field += ch;
   }
   row.push(field);
@@ -115,7 +135,41 @@ export function parseNumber(v, style = '') {
   return Number.isFinite(n) ? (neg ? -n : n) : null;
 }
 
-const NUMERIC = new Set(['asp', 'pack', 'moq', 'supply', 'lastUnits', 'sellIn', 'sellOut', 'openStock', 'repeatRate', 'mlScore']);
+const NUMERIC = new Set(['asp', 'pack', 'moq', 'supply', 'lastUnits', 'sellIn', 'sellOut', 'openStock', 'repeatRate', 'mlScore', 'units', 'price']);
+export const MAX_HISTORY_ROWS = 100000;
+
+/**
+ * Turn sales history rows (first row = header) into raw history records.
+ * Needs season, article id and units; customer, sell-in/out, stock, repeat rate, price, segment, tags are optional.
+ */
+export function rowsToHistory(rows) {
+  if (!rows.length) return { records: [], unknown: [], missing: ['season', 'id', 'units'], problems: [] };
+  const header = rows[0].map((h) => String(h ?? '').trim());
+  const fields = mapHeader(header, HISTORY_LOOKUP);
+  const unknown = header.filter((h, i) => h && !fields[i]);
+  const missing = ['season', 'id', 'units'].filter((f) => !fields.includes(f));
+  const numCols = fields.map((f, i) => (NUMERIC.has(f) ? i : -1)).filter((i) => i >= 0);
+  const style = numberStyle(rows.slice(1, 2001).flatMap((r) => numCols.map((i) => r[i])));
+  const problems = [];
+  const records = [];
+  for (const [ri, r] of rows.slice(1, MAX_HISTORY_ROWS + 1).entries()) {
+    const a = {};
+    fields.forEach((f, i) => {
+      if (!f) return;
+      const v = r[i] ?? '';
+      if (NUMERIC.has(f)) {
+        const num = parseNumber(v, style);
+        if (num === null && String(v).trim() !== '' && problems.length < 20) problems.push(`Row ${ri + 2}: "${String(v).slice(0, 30)}" is not a number (${f})`);
+        a[f] = num;
+        if (f === 'repeatRate' && num !== null && String(v).includes('%')) a[f] = num / 100;
+      } else a[f] = String(v);
+    });
+    if (!String(a.id ?? '').trim() || !String(a.season ?? '').trim()) continue;
+    records.push(a);
+  }
+  if (rows.length - 1 > MAX_HISTORY_ROWS) problems.push(`Only the first ${MAX_HISTORY_ROWS} rows were read.`);
+  return { records, unknown, missing, problems, style };
+}
 
 /**
  * Turn table rows (first row = header) into raw article objects.

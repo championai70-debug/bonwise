@@ -40,6 +40,45 @@ The Android app bundles those same files and works offline.
 5. **Checks.** For every segment, placed + left over = pool, to the cent. Every article stays within its
    bounds. Each plan shows this check.
 
+### Prediction from sales history (`web/js/model.js`)
+
+The app can learn from the user's own sales history, right on the phone. Nothing is uploaded. Import
+the history with these columns:
+- needed: season, article, units;
+- optional: customer, sell-in, sell-out, open stock, repeat rate, price.
+
+1. **Model.** It uses gradient-boosted regression trees, the method behind XGBoost and LightGBM, written
+   in plain JavaScript. It runs in a background worker.
+   - One training example is one article in one season.
+   - Features:
+     - units one and two seasons before;
+     - sell-through, repeat rate and trend;
+     - price, and price compared with the segment;
+     - segment and tags;
+     - whether the article is new and how long it has been on sale.
+   - Target: log(1 + units).
+   - A new article gets its predecessor's past seasons, or those of its closest look-alike.
+2. **Test before use.** The model is trained without the latest season and then predicts it. It is
+   compared with "same as last season" on three measures:
+   - rank correlation;
+   - share of the real top 10 found;
+   - units error (WAPE).
+
+   The app uses the model only if it is better. The plan shows the test.
+3. **Per customer.** The pooled model, trained on all customers, predicts each article's total. This is
+   multiplied by the customer's share of the article in the last two seasons. That share is smoothed
+   toward the customer's share of the segment (empirical Bayes):
+   `share = (customer units + k × segment share) / (all units + k)`.
+   - A customer with a lot of history gets their own pattern.
+   - A new customer gets the brand-wide ranking.
+4. **Too little data.** The app says so:
+   - With fewer than 2 seasons or 30 examples there is no model. Scores come from the article list
+     (a rule).
+   - With exactly 2 seasons the model can't be tested yet, so it is averaged with last season.
+
+Predicted units × price becomes the "demand" signal of the score. The plan also shows the budget
+compared with the predicted demand.
+
 The engine lives in `web/js/engine.js` and has no DOM code; the same file runs in the app and in the tests.
 
 ## Files
@@ -48,6 +87,7 @@ The engine lives in `web/js/engine.js` and has no DOM code; the same file runs i
 |---|---|
 | `web/js/engine.js` | Scoring and allocation (pure functions, money in whole cents) |
 | `web/js/csv.js`, `web/js/xlsx.js` | Import from CSV and Excel (.xlsx), with no library. Recognises common column names in English and German and number styles like "1.234,56" or "1,234.56". On export, any cell starting with `=`, `+`, `-` or `@` is written as text, so Excel never runs it |
+| `web/js/model.js`, `web/js/train-worker.js` | Sales-history model: boosted trees, backtest, customer layer (see above) |
 | `web/js/vault.js` | Storage on the device (IndexedDB). With the app lock on, data is encrypted with AES-256-GCM, using a key from PBKDF2-SHA-256 (600,000 rounds). After 5 wrong tries there is a growing pause. Backup files are encrypted with their own password |
 | `web/js/app.js`, `web/js/ui.js` | Screens: plans (budget → articles → result), articles, settings, help, lock screen. All text goes in through `textContent`, never `innerHTML` |
 | `web/index.html`, `web/styles.css` | Strict Content-Security-Policy (`script-src 'self'`, no inline code, no outside hosts). Light and dark themes |
