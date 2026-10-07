@@ -93,6 +93,7 @@ The engine lives in `web/js/engine.js` and has no DOM code; the same file runs i
 | `web/js/engine.js` | Scoring and allocation (pure functions, money in whole cents) |
 | `web/js/csv.js`, `web/js/xlsx.js` | Import from CSV and Excel (.xlsx), with no library. Recognises common column names in English and German and number styles like "1.234,56" or "1,234.56". On export, any cell starting with `=`, `+`, `-` or `@` is written as text, so Excel never runs it |
 | `web/js/model.js`, `web/js/train-worker.js` | Sales-history model: boosted trees, backtest, customer layer (see above) |
+| `web/js/visuals.js` | Interactive visuals in plain CSS 3D (no library): the order as 3D pallets (drag to turn, tap a box), a draggable split bar, counting numbers, card tilt, confetti. All respect "reduce motion" |
 | `web/js/vault.js` | Storage on the device (IndexedDB). With the app lock on, data is encrypted with AES-256-GCM, using a key from PBKDF2-SHA-256 (600,000 rounds). After 5 wrong tries there is a growing pause. Backup files are encrypted with their own password |
 | `web/js/app.js`, `web/js/ui.js` | Screens: plans (budget → articles → result), articles, settings, help, lock screen. All text goes in through `textContent`, never `innerHTML` |
 | `web/index.html`, `web/styles.css` | Strict Content-Security-Policy (`script-src 'self'`, no inline code, no outside hosts). Light and dark themes |

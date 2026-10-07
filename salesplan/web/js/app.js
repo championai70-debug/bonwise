@@ -9,6 +9,7 @@ import { cleanHistoryRow, historySummary, learn } from './model.js';
 import { readXlsx } from './xlsx.js';
 import { Vault, Wait, WrongSecret, idbBackend, makeBackup, memoryBackend, readBackup } from './vault.js';
 import { SAMPLE, sampleHistory } from './sample.js';
+import { confetti, countUp, palletScene, splitBar, tilt } from './visuals.js';
 import {
   append, clear, confirmBox, debounce, h, icon, numberInput, promptBox, sheet, toast,
 } from './ui.js';
@@ -393,13 +394,13 @@ function homeView() {
   const list = h('div', { class: 'plan-list' });
   for (const p of plans) {
     const sum = p.segments.reduce((s, x) => s + x.pct, 0);
-    list.append(h('a', { class: 'card plan-card', href: `#/plan/${encodeURIComponent(p.id)}/${p.final ? 'result' : 'budget'}` },
+    list.append(tilt(h('a', { class: 'card plan-card', href: `#/plan/${encodeURIComponent(p.id)}/${p.final ? 'result' : 'budget'}` },
       h('div', { class: 'plan-card-top' },
         h('div', null, h('h3', null, p.customer), h('p', { class: 'muted' }, [p.season, `changed ${fmtDate(p.updated)}`].filter(Boolean).join(' · '))),
         h('div', { class: 'plan-amount' }, moneyShort(Math.round(planBudget(p) * 100)), p.final ? h('span', { class: 'chip ok' }, icon('check', 14), 'Final') : null)),
       h('div', { class: 'splitbar', 'aria-hidden': 'true' },
         p.segments.map((s, i) => h('span', { class: COLORS[i % COLORS.length], style: { width: `${sum > 0 ? (s.pct / Math.max(100, sum)) * 100 : 0}%` } }))),
-      h('div', { class: 'legend' }, p.segments.map((s, i) => h('span', null, h('i', { class: COLORS[i % COLORS.length] }), `${s.name} ${fmtPct(s.pct, 1)}`)))));
+      h('div', { class: 'legend' }, p.segments.map((s, i) => h('span', null, h('i', { class: COLORS[i % COLORS.length] }), `${s.name} ${fmtPct(s.pct, 1)}`))))));
   }
   box.append(list);
   return box;
@@ -407,7 +408,10 @@ function homeView() {
 
 function welcomeView() {
   return h('section', { class: 'view welcome' },
-    h('div', { class: 'welcome-art' }, logo(72)),
+    h('div', { class: 'welcome-art' }, palletScene(
+      [[34, 22, 14], [40, 30, 20], [50, 36, 24], [62, 44, 30]].map((stack, i) => ({
+        name: '', color: COLORS[i], total: stack.reduce((a, b) => a + b, 0), items: stack.map((v) => ({ label: '', value: v })),
+      })), { compact: true, draggable: true, autoTurn: true, height: 210, maxStack: 120, spin: -32, tilt: 60 })),
     h('h1', null, 'How much should each customer order?'),
     h('p', { class: 'lead' }, 'Give a customer\'s budget. Get money and units for every article.'),
     h('ol', { class: 'steps' },
@@ -621,9 +625,28 @@ function planBudgetView(p) {
   }
 
   const segList = h('div', { class: 'seg-list' });
+  const splitHolder = h('div', { class: 'split-holder' });
+  const pctInputs = [];
+  const drawSplit = () => {
+    clear(splitHolder);
+    if (p.segments.length < 2) return;
+    const ok = Math.abs(p.segments.reduce((s2, x) => s2 + x.pct, 0) - 100) <= 0.01;
+    splitHolder.append(
+      splitBar(p.segments.map((x, i) => ({ name: x.name, pct: x.pct, color: COLORS[i % COLORS.length] })), {
+        format: (v) => fmtPct(v, Number.isInteger(v) ? 0 : 1),
+        onInput: (pcts) => {
+          pcts.forEach((v, i) => { p.segments[i].pct = v; if (pctInputs[i]) pctInputs[i].value = plain(v); });
+          updateDerived();
+        },
+        onCommit: () => { touch(p); updateDerived(); },
+      }),
+      h('p', { class: 'muted small' }, ok ? 'Drag the white edges to change the split.' : 'Make the split 100% to drag it.'));
+    splitHolder.classList.toggle('locked', !ok);
+  };
   const drawSegments = () => {
     clear(segList);
     segMoney.length = 0;
+    pctInputs.length = 0;
     p.segments.forEach((s, i) => {
       const nameIn = h('input', { value: s.name, 'aria-label': `Segment ${i + 1} name`, maxlength: 80, placeholder: 'Segment name' });
       nameIn.addEventListener('input', () => { s.name = str(nameIn.value, 80); touch(p); });
@@ -633,13 +656,17 @@ function planBudgetView(p) {
       segList.append(h('div', { class: 'seg-row' },
         h('i', { class: `dot ${COLORS[i % COLORS.length]}` }),
         h('div', { class: 'seg-main' },
-          h('div', { class: 'row gap' }, nameIn,
-            numberInput({ value: plain(s.pct), parse: parseInput, min: 0, max: 100, label: `${s.name || 'Segment'} percent`, suffix: '%', onValue: (n) => { s.pct = n ?? 0; touch(p); updateDerived(); } })),
+          h('div', { class: 'row gap' }, nameIn, (() => {
+            const el = numberInput({ value: plain(s.pct), parse: parseInput, min: 0, max: 100, label: `${s.name || 'Segment'} percent`, suffix: '%', onValue: (n) => { s.pct = n ?? 0; touch(p); updateDerived(); drawSplit(); } });
+            pctInputs[i] = el.querySelector ? el.querySelector('input') || el : el;
+            return el;
+          })()),
           h('div', { class: 'row between' }, h('span', { class: 'meter' }, bar), money)),
         h('button', { class: 'icon-btn', 'aria-label': `Remove ${s.name || 'segment'}`, onclick: () => { p.segments.splice(i, 1); touch(p); drawSegments(); } }, icon('trash', 18))));
     });
     if (!p.segments.length) segList.append(h('p', { class: 'muted' }, 'No segments yet. Add one, or take them from your articles.'));
     updateDerived();
+    drawSplit();
   };
 
   const missing = catalogSegments().filter((name) => !p.segments.some((s) => segKey(s.name) === segKey(name)));
@@ -653,6 +680,7 @@ function planBudgetView(p) {
     h('div', { class: 'card' },
       h('div', { class: 'row between wrap' }, h('h2', null, 'Split across segments'), sumChip),
       h('p', { class: 'muted' }, 'Every segment gets this share of the budget as its pool.'),
+      splitHolder,
       segList,
       h('div', { class: 'row gap wrap' },
         h('button', { class: 'btn small', onclick: () => { p.segments.push({ name: '', pct: 0 }); touch(p); drawSegments(); segList.querySelector('.seg-row:last-child input')?.focus(); } }, icon('plus', 16), 'Add segment'),
@@ -921,10 +949,11 @@ function planResult(p) {
       h('p', null, `Final result saved ${fmtDateTime(p.final.at)}. Later changes to articles do not change it.`),
       h('button', { class: 'btn small', onclick: () => { p.final = null; touch(p); render(); } }, 'Reopen'))) : null,
     h('div', { class: 'kpis' },
-      kpi('Budget', moneyShort(r.budgetCents)),
-      kpi('Placed', moneyShort(t.placedCents), r.budgetCents ? fmtPct((t.placedCents / r.budgetCents) * 100) : ''),
-      kpi('Units', fmtNum(t.units)),
-      kpi('Articles', fmtNum(t.articles))),
+      kpi('Budget', { n: r.budgetCents, f: (v) => moneyShort(Math.round(v)) }),
+      kpi('Placed', { n: t.placedCents, f: (v) => moneyShort(Math.round(v)) }, r.budgetCents ? fmtPct((t.placedCents / r.budgetCents) * 100) : ''),
+      kpi('Units', { n: t.units, f: (v) => fmtNum(Math.round(v)) }),
+      kpi('Articles', { n: t.articles, f: (v) => fmtNum(Math.round(v)) })),
+    orderScene(r),
     h('div', { class: `check ${r.checks.ok ? 'ok' : 'bad'}` },
       icon(r.checks.ok ? 'check' : 'alert', 18),
       r.checks.ok
@@ -941,7 +970,7 @@ function planResult(p) {
         h('button', { class: 'btn', onclick: () => exportResult(p, r) }, icon('download'), 'Excel / CSV'),
         h('button', { class: 'btn', onclick: () => printPage(`${p.customer} ${p.season}`) }, icon('print'), 'Print or PDF'),
         h('button', { class: 'btn', onclick: () => shareText(`${p.customer} ${p.season}`, summaryText(p, r)) }, icon('share'), 'Share summary'),
-        live ? h('button', { class: 'btn primary', onclick: () => { p.final = { at: Date.now(), result: r }; touch(p); render(); toast('Saved as final.'); } }, icon('flag'), 'Mark as final') : null)),
+        live ? h('button', { class: 'btn primary', onclick: () => { p.final = { at: Date.now(), result: r }; touch(p); render(); confetti(); toast('Saved as final.'); } }, icon('flag'), 'Mark as final') : null)),
     h('div', { class: 'row between no-print' },
       h('a', { class: 'btn ghost', href: `#/plan/${encodeURIComponent(p.id)}/articles` }, icon('back'), 'Articles'),
       h('a', { class: 'btn ghost', href: '#/' }, 'All plans')),
@@ -968,9 +997,43 @@ function demandNote(p, r) {
     ratio > 1.15 ? ', so plan on growth: more listings, stores or promotion.' : ratio < 0.85 ? ', so some demand may go unserved.' : ', which is in line.'));
 }
 
-function kpi(label, value, sub) {
-  return h('div', { class: 'kpi' }, h('span', null, label), h('strong', null, value), sub ? h('small', null, sub) : null);
+/** The order as 3D stacks: one stack per segment, one box per article (biggest at the bottom). */
+function orderScene(r) {
+  const cols = r.segments.slice(0, 8).map((s, i) => {
+    const top = s.rows.slice(0, 6);
+    const rest = s.rows.slice(6);
+    const items = top.map((x) => ({ label: x.name, value: x.valueCents, detail: `${moneyShort(x.valueCents)} · ${plural(x.units, 'unit')} · ${fmtPct(x.sharePct)} of ${s.name}` }));
+    if (rest.length) {
+      const v = rest.reduce((sum, x) => sum + x.valueCents, 0);
+      items.push({ label: `${rest.length} more articles`, value: v, detail: `${moneyShort(v)} together` });
+    }
+    return { name: s.name, color: COLORS[i % COLORS.length], total: s.placedCents, items };
+  }).filter((c) => c.total > 0);
+  if (!cols.length) return null;
+  const info = h('div', { class: 'scene-info', 'aria-live': 'polite' }, icon('box', 16), h('span', null, 'Tap a box to see the article. Drag to turn the pallets.'));
+  const scene = palletScene(cols, {
+    onPick: (it, col) => {
+      clear(info);
+      append(info, [h('i', { class: `dot ${col.color}` }), h('span', null, h('b', null, it.label), h('br'), h('span', { class: 'muted' }, `${col.name} · ${it.detail}`))]);
+    },
+  });
+  return h('div', { class: 'card scene-card no-print' },
+    h('div', { class: 'row between' }, h('h2', null, icon('box'), 'Your order in 3D'), h('button', { class: 'btn small ghost', onclick: () => scene.reset() }, 'Reset view')),
+    scene,
+    h('div', { class: 'legend' }, cols.map((c) => h('span', null, h('i', { class: c.color }), `${c.name} ${moneyShort(c.total)}`))),
+    info);
 }
+
+/** value: text, or { n, f } to count up to number n shown with formatter f. */
+function kpi(label, value, sub) {
+  const strong = h('strong', null, typeof value === 'object' ? value.f(value.n) : value);
+  if (typeof value === 'object' && !kpiSeen.has(`${label}:${value.n}`)) {
+    kpiSeen.add(`${label}:${value.n}`);
+    countUp(strong, value.n, value.f);
+  }
+  return tilt(h('div', { class: 'kpi' }, h('span', null, label), strong, sub ? h('small', null, sub) : null));
+}
+const kpiSeen = new Set();
 
 function segmentResult(s, si, p) {
   const color = COLORS[si % COLORS.length];
