@@ -241,13 +241,62 @@ function glassMaterial(full, tint, extra = {}) {
     });
   }
   return new THREE.MeshPhysicalMaterial({
-    color: new THREE.Color('#ffffff').lerp(new THREE.Color(tint), 0.12),
-    metalness: 0, roughness: 0.14, transmission: 1, thickness: 0.45, ior: 1.38,
-    attenuationColor: new THREE.Color(tint), attenuationDistance: 4,
+    color: new THREE.Color('#ffffff').lerp(new THREE.Color(tint), 0.28),
+    metalness: 0, roughness: 0.1, transmission: 1, thickness: 0.6, ior: 1.4,
+    attenuationColor: new THREE.Color(tint), attenuationDistance: 1.4,
+    sheen: 0.5, sheenColor: new THREE.Color(tint), sheenRoughness: 0.4,
     iridescence: 0.3, iridescenceIOR: 1.22, iridescenceThicknessRange: [150, 380],
     clearcoat: 1, clearcoatRoughness: 0.03, specularIntensity: 0.9, envMapIntensity: 1.0,
     ...extra,
   });
+}
+
+/**
+ * A sculpted tower: a rounded-square glass prism that twists as it rises and narrows a little toward
+ * the top, like a modern skyscraper. Twist is per unit of height, so all towers share one rhythm.
+ */
+function twistedPrism(w, h, { twist = 0.62, taper = 0.2, steps = null, radius = 0.32, curve = 6 } = {}) {
+  const r = Math.min(w * radius, w / 2.05);
+  const a = w / 2;
+  const shape = new THREE.Shape();
+  shape.moveTo(-a + r, -a);
+  shape.lineTo(a - r, -a); shape.quadraticCurveTo(a, -a, a, -a + r);
+  shape.lineTo(a, a - r); shape.quadraticCurveTo(a, a, a - r, a);
+  shape.lineTo(-a + r, a); shape.quadraticCurveTo(-a, a, -a, a - r);
+  shape.lineTo(-a, -a + r); shape.quadraticCurveTo(-a, -a, -a + r, -a);
+  const bevel = Math.min(0.06, h / 6);
+  const geo = new THREE.ExtrudeGeometry(shape, {
+    depth: Math.max(0.01, h - bevel * 2), steps: steps ?? Math.max(6, Math.round(h * 16)), curveSegments: curve,
+    bevelEnabled: true, bevelThickness: bevel, bevelSize: bevel * 0.8, bevelSegments: 3,
+  });
+  geo.rotateX(-Math.PI / 2);          // extrude upward
+  geo.translate(0, bevel, 0);
+  const pos = geo.attributes.position;
+  const v = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i);
+    const k = Math.min(1, Math.max(0, v.y / h));
+    const ang = v.y * twist;
+    const sc = 1 - taper * k * k;
+    const x = v.x * sc;
+    const z = v.z * sc;
+    pos.setXYZ(i, x * Math.cos(ang) - z * Math.sin(ang), v.y, x * Math.sin(ang) + z * Math.cos(ang));
+  }
+  geo.computeVertexNormals();
+  return geo;
+}
+
+/** A glowing spiral of light that winds up inside a tower. */
+function helixGeometry(rad, h, { turns = null, tube = 0.016 } = {}) {
+  const n = Math.max(1.2, turns ?? h * 0.95);
+  const pts = [];
+  const steps = Math.max(24, Math.round(n * 40));
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const ang = t * n * Math.PI * 2;
+    pts.push(new THREE.Vector3(Math.cos(ang) * rad, 0.06 + t * Math.max(0.02, h - 0.14), Math.sin(ang) * rad));
+  }
+  return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), steps, tube, 8, false);
 }
 
 function glowMaterial(hex, power = 2.4) {
@@ -308,16 +357,18 @@ export function orderSkyline(columns, opts = {}) {
     const glass = glassMaterial(full, tint);
     row.items.forEach((it, ci) => {
       const h = Math.max(0.08, (it.value / maxValue) * maxH);
-      const shell = new THREE.Mesh(new RoundedBoxGeometry(W, h, W, full ? 5 : 2, Math.min(0.1, h / 2.2)).translate(0, h / 2, 0), glass);
-      const coreW = W * 0.3;
-      const core = new THREE.Mesh(new THREE.BoxGeometry(coreW, Math.max(0.02, h - 0.12), coreW).translate(0, h / 2, 0),
-        glowMaterial(tint, it.more ? 0.9 : 2.2));
-      const cap = new THREE.Mesh(new THREE.BoxGeometry(W * 0.7, 0.012, W * 0.7).translate(0, h - 0.035, 0), glowMaterial(tint, it.more ? 0.8 : 3));
+      const shell = new THREE.Mesh(twistedPrism(W, h, { curve: full ? 6 : 3, steps: full ? null : Math.max(4, Math.round(h * 6)) }), glass);
+      // a spiral of light inside, a thin glowing spine, and a halo floating above the top
+      const core = new THREE.Mesh(helixGeometry(W * 0.17, h, { tube: it.more ? 0.01 : 0.016 }), glowMaterial(tint, it.more ? 0.9 : 2.4));
+      const spine = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, Math.max(0.02, h - 0.12), 6).translate(0, h / 2, 0), glowMaterial(tint, it.more ? 0.6 : 1.4));
+      const halo = new THREE.Mesh(new THREE.TorusGeometry(W * 0.36 * (1 - 0.2), 0.011, 8, 48), glowMaterial(tint, it.more ? 0.8 : 3));
+      halo.rotation.x = Math.PI / 2;
+      halo.position.y = h + 0.16;
       const g = new THREE.Group();
-      g.add(core, cap, shell);
+      g.add(core, spine, halo, shell);
       g.position.set(ci * gapX - spanX / 2, 0, z);
       g.scale.y = reduced() ? 1 : 0.001;
-      g.userData = { item: it, row, h, delay: ri * 110 + ci * 55, shell, core };
+      g.userData = { item: it, row, h, delay: ri * 110 + ci * 55, shell, core, halo, ph: ri * 1.3 + ci * 0.7 };
       shell.userData.tower = g;
       scene.add(g);
       towers.push(g);
@@ -413,7 +464,13 @@ export function orderSkyline(columns, opts = {}) {
   runLoop(box, stage, (s) => {
     const ms = s * 1000;
     if (!reduced()) {
-      for (const g of towers) g.scale.y = Math.max(0.001, ease(Math.min(1, Math.max(0, (ms - 250 - g.userData.delay) / 1000))));
+      for (const g of towers) {
+        g.scale.y = Math.max(0.001, ease(Math.min(1, Math.max(0, (ms - 250 - g.userData.delay) / 1000))));
+        const u = g.userData;
+        u.halo.position.y = u.h + 0.16 + 0.05 * Math.sin(s * 1.6 + u.ph);
+        u.halo.rotation.z = s * 0.6 + u.ph;
+        u.core.rotation.y = s * (g === picked ? 1.6 : 0.35);
+      }
       if (!interacted && ms < 2000) camera.position.lerpVectors(startPos, endPos, ease(Math.min(1, ms / 2000)));
       else started = true;
     }
@@ -479,7 +536,7 @@ export function crystal(opts = {}) {
   const inner = [];
   bars.forEach((b, i) => {
     const h = 0.4 + (b.value / max) * (ch - 0.9);
-    const m = new THREE.Mesh(new RoundedBoxGeometry(bw * 0.62, h, bw * 0.62, 3, 0.04).translate(0, h / 2, 0), glowMaterial(glowColor(b.color), 2.1));
+    const m = new THREE.Mesh(twistedPrism(bw * 0.62, h, { twist: 1.1, taper: 0.28, curve: 5 }), glowMaterial(glowColor(b.color), 2.1));
     m.position.set(-cw / 2 + 0.35 + bw * (i + 0.5), 0.45, 0);
     m.userData = { ph: i * 0.9 };
     group.add(m);
