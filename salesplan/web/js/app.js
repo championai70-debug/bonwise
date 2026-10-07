@@ -9,7 +9,7 @@ import { cleanHistoryRow, historySummary, learn } from './model.js';
 import { readXlsx } from './xlsx.js';
 import { Vault, Wait, WrongSecret, idbBackend, makeBackup, memoryBackend, readBackup } from './vault.js';
 import { SAMPLE, sampleHistory } from './sample.js';
-import { confetti, countUp, palletScene, splitBar, tilt } from './visuals.js';
+import { countUp, palletScene, splitBar, tilt } from './visuals.js';
 import {
   append, clear, confirmBox, debounce, h, icon, numberInput, promptBox, sheet, toast,
 } from './ui.js';
@@ -408,10 +408,10 @@ function homeView() {
 
 function welcomeView() {
   return h('section', { class: 'view welcome' },
-    h('div', { class: 'welcome-art' }, palletScene(
-      [[34, 22, 14], [40, 30, 20], [50, 36, 24], [62, 44, 30]].map((stack, i) => ({
-        name: '', color: COLORS[i], total: stack.reduce((a, b) => a + b, 0), items: stack.map((v) => ({ label: '', value: v })),
-      })), { compact: true, draggable: true, autoTurn: true, height: 210, maxStack: 120, spin: -32, tilt: 60 })),
+    h('div', { class: 'welcome-art' }, view3d(
+      [['Dairy', [62, 48, 40, 31, 22, 15]], ['Bakery', [44, 36, 27, 20, 12]], ['Snacks', [52, 41, 33, 25, 18, 11]], ['Drinks', [70, 50, 38, 29, 21]]].map(([name, vals], i) => ({
+        name, color: COLORS[i], total: vals.reduce((a, b) => a + b, 0), items: vals.map((v) => ({ label: name, value: v })),
+      })), { height: 290, interactive: true, labels: true, autoRotate: true, ariaLabel: 'Example: four segments of articles as glossy 3D columns.' })),
     h('h1', null, 'How much should each customer order?'),
     h('p', { class: 'lead' }, 'Give a customer\'s budget. Get money and units for every article.'),
     h('ol', { class: 'steps' },
@@ -948,12 +948,12 @@ function planResult(p) {
     p.final ? h('div', { class: 'card info' }, icon('flag'), h('div', null,
       h('p', null, `Final result saved ${fmtDateTime(p.final.at)}. Later changes to articles do not change it.`),
       h('button', { class: 'btn small', onclick: () => { p.final = null; touch(p); render(); } }, 'Reopen'))) : null,
+    orderScene(r),
     h('div', { class: 'kpis' },
       kpi('Budget', { n: r.budgetCents, f: (v) => moneyShort(Math.round(v)) }),
       kpi('Placed', { n: t.placedCents, f: (v) => moneyShort(Math.round(v)) }, r.budgetCents ? fmtPct((t.placedCents / r.budgetCents) * 100) : ''),
       kpi('Units', { n: t.units, f: (v) => fmtNum(Math.round(v)) }),
       kpi('Articles', { n: t.articles, f: (v) => fmtNum(Math.round(v)) })),
-    orderScene(r),
     h('div', { class: `check ${r.checks.ok ? 'ok' : 'bad'}` },
       icon(r.checks.ok ? 'check' : 'alert', 18),
       r.checks.ok
@@ -970,7 +970,7 @@ function planResult(p) {
         h('button', { class: 'btn', onclick: () => exportResult(p, r) }, icon('download'), 'Excel / CSV'),
         h('button', { class: 'btn', onclick: () => printPage(`${p.customer} ${p.season}`) }, icon('print'), 'Print or PDF'),
         h('button', { class: 'btn', onclick: () => shareText(`${p.customer} ${p.season}`, summaryText(p, r)) }, icon('share'), 'Share summary'),
-        live ? h('button', { class: 'btn primary', onclick: () => { p.final = { at: Date.now(), result: r }; touch(p); render(); confetti(); toast('Saved as final.'); } }, icon('flag'), 'Mark as final') : null)),
+        live ? h('button', { class: 'btn primary', onclick: () => { p.final = { at: Date.now(), result: r }; touch(p); render(); toast('Saved as final.'); } }, icon('flag'), 'Mark as final') : null)),
     h('div', { class: 'row between no-print' },
       h('a', { class: 'btn ghost', href: `#/plan/${encodeURIComponent(p.id)}/articles` }, icon('back'), 'Articles'),
       h('a', { class: 'btn ghost', href: '#/' }, 'All plans')),
@@ -997,7 +997,29 @@ function demandNote(p, r) {
     ratio > 1.15 ? ', so plan on growth: more listings, stores or promotion.' : ratio < 0.85 ? ', so some demand may go unserved.' : ', which is in line.'));
 }
 
-/** The order as 3D stacks: one stack per segment, one box per article (biggest at the bottom). */
+/**
+ * Real 3D (WebGL) when the device has it, loaded on demand so the app starts fast and never breaks:
+ * if WebGL or the 3D files are missing, the simpler CSS 3D view is shown instead.
+ */
+function view3d(cols, opts) {
+  const holder = h('div', { class: 'view3d', style: { height: `${opts.height}px` } });
+  holder.reset = () => holder.firstChild?.reset?.();
+  const fallback = () => {
+    clear(holder);
+    const stacks = cols.map((c) => ({ ...c, items: c.items.slice(0, 7) }));
+    holder.append(palletScene(stacks, { compact: !opts.onPick, draggable: true, autoTurn: !opts.onPick, height: opts.height, maxStack: opts.height * 0.55, onPick: opts.onPick }));
+  };
+  import('./scene3d.js')
+    .then((m) => {
+      if (!m.webglOK()) { fallback(); return; }
+      clear(holder);
+      holder.append(m.orderSkyline(cols, opts));
+    })
+    .catch(fallback);
+  return holder;
+}
+
+/** The order as 3D columns: one row per segment, one column per article. */
 function orderScene(r) {
   const cols = r.segments.slice(0, 8).map((s, i) => {
     const top = s.rows.slice(0, 6);
@@ -1010,15 +1032,14 @@ function orderScene(r) {
     return { name: s.name, color: COLORS[i % COLORS.length], total: s.placedCents, items };
   }).filter((c) => c.total > 0);
   if (!cols.length) return null;
-  const info = h('div', { class: 'scene-info', 'aria-live': 'polite' }, icon('box', 16), h('span', null, 'Tap a box to see the article. Drag to turn the pallets.'));
-  const scene = palletScene(cols, {
-    onPick: (it, col) => {
-      clear(info);
-      append(info, [h('i', { class: `dot ${col.color}` }), h('span', null, h('b', null, it.label), h('br'), h('span', { class: 'muted' }, `${col.name} · ${it.detail}`))]);
-    },
-  });
+  const info = h('div', { class: 'scene-info', 'aria-live': 'polite' }, icon('box', 16), h('span', null, 'Tap a column to see the article. Drag to turn, pinch to zoom.'));
+  const onPick = (it, col) => {
+    clear(info);
+    append(info, [h('i', { class: `dot ${col.color}` }), h('span', null, h('b', null, it.label), h('br'), h('span', { class: 'muted' }, `${col.name} · ${it.detail}`))]);
+  };
+  const scene = view3d(cols, { height: 380, onPick, maxPerRow: 12 });
   return h('div', { class: 'card scene-card no-print' },
-    h('div', { class: 'row between' }, h('h2', null, icon('box'), 'Your order in 3D'), h('button', { class: 'btn small ghost', onclick: () => scene.reset() }, 'Reset view')),
+    h('div', { class: 'row between' }, h('h2', null, icon('box'), 'Your order in 3D'), h('button', { class: 'btn small ghost', onclick: () => scene.reset?.() }, 'Reset view')),
     scene,
     h('div', { class: 'legend' }, cols.map((c) => h('span', null, h('i', { class: c.color }), `${c.name} ${moneyShort(c.total)}`))),
     info);
