@@ -94,6 +94,7 @@ The engine lives in `web/js/engine.js` and has no DOM code; the same file runs i
 | `web/js/csv.js`, `web/js/xlsx.js` | Import from CSV and Excel (.xlsx), with no library. Recognises common column names in English and German and number styles like "1.234,56" or "1,234.56". On export, any cell starting with `=`, `+`, `-` or `@` is written as text, so Excel never runs it |
 | `web/js/model.js`, `web/js/train-worker.js` | Sales-history model: boosted trees, backtest, customer layer (see above) |
 | `web/js/scene3d.js`, `web/vendor/three/` | Real 3D (WebGL) with three.js r180 (MIT, bundled, no network): the order as glossy columns on a studio stage, with soft shadows, reflections, orbit/zoom and tap for details. Falls back to the CSS view when WebGL is missing |
+| `web/fonts/` | Anton (display) and Manrope (text), bundled woff2 files, SIL Open Font Licence |
 | `web/js/visuals.js` | Interactive visuals in plain CSS 3D (no library): the order as 3D pallets (drag to turn, tap a box), a draggable split bar, counting numbers, card tilt, confetti. All respect "reduce motion" |
 | `web/js/vault.js` | Storage on the device (IndexedDB). With the app lock on, data is encrypted with AES-256-GCM, using a key from PBKDF2-SHA-256 (600,000 rounds). After 5 wrong tries there is a growing pause. Backup files are encrypted with their own password |
 | `web/js/app.js`, `web/js/ui.js` | Screens: plans (budget → articles → result), articles, settings, help, lock screen. All text goes in through `textContent`, never `innerHTML` |

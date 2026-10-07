@@ -1,10 +1,10 @@
 // Offline support for the web version: the app files are kept on the device and served from
 // there first, then refreshed in the background. User data is never cached here (it lives in
 // IndexedDB) and the app makes no other network requests.
-const CACHE = 'salesplan-v4';
+const CACHE = 'salesplan-v5';
 const FILES = [
   './', 'index.html', 'styles.css', 'manifest.webmanifest', 'privacy.html', 'icon.svg', 'icon-192.png', 'icon-512.png',
-  'js/app.js', 'js/engine.js', 'js/csv.js', 'js/xlsx.js', 'js/vault.js', 'js/ui.js', 'js/sample.js', 'js/model.js', 'js/train-worker.js', 'js/visuals.js', 'js/scene3d.js', 'vendor/three/three.module.min.js', 'vendor/three/three.core.min.js', 'vendor/three/OrbitControls.js', 'vendor/three/RoomEnvironment.js', 'vendor/three/RoundedBoxGeometry.js',
+  'js/app.js', 'js/engine.js', 'js/csv.js', 'js/xlsx.js', 'js/vault.js', 'js/ui.js', 'js/sample.js', 'js/model.js', 'js/train-worker.js', 'js/visuals.js', 'js/scene3d.js', 'fonts/anton-latin-400-normal.woff2', 'fonts/manrope-latin-wght-normal.woff2', 'vendor/three/three.module.min.js', 'vendor/three/three.core.min.js', 'vendor/three/OrbitControls.js', 'vendor/three/RoomEnvironment.js', 'vendor/three/RoundedBoxGeometry.js',
 ];
 
 self.addEventListener('install', (e) => {

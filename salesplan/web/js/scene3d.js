@@ -330,3 +330,151 @@ export function orderSkyline(columns, opts = {}) {
   box.reset = () => { interacted = false; camera.position.copy(endPos); controls.target.copy(target); controls.autoRotate = autoRotate; setPicked(null); };
   return box;
 }
+
+/**
+ * The start screen's hero: a glossy sculpture of thin stacked layers that twist and ripple, like
+ * budget layers being shaped into an order. Decorative; transparent so the colour blocks show
+ * through. Follows the pointer a little, and can be turned by dragging.
+ */
+export function sculpture(opts = {}) {
+  const { height = 380 } = opts;
+  const box = el('div', 'sculpt');
+  box.style.height = `${height}px`;
+  box.setAttribute('role', 'img');
+  box.setAttribute('aria-label', 'A glossy 3D sculpture of stacked, twisting layers.');
+  let renderer;
+  try {
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
+  } catch { return box; }
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.0;
+  renderer.domElement.className = 'sculpt-canvas';
+  box.append(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  scene.environment = envTex;
+  scene.environmentIntensity = 0.7;
+
+  const group = new THREE.Group();
+  scene.add(group);
+  const N = 72;
+  const layerH = 0.045;
+  const gap = 0.062;
+  const stops = [new THREE.Color('#ff3b2f'), new THREE.Color('#ff2f7a'), new THREE.Color('#c13cff'), new THREE.Color('#5b3cff')];
+  const colorAt = (k) => {
+    const x = k * (stops.length - 1);
+    const i = Math.min(stops.length - 2, Math.floor(x));
+    return stops[i].clone().lerp(stops[i + 1], x - i);
+  };
+  const layers = [];
+  for (let i = 0; i < N; i++) {
+    const k = i / (N - 1);
+    const w = 2.1 + 0.75 * Math.sin(k * Math.PI * 1.15 + 0.3);
+    const d = 1.05 + 0.45 * Math.cos(k * Math.PI * 1.6);
+    const geo = new RoundedBoxGeometry(w, layerH, d, 3, Math.min(0.5, d / 2.05));
+    const mat = new THREE.MeshPhysicalMaterial({
+      color: colorAt(k), roughness: 0.22, metalness: 0.05, clearcoat: 1, clearcoatRoughness: 0.04, specularIntensity: 0.9,
+    });
+    const m = new THREE.Mesh(geo, mat);
+    m.position.y = i * gap - (N * gap) / 2;
+    m.userData = { k, base: k * 2.6, sway: 0.28 * Math.sin(k * Math.PI * 2) };
+    group.add(m);
+    layers.push(m);
+  }
+  // a few floating glossy "data points"
+  const dots = [];
+  const dotMat = (c) => new THREE.MeshPhysicalMaterial({ color: c, roughness: 0.15, clearcoat: 1, clearcoatRoughness: 0.03 });
+  [['#2f45ff', 0.22, -1.9, 1.2, 0.6], ['#ffd23f', 0.14, 1.8, -0.9, 0.9], ['#ffffff', 0.1, 1.5, 1.7, -0.4], ['#2f45ff', 0.12, -1.4, -1.6, -0.8]].forEach(([c, r, x, y, z]) => {
+    const s = new THREE.Mesh(new THREE.SphereGeometry(r, 48, 32), dotMat(c));
+    s.position.set(x, y, z);
+    s.userData = { y0: y, ph: Math.random() * 6 };
+    scene.add(s);
+    dots.push(s);
+  });
+
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x2b1d6b, 0.9));
+  const key = new THREE.DirectionalLight(0xffffff, 2.4);
+  key.position.set(-3, 5, 4);
+  scene.add(key);
+  const rimBlue = new THREE.DirectionalLight(0x4f6bff, 2.2);
+  rimBlue.position.set(4, 1, -3);
+  scene.add(rimBlue);
+  const rimPink = new THREE.DirectionalLight(0xff5aa5, 1.4);
+  rimPink.position.set(-4, -2, -2);
+  scene.add(rimPink);
+
+  const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
+  camera.position.set(0, 0.6, 10.5);
+  camera.lookAt(0, 0, 0);
+
+  // pointer: a little parallax; dragging turns the sculpture
+  let px = 0;
+  let py = 0;
+  let spin = -0.5;
+  let drag = null;
+  box.addEventListener('pointermove', (e) => {
+    const r = box.getBoundingClientRect();
+    px = ((e.clientX - r.left) / r.width - 0.5) * 2;
+    py = ((e.clientY - r.top) / r.height - 0.5) * 2;
+    if (drag) spin = drag.spin + (e.clientX - drag.x) * 0.012;
+  });
+  box.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, spin }; box.setPointerCapture?.(e.pointerId); });
+  const up = () => { drag = null; };
+  box.addEventListener('pointerup', up);
+  box.addEventListener('pointercancel', up);
+  box.addEventListener('pointerleave', () => { px = 0; py = 0; });
+
+  const resize = () => {
+    const w = box.clientWidth || 300;
+    const hh = box.clientHeight || height;
+    renderer.setSize(w, hh, false);
+    camera.aspect = w / hh;
+    // keep the whole sculpture in view on narrow screens
+    camera.position.z = camera.aspect < 0.9 ? 10.5 / Math.max(0.55, camera.aspect) * 0.9 : 10.5;
+    camera.updateProjectionMatrix();
+  };
+  const ro = new ResizeObserver(resize);
+  ro.observe(box);
+  let visible = true;
+  const io = new IntersectionObserver((e) => { visible = e[e.length - 1]?.isIntersecting ?? true; });
+  let mounted = false;
+  let raf = 0;
+  const t0 = performance.now();
+  const still = reduced();
+  const dispose = () => {
+    cancelAnimationFrame(raf); ro.disconnect(); io.disconnect();
+    scene.traverse((o) => { if (o.isMesh) { o.geometry.dispose(); o.material.dispose(); } });
+    envTex.dispose(); pmrem.dispose(); renderer.dispose(); renderer.forceContextLoss?.();
+  };
+  const frame = (t) => {
+    if (!box.isConnected) {
+      if (mounted || t - t0 > 15000) { dispose(); return; }
+      raf = requestAnimationFrame(frame);
+      return;
+    }
+    if (!mounted) { mounted = true; resize(); io.observe(box); }
+    raf = requestAnimationFrame(frame);
+    if (!visible) return;
+    const s = still ? 0 : (t - t0) / 1000;
+    const intro = still ? 1 : Math.min(1, s / 1.6);
+    const e3 = 1 - (1 - intro) ** 3;
+    for (const m of layers) {
+      const u = m.userData;
+      m.rotation.y = u.base * e3 + 0.22 * Math.sin(s * 0.9 + u.k * 6.2);
+      m.position.x = u.sway * e3 + 0.06 * Math.sin(s * 1.3 + u.k * 9);
+      m.scale.setScalar(0.4 + 0.6 * e3);
+    }
+    for (const d of dots) d.position.y = d.userData.y0 + 0.12 * Math.sin(s * 1.2 + d.userData.ph);
+    if (!drag && !still) spin += 0.0035;
+    group.rotation.y += ((spin + px * 0.35) - group.rotation.y) * 0.08;
+    group.rotation.x += ((-0.12 + py * 0.15) - group.rotation.x) * 0.08;
+    group.rotation.z = -0.18;
+    renderer.render(scene, camera);
+  };
+  raf = requestAnimationFrame(frame);
+  return box;
+}

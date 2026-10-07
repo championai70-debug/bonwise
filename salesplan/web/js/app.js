@@ -407,23 +407,28 @@ function homeView() {
 }
 
 function welcomeView() {
-  return h('section', { class: 'view welcome' },
-    h('div', { class: 'welcome-art' }, view3d(
-      [['Dairy', [62, 48, 40, 31, 22, 15]], ['Bakery', [44, 36, 27, 20, 12]], ['Snacks', [52, 41, 33, 25, 18, 11]], ['Drinks', [70, 50, 38, 29, 21]]].map(([name, vals], i) => ({
-        name, color: COLORS[i], total: vals.reduce((a, b) => a + b, 0), items: vals.map((v) => ({ label: name, value: v })),
-      })), { height: 290, interactive: true, labels: true, autoRotate: true, ariaLabel: 'Example: four segments of articles as glossy 3D columns.' })),
-    h('h1', null, 'How much should each customer order?'),
-    h('p', { class: 'lead' }, 'Give a customer\'s budget. Get money and units for every article.'),
-    h('ol', { class: 'steps' },
+  const art = h('div', { class: 'landing-art' });
+  import('./scene3d.js')
+    .then((m) => { if (m.webglOK()) art.append(m.sculpture({ height: 420 })); })
+    .catch(() => {});
+  return h('section', { class: 'view landing' },
+    h('div', { class: 'landing-hero' },
+      h('div', { class: 'blob b1', 'aria-hidden': 'true' }), h('div', { class: 'blob b2', 'aria-hidden': 'true' }),
+      art,
+      h('div', { class: 'landing-copy' },
+        h('p', { class: 'eyebrow' }, 'Sales planning for brands, wholesalers and shops'),
+        h('h1', { class: 'mega' }, h('span', null, 'Budget in.'), h('span', { class: 'pink' }, 'Order out.')),
+        h('p', { class: 'lead' }, 'Give a customer\'s budget. Get money and units for every article, predicted from your own past seasons.'),
+        h('div', { class: 'cta' },
+          h('button', { class: 'btn primary big', onclick: loadSample }, icon('spark'), 'See an example (food wholesaler)'),
+          h('button', { class: 'btn big glass', onclick: () => go('catalog') }, icon('upload'), 'Start with my own data')))),
+    h('ol', { class: 'steps pop' },
       h('li', null, h('b', null, 'Budget and split'), h('span', null, 'e.g. €4 million: Dairy 30%, Bakery 20%, Snacks 25%, Drinks 25%')),
-      h('li', null, h('b', null, 'Predict next season'), h('span', null, 'from your past seasons, for this customer')),
-      h('li', null, h('b', null, 'Money and units per article'), h('span', null, 'with pack sizes, minimum orders and stock limits'))),
+      h('li', null, h('b', null, 'Predict next season'), h('span', null, 'trained on this phone from your past seasons, for this customer')),
+      h('li', null, h('b', null, 'Money and units per article'), h('span', null, 'with pack sizes, minimum orders and stock limits, checked to the cent'))),
     h('div', { class: 'card info data-note' }, icon('chart', 22), h('div', null,
       h('b', null, 'Predictions need your own sales data.'),
       h('p', null, 'Import your past seasons: which customer bought how many units of which article. The app learns from that on this phone and predicts the next season. There is no ready-made model.'))),
-    h('div', { class: 'stack' },
-      h('button', { class: 'btn primary big', onclick: loadSample }, icon('spark'), 'See an example (food wholesaler)'),
-      h('button', { class: 'btn big', onclick: () => go('catalog') }, icon('upload'), 'Start with my own data')),
     h('p', { class: 'muted small center' }, icon('shield', 16), ' Your data stays on this device. No account, no cloud, no tracking.'));
 }
 

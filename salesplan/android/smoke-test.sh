@@ -52,7 +52,7 @@ PY
   return 1
 }
 
-wait_for "How much should each customer order" || exit 1
+wait_for "Order out" || exit 1
 tap "See an example" || exit 1
 wait_for "Checked: placed" || exit 1
 wait_for "Predicted demand" || exit 1
