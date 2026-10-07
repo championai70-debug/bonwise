@@ -118,6 +118,41 @@ The tests use a fake Hugging Face server, so they need no token or internet.
 | `bonwise/places.py` | Nearby shops from OpenStreetMap, "open now" from opening hours |
 | `bonwise/trip.py` | Plan my shop: typed list → cheapest shops nearby (`POST /api/trip`) |
 | `static/` | The browser app (budget, swaps, savings plan, price check) |
+| `static/jar/`, `static/vendor/` | The 3D savings jar (see below) |
+
+## 3D savings jar
+
+The budget card shows a jar of euro coins: the more money is left this month, the fuller
+the jar. When a receipt has cheaper swaps, coins drop in for the money you'd keep.
+
+- **Everyone gets the SVG jar** (`#jarBox` in `static/index.html`, filled by `jarLevel()` in
+  `static/app.js`). It is the first picture, the screen-reader text ("Savings jar: €290 left
+  this month"), and the fallback.
+- **Capable devices also get a 3D jar** a few seconds after the page has loaded
+  (`static/jar/`, Three.js r186, WebGL 2). It fades in on top of the SVG. Phones with little
+  memory or few CPU cores, "reduce motion", data saver and browsers without WebGL 2 never
+  download it. If frames are slow it lowers its sharpness, then hands back to the SVG.
+- Drag inside the jar (or use the arrow keys when it has focus) to tilt it; it springs back.
+  It draws only while something moves and never off-screen or in a background tab.
+
+| File | Role |
+|---|---|
+| `static/jar/quality.js` | **Quality settings**: tiers (medium/high), coin count, sharpness, idle frame rate, when to step down, tilt limits. Tune here |
+| `static/jar/index.js` | Entry: picks the tier, loads the parts, mounts the canvas, touch/mouse/keyboard tilt, pausing off-screen, the one-time hint |
+| `static/jar/scene.js` | Renderer, camera, springs, render-on-demand loop, adaptive quality |
+| `static/jar/lighting.js` | Studio reflections made in code (no HDRI file) + one key light |
+| `static/jar/model.js` | The jar, lid and coins (one InstancedMesh), coin drop/sink animation |
+| `static/jar/effects.js` | AgX tone mapping, contact shadow, frame-time monitor |
+| `static/jar/loader.js` | Downloads Three.js with real progress |
+| `static/vendor/three-jar.min.js` | Three.js with only the parts the jar uses (~135 KB compressed). Rebuild: `sh tools/3d/build_three.sh` |
+
+**Adding or replacing 3D assets.** The jar and coins are made in code, so there are no model
+files. To use a modelled object instead (for example a jar from [Poly Haven](https://polyhaven.com/models)
+or a CC0 model on Sketchfab), optimise it with `sh tools/3d/optimize_model.sh in.glb static/jar/models/name.glb`
+(meshopt geometry, KTX2 textures, about 1.5 MB at most for the first view), load it in
+`model.js` with `GLTFLoader` (add it to `tools/3d/build_three.sh` and rebuild), and follow the
+notes in that script about the decoders and the security rules. Keep the SVG jar in step with
+the 3D one: it is what most first visits and all weak phones see.
 
 ## API
 
