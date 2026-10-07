@@ -142,6 +142,8 @@
     if (cur && s > 0) { ws.hidden = false; ws.innerHTML = t("With the swaps on this receipt you’d have <b>{amount} left</b> instead of {before}.", { amount: eur(left + s, 0), before: eur(left, 0) }); }
     else if (!cur && mem.plan.length) { var pm = r2(planPerShop() * 4.3); ws.hidden = false; ws.innerHTML = t("Your savings plan puts about <b>{amount} a month</b> back into this budget.", { amount: eur(pm, 0) }); }
     else ws.hidden = true;
+    // The savings jar: coins = money left this month (with this receipt's swaps, if it has any).
+    jarLevel(budget > 0 ? (left + (cur && s > 0 ? s : 0)) / budget : 0, eur(Math.max(0, left), 0));
     var pace = pacing(after, budget);
     var chip = $("paceChip"); chip.textContent = pace.label; chip.className = "status " + pace.cls;
     var monthSave = r2(monthReceipts().reduce(function (a, r) { return a + (r.save || 0); }, 0));
@@ -163,6 +165,51 @@
     var v = Number($("budget").value);
     if (!isFinite(v) || v < 0) return;
     mem.budget = v; mem.budgetAt = Date.now(); persist(); renderBudget(); if (cur) renderRecs();
+  });
+
+  /* ---------- the savings jar ----------
+     The SVG jar in index.html always works (and is all that weak phones, data saver and
+     "reduce motion" get). On capable devices static/jar/index.js fades a 3D jar in on top,
+     loaded after the page is ready so it never slows down the first view. */
+  var jar3d = null, jarFill = 0, jarFirst = true;
+  (function drawSvgCoins() {
+    var html = "", colors = ["#E3B23C", "#E3B23C", "#C47A45", "#D3D9DC"];
+    for (var row = 0; row < 11; row++) {
+      for (var k = 0; k < 4; k++) {
+        var x = 60 + k * 15 + (row % 2 ? 7 : 0), y = 130 - row * 8, c = colors[(row * 3 + k) % colors.length];
+        html += '<ellipse cx="' + x + '" cy="' + y + '" rx="9" ry="4" fill="' + c + '" stroke="#9C6B12" stroke-opacity=".35"/>';
+      }
+    }
+    $("jarCoins").innerHTML = html;
+  })();
+  function jarLevel(f, leftText) {
+    jarFill = Math.max(0, Math.min(1, f || 0));
+    $("jarBox").style.setProperty("--fill", jarFill.toFixed(3));
+    $("jarBox").setAttribute("aria-label", t("Savings jar: {amount} left this month", { amount: leftText }));
+    if (jar3d) jar3d.setLevel(jarFill, !jarFirst);
+    jarFirst = false;
+  }
+  function loadJar3d() {
+    var box = $("jarBox"), url = box.dataset.jar;
+    try { if (sessionStorage.getItem("bonwise.jar") === "off") return; } catch (e) {}
+    if (!url || !window.Promise) return;
+    import(url).then(function (m) {
+      return m.mount(box, { hint: t("Drag to tilt the jar"), onDispose: function () { jar3d = null; } });
+    }).then(function (ctrl) {
+      if (!ctrl) return;
+      jar3d = ctrl;
+      var poured = false;
+      try { poured = sessionStorage.getItem("bonwise.jarPoured") === "1"; sessionStorage.setItem("bonwise.jarPoured", "1"); } catch (e) {}
+      ctrl.setLevel(jarFill, !poured);            // coins pour in once per visit, then stay
+      window.__bonwiseJar = ctrl;                  // for checks in the browser's console
+    }).catch(function () {});                      // the SVG jar stays
+  }
+  // A few seconds after the page has loaded, when the browser is idle: the 3D never delays the
+  // first view or competes with the first tap (the SVG jar is shown until then).
+  window.addEventListener("load", function () {
+    setTimeout(function () {
+      (window.requestIdleCallback || function (f) { return setTimeout(f, 300); })(loadJar3d, { timeout: 4000 });
+    }, 3000);
   });
 
   /* ---------- receipts: delete, clear month, start fresh ---------- */

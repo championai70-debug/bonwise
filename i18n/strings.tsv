@@ -553,3 +553,6 @@ Same brand is cheaper at {shop}: {product} ({size}) {price}	Dieselbe Marke ist b
 The stats page is off. Set STATS_KEY on the server to turn it on.	Die Statistikseite ist aus. Setze STATS_KEY auf dem Server, um sie einzuschalten.	İstatistik sayfası kapalı. Açmak için sunucuda STATS_KEY ayarla.	صفحة الإحصاءات متوقفة. اضبط STATS_KEY على الخادم لتفعيلها.	आँकड़ों का पेज बंद है। चालू करने के लिए सर्वर पर STATS_KEY सेट करें।
 Too many tries. Try again later.	Zu viele Versuche. Versuch es später nochmal.	Çok fazla deneme. Daha sonra tekrar dene.	محاولات كثيرة جداً. حاول لاحقاً.	बहुत सारी कोशिशें। बाद में फिर से कोशिश करें।
 Wrong key.	Falscher Schlüssel.	Yanlış anahtar.	مفتاح خاطئ.	गलत कुंजी।
+Savings jar	Spardose	Kumbara	حصّالة التوفير	बचत का गुल्लक
+Savings jar: {amount} left this month	Spardose: {amount} übrig diesen Monat	Kumbara: bu ay {amount} kaldı	حصّالة التوفير: متبقٍ {amount} هذا الشهر	बचत का गुल्लक: इस महीने {amount} बचे
+Drag to tilt the jar	Zum Kippen ziehen	Eğmek için sürükle	اسحب لإمالة الحصّالة	झुकाने के लिए खींचें

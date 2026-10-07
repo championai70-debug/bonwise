@@ -12,6 +12,8 @@
 <meta name="apple-mobile-web-app-title" content="Bonwise">
 <link rel="icon" type="image/png" href="/static/favicon.png">
 <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
+<link rel="preload" href="/static/fonts/figtree-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/static/fonts/bricolage-grotesque-latin-opsz-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/static/fonts/fonts.css">
 <style>
 :root{
@@ -253,9 +255,25 @@ body{padding-bottom:env(safe-area-inset-bottom)}
 .icon-btn svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .icon-btn:hover,.icon-btn[aria-current="page"]{border-color:var(--accent);color:var(--accent)}
 /* hero: greeting, money left, a warm picture */
-.hero{position:relative;overflow:hidden;display:grid;grid-template-columns:1fr 132px;gap:8px;align-items:center;
+.hero{position:relative;overflow:hidden;display:grid;grid-template-columns:1fr 150px;gap:8px;align-items:center;
   background:linear-gradient(135deg,var(--hero-a),var(--hero-b));border-radius:24px;padding:20px 18px 18px;box-shadow:var(--shadow)}
-.hero-art{width:132px;height:124px;justify-self:end;animation:bob 5s ease-in-out infinite}
+.hero-art{width:150px;height:150px;justify-self:end}
+/* savings jar: SVG first, a 3D jar fades in on top on capable devices (static/jar/) */
+.jar{position:relative;outline:none;border-radius:18px}
+.jar-svg{position:absolute;inset:0;width:100%;height:100%;animation:bob 5s ease-in-out infinite;transition:opacity .6s}
+.jar-coins{transform:translateY(calc((1 - var(--fill,0)) * 88px));transition:transform .9s cubic-bezier(.2,.8,.2,1)}
+.jar-canvas{position:absolute;inset:-14px -10px -6px;width:calc(100% + 20px);height:calc(100% + 20px);opacity:0;transition:opacity .6s;touch-action:pan-y}
+.jar.live{cursor:grab}
+.jar.live:active{cursor:grabbing}
+.jar.ready .jar-canvas{opacity:1}
+.jar.ready .jar-svg{opacity:0;animation:none}
+.jar:focus-visible{box-shadow:0 0 0 3px var(--accent)}
+.jar-hint{position:absolute;left:50%;bottom:-6px;transform:translateX(-50%);white-space:nowrap;font-size:11.5px;font-weight:700;
+  background:var(--surface);color:var(--ink-2);border:1px solid var(--line);border-radius:99px;padding:2px 9px;box-shadow:var(--shadow);pointer-events:none}
+.jar-load{position:absolute;right:4px;bottom:4px;width:22px;height:22px}
+.jar-load svg{width:100%;height:100%;transform:rotate(-90deg)}
+.jar-load circle{fill:none;stroke:var(--line);stroke-width:3.5}
+.jar-load .bar{stroke:var(--accent);stroke-dasharray:calc(var(--p,0) * 1px) 100;stroke-linecap:round}
 @keyframes bob{50%{transform:translateY(-5px)}}
 .hello{font-size:15px;font-weight:600;color:var(--ink-2);margin-bottom:4px}
 .hero .left-big{font-size:42px}
@@ -306,15 +324,15 @@ body{padding-bottom:env(safe-area-inset-bottom)}
 .av{width:34px;height:34px;border-radius:11px;display:inline-grid;place-items:center;font-weight:800;font-size:15px;color:#fff;flex:none}
 .empty-art{display:block;width:84px;height:84px;margin:6px auto 8px}
 @media (max-width:440px){
-  .hero{grid-template-columns:1fr 104px;padding:18px 14px 16px}
-  .hero-art{width:104px;height:98px}
+  .hero{grid-template-columns:1fr 116px;padding:18px 14px 16px}
+  .hero-art{width:116px;height:126px}
   .hero .left-big{font-size:34px}
   .tiles{gap:8px}
   .tile{font-size:12px;padding:12px 2px 10px}
   .t-ic{width:42px;height:42px}
   .search .btn{padding:11px 12px}
 }
-@media (prefers-reduced-motion:reduce){.hero-art{animation:none}.confetti{display:none}}
+@media (prefers-reduced-motion:reduce){.jar-svg{animation:none}.jar-coins{transition:none}.confetti{display:none}}
 .view-title{font-family:var(--display);font-size:24px;font-weight:800;letter-spacing:-.02em;padding:4px 2px 0}
 .field{width:100%;min-width:0;font:inherit;font-size:15px;background:var(--sunk);border:1.5px solid var(--line);border-radius:12px;padding:11px 12px;color:var(--ink)}
 .field:focus{border-color:var(--accent);outline:none}
@@ -370,7 +388,7 @@ body{padding-bottom:env(safe-area-inset-bottom)}
 .eco-chip.sw{background:var(--sunk);color:var(--ink-2);font-weight:500}
 .trip-eco{margin:10px 0 0;font-size:13.5px;color:var(--ink-2)}
 /* language chips on the welcome card */
-.lang-chips{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin-top:16px}
+.lang-chips{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin-top:16px;min-height:30px}
 .lang-chips button{font:inherit;font-size:13px;font-weight:600;border:1.5px solid var(--line);background:var(--surface);color:var(--ink-2);border-radius:99px;padding:4px 11px;cursor:pointer}
 .lang-chips button[aria-pressed="true"]{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
 /* right-to-left (Arabic): prices and codes stay left-to-right */
@@ -475,7 +493,7 @@ a.btn{text-decoration:none}
 body.simple .adv{display:none!important}
 </style>
 </head>
-<body>
+<body class="simple">
 
 <main class="app">
   <header class="top">
@@ -507,20 +525,21 @@ body.simple .adv{display:none!important}
         <div class="stat"><div class="v num" id="stSaved" style="color:var(--accent)">€0</div><div class="k">Could save this month</div></div>
       </div>
     </div>
-    <svg class="hero-art" viewBox="0 0 160 150" aria-hidden="true">
-      <circle cx="84" cy="78" r="64" fill="var(--hero-blob)"/>
-      <path d="M52 30c4-10 16-12 20-2" stroke="#2F9E62" stroke-width="5" fill="none" stroke-linecap="round"/>
-      <path d="M70 26c10-12 26-8 24 6" stroke="#48B87A" stroke-width="5" fill="none" stroke-linecap="round"/>
-      <rect x="56" y="30" width="10" height="44" rx="5" transform="rotate(-14 61 52)" fill="#F2B84B"/>
-      <circle cx="98" cy="40" r="13" fill="#E4573D"/><path d="M98 27c1-5 5-7 8-6" stroke="#2F9E62" stroke-width="3" fill="none" stroke-linecap="round"/>
-      <circle cx="78" cy="44" r="11" fill="#F58E3B"/>
-      <path d="M36 58h96l-9 66a10 10 0 0 1-10 9H55a10 10 0 0 1-10-9z" fill="var(--hero-bag)"/>
-      <path d="M36 58h96l-2 12H38z" fill="var(--hero-bag-2)"/>
-      <path d="M62 64v-8a22 22 0 0 1 44 0v8" stroke="var(--hero-bag-2)" stroke-width="5" fill="none" stroke-linecap="round"/>
-      <circle cx="84" cy="98" r="18" fill="#FFD166"/><circle cx="84" cy="98" r="13" fill="none" stroke="#E0A92E" stroke-width="2.5"/>
-      <text x="84" y="104" text-anchor="middle" font-family="system-ui,sans-serif" font-weight="800" font-size="17" fill="#8A5A00">€</text>
-      <path d="M128 36l3 7 7 3-7 3-3 7-3-7-7-3 7-3z" fill="#FFD166"/><path d="M26 92l2 4 4 2-4 2-2 4-2-4-4-2 4-2z" fill="#FFD166"/>
-    </svg>
+    <!-- The savings jar: coins show the money left this month. This SVG is the first picture and the
+         fallback; on capable devices static/jar/ fades a 3D jar in on top of it. -->
+    <div class="hero-art jar" id="jarBox" role="img" aria-label="Savings jar" data-jar="/static/jar/index.js">
+      <svg class="jar-svg" viewBox="0 0 160 150" aria-hidden="true">
+        <defs><clipPath id="jarInside"><path d="M52 50q0-6 7-7h46q7 1 7 7v76q0 8-8 8H60q-8 0-8-8z"/></clipPath></defs>
+        <circle cx="82" cy="80" r="62" fill="var(--hero-blob)"/>
+        <ellipse cx="82" cy="141" rx="36" ry="5" fill="var(--ink)" opacity=".12"/>
+        <g clip-path="url(#jarInside)"><g class="jar-coins" id="jarCoins"></g></g>
+        <path d="M48 47q0-8 9-9h50q9 1 9 9v81q0 10-10 10H58q-10 0-10-10z" fill="#fff" fill-opacity=".22" stroke="var(--ink-3)" stroke-opacity=".55" stroke-width="2"/>
+        <path d="M58 54v62" stroke="#fff" stroke-opacity=".75" stroke-width="4" stroke-linecap="round"/>
+        <rect x="52" y="25" width="60" height="15" rx="5" fill="var(--accent)"/>
+        <rect x="70" y="30" width="24" height="3.5" rx="1.75" fill="#000" fill-opacity=".45"/>
+        <path d="M130 34l3 7 7 3-7 3-3 7-3-7-7-3 7-3z" fill="#FFD166"/><path d="M28 90l2 4 4 2-4 2-2 4-2-4-4-2 4-2z" fill="#FFD166"/>
+      </svg>
+    </div>
   </section>
 
   <form class="search" id="tripForm" autocomplete="off" role="search">

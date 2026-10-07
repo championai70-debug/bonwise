@@ -40,7 +40,7 @@ SECURITY_HEADERS = {
     "X-Frame-Options": "DENY",
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "no-referrer",
-    "Permissions-Policy": "geolocation=(self), camera=(self), microphone=(self), payment=(), usb=(), bluetooth=(), serial=(), interest-cohort=()",
+    "Permissions-Policy": "geolocation=(self), camera=(self), microphone=(self), payment=(), usb=(), serial=()",
     "Cross-Origin-Opener-Policy": "same-origin",
 }
 
@@ -220,6 +220,7 @@ class Handler(BaseHTTPRequestHandler):
         # Text is sent compressed when the browser accepts it (about 4x smaller on a phone).
         zipped = (len(body) > 1400 and "gzip" in (self.headers.get("Accept-Encoding") or "")
                   and (ctype.startswith(("text/", "application/json", "application/javascript", "application/manifest"))))
+        raw_len = len(body)
         if zipped:
             body = gzip.compress(body, 6)
         if status >= 500 or status == 429:
@@ -228,6 +229,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", ctype)
         if zipped:
             self.send_header("Content-Encoding", "gzip")
+            self.send_header("X-Raw-Length", str(raw_len))   # lets the 3D loader show real progress
         self.send_header("Vary", "Accept-Encoding")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", cache)
@@ -290,8 +292,10 @@ class Handler(BaseHTTPRequestHandler):
             # Point the page at this exact version of its script and styles, so a browser or CDN
             # never pairs a new page with an old, cached app.js after an update.
             html = (STATIC / "index.html").read_text(encoding="utf-8")
-            for name in ("i18n.js", "app.js", "fonts/fonts.css"):
-                stamp = int((STATIC / name).stat().st_mtime)
+            for name in ("i18n.js", "app.js", "fonts/fonts.css", "jar/index.js"):
+                # The 3D jar is several files loaded together: its version is the newest of them.
+                files = (STATIC / "jar").glob("*.js") if name.startswith("jar/") else [STATIC / name]
+                stamp = int(max(f.stat().st_mtime for f in files))
                 html = html.replace('/static/%s"' % name, '/static/%s?v=%d"' % (name, stamp))
             return self._send(200, html, "text/html; charset=utf-8", "no-cache")
         if path == "/manifest.webmanifest":
@@ -314,7 +318,9 @@ class Handler(BaseHTTPRequestHandler):
         if path.startswith("/static/"):
             target = (STATIC / path[len("/static/"):]).resolve()
             if STATIC.resolve() in target.parents and target.is_file():
-                return self._file(target, cache="no-cache")
+                # Vendored libraries carry their version in the URL (?r=…): they can be kept for a year.
+                versioned = path.startswith("/static/vendor/") and "?" in self.path
+                return self._file(target, cache="public, max-age=31536000, immutable" if versioned else "no-cache")
             return self._send(404, {"error": "not_found"})
         if path in ("/impressum", "/imprint"):
             text = html_escape(config.IMPRESSUM).replace("\\n", "\n").replace("\n", "<br>") if config.IMPRESSUM else (

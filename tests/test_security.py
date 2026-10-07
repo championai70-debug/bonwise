@@ -221,3 +221,45 @@ class SecurityServerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class JarFilesTests(unittest.TestCase):
+    """The 3D jar's files: versioned together, Three.js cached for long, progress header."""
+
+    @classmethod
+    def setUpClass(cls):
+        storage.reset_for_tests(tempfile.mkdtemp())
+        cls.srv = ThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
+        threading.Thread(target=cls.srv.serve_forever, daemon=True).start()
+        cls.base = "http://127.0.0.1:%d" % cls.srv.server_address[1]
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.srv.shutdown()
+
+    def get(self, path, headers=None):
+        req = urllib.request.Request(self.base + path, headers=headers or {})
+        with urllib.request.urlopen(req) as r:
+            return r.status, r.headers, r.read()
+
+    def test_jar_entry_is_versioned(self):
+        page = self.get("/")[2].decode()
+        self.assertRegex(page, r'data-jar="/static/jar/index\.js\?v=\d+"')
+        self.assertIn('class="simple"', page)        # no layout jump when the simple view applies
+
+    def test_three_cached_and_progress_header(self):
+        s, h, body = self.get("/static/vendor/three-jar.min.js?r=0.186.1", {"Accept-Encoding": "gzip"})
+        self.assertEqual(s, 200)
+        self.assertIn("immutable", h.get("Cache-Control"))
+        self.assertEqual(h.get("Content-Encoding"), "gzip")
+        self.assertGreater(int(h.get("X-Raw-Length")), len(body))
+        self.assertLess(len(body), 160 * 1024)         # stays a small download
+        self.assertIn("no-cache", self.get("/static/jar/index.js")[1].get("Cache-Control"))
+
+    def test_jar_modules_have_no_outside_imports(self):
+        # Only this site's files (the CSP allows scripts from 'self' only).
+        import re
+        root = Path(app.STATIC) / "jar"
+        for f in root.glob("*.js"):
+            for spec in re.findall(r'(?:import\s*\(|from\s+)\s*["\']([^"\']+)', f.read_text()):
+                self.assertFalse(spec.startswith("http"), (f.name, spec))
