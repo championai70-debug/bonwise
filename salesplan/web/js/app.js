@@ -354,11 +354,7 @@ function homeView() {
   const box = h('section', { class: 'view' });
   if (!plans.length && !data.catalog.articles.length) return welcomeView();
   append(box, [
-    h('div', { class: 'hero' },
-      h('div', null,
-        h('h1', null, 'Your plans'),
-        h('p', { class: 'muted' }, 'Budget → split → articles → money and units. One plan per customer and season.')),
-      h('button', { class: 'btn primary', onclick: newPlan }, icon('plus'), 'New plan')),
+    plansHero(),
     isExample() ? h('div', { class: 'card info data-note' }, icon('chart', 22), h('div', null,
       h('b', null, 'This is an example: a made-up food wholesaler.'),
       h('p', null, 'To plan with your own numbers, import two files in Articles:'),
@@ -404,6 +400,22 @@ function homeView() {
   }
   box.append(list);
   return box;
+}
+
+/** The colour-block banner with the 3D sculpture, on top of the plans list. */
+function plansHero() {
+  const art = h('div', { class: 'landing-art' });
+  import('./scene3d.js')
+    .then((m) => { if (m.webglOK()) art.append(m.sculpture({ height: 300 })); })
+    .catch(() => {});
+  return h('div', { class: 'landing-hero compact' },
+    h('div', { class: 'blob b1', 'aria-hidden': 'true' }), h('div', { class: 'blob b2', 'aria-hidden': 'true' }),
+    art,
+    h('div', { class: 'landing-copy' },
+      h('p', { class: 'eyebrow' }, 'One plan per customer and season'),
+      h('h1', { class: 'mega' }, h('span', null, 'Your'), h('span', { class: 'pink' }, 'plans.')),
+      h('p', { class: 'lead' }, 'Budget in, order out: split, predict, and get money and units for every article.'),
+      h('div', { class: 'cta' }, h('button', { class: 'btn primary big', onclick: newPlan }, icon('plus'), 'New plan'))));
 }
 
 function welcomeView() {
