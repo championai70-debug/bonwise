@@ -1,20 +1,38 @@
-// Real 3D (WebGL, three.js bundled in vendor/three): the order as a skyline of glossy columns.
-// One row per segment, one column per article, height = money. Studio lighting with reflections
-// and soft shadows; drag to orbit, pinch or scroll to zoom, tap a column for its numbers.
-// Everything is local: no network, no outside services.
+// Real 3D for SalesPlan, "Obsidian Glass" look (WebGL2, three.js r180 bundled in vendor/three, MIT).
+// Everything is drawn on the device; no network, no outside services.
+//
+// Shared stage: an animated aurora colour field (a small noise shader, like Stripe's gradient) is part
+// of the 3D scene, so glass objects refract it; studio reflections; selective bloom so only the light
+// cores glow. Phones without a real graphics chip get a lighter mode (no glass refraction, no bloom).
+//   orderSkyline – the order as glass towers with glowing cores (one row per segment, one tower per
+//                  article, height = money); drag to orbit, pinch to zoom, tap a tower for its numbers
+//   crystal      – the start screen's hero: a glass crystal with the plan as glowing bars inside
 
 import * as THREE from '../vendor/three/three.module.min.js';
 import { OrbitControls } from '../vendor/three/OrbitControls.js';
 import { RoomEnvironment } from '../vendor/three/RoomEnvironment.js';
 import { RoundedBoxGeometry } from '../vendor/three/RoundedBoxGeometry.js';
+import { EffectComposer } from '../vendor/three/postprocessing/EffectComposer.js';
+import { RenderPass } from '../vendor/three/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from '../vendor/three/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from '../vendor/three/postprocessing/OutputPass.js';
 
 const reduced = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+const ease = (k) => 1 - (1 - k) ** 3;
 
+let quality = null;
+/** 'full' on a real graphics chip, 'lite' on software rendering, false without WebGL2. */
 export function webglOK() {
+  if (quality !== null) return quality;
   try {
-    const c = document.createElement('canvas');
-    return !!(window.WebGLRenderingContext && (c.getContext('webgl2') || c.getContext('webgl')));
-  } catch { return false; }
+    const gl = document.createElement('canvas').getContext('webgl2');
+    if (!gl) { quality = false; return quality; }
+    const info = gl.getExtension('WEBGL_debug_renderer_info');
+    const name = String(info ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER));
+    quality = /swiftshader|llvmpipe|software|softpipe|mesa offscreen/i.test(name) ? 'lite' : 'full';
+    gl.getExtension('WEBGL_lose_context')?.loseContext();
+  } catch { quality = false; }
+  return quality;
 }
 
 const el = (tag, cls, text) => {
@@ -24,210 +42,358 @@ const el = (tag, cls, text) => {
   return e;
 };
 
+// Luminous segment colours for the glowing cores (bright on the dark stage).
+const GLOW = ['#8b7cff', '#3dd9f5', '#4be3a6', '#ffc15e', '#ff6b9a', '#b78cff', '#5aa9ff', '#c9d1e6'];
+export const glowColor = (cls) => GLOW[(Number(String(cls).replace(/\D/g, '')) || 1) - 1] || GLOW[0];
+
+// ---------- aurora: a slow, living colour field behind the glass ----------
+
+const AURORA_VERT = /* glsl */`
+varying vec2 vUv;
+void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
+
+const AURORA_FRAG = /* glsl */`
+uniform float uTime;
+uniform vec3 uBase, uA, uB, uC;
+varying vec2 vUv;
+vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+vec2 mod289(vec2 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+vec3 permute(vec3 x) { return mod289(((x * 34.0) + 1.0) * x); }
+float snoise(vec2 v) {
+  const vec4 C = vec4(0.211324865405187, 0.366025403784439, -0.577350269189626, 0.024390243902439);
+  vec2 i = floor(v + dot(v, C.yy));
+  vec2 x0 = v - i + dot(i, C.xx);
+  vec2 i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
+  vec4 x12 = x0.xyxy + C.xxzz; x12.xy -= i1;
+  i = mod289(i);
+  vec3 p = permute(permute(i.y + vec3(0.0, i1.y, 1.0)) + i.x + vec3(0.0, i1.x, 1.0));
+  vec3 m = max(0.5 - vec3(dot(x0, x0), dot(x12.xy, x12.xy), dot(x12.zw, x12.zw)), 0.0);
+  m = m * m; m = m * m;
+  vec3 x = 2.0 * fract(p * C.www) - 1.0;
+  vec3 h = abs(x) - 0.5;
+  vec3 ox = floor(x + 0.5);
+  vec3 a0 = x - ox;
+  m *= 1.79284291400159 - 0.85373472095314 * (a0 * a0 + h * h);
+  vec3 g; g.x = a0.x * x0.x + h.x * x0.y; g.yz = a0.yz * x12.xz + h.yz * x12.yw;
+  return 130.0 * dot(m, g);
+}
+float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+void main() {
+  vec2 p = vUv;
+  float t = uTime * 0.035;
+  float n1 = snoise(p * vec2(1.6, 1.1) + vec2(t, -t * 0.7));
+  float n2 = snoise(p * vec2(2.3, 1.7) - vec2(t * 0.8, t * 0.5) + n1 * 0.45);
+  float n3 = snoise(p * 3.1 + vec2(-t * 0.6, t) + n2 * 0.3);
+  vec3 col = uBase;
+  float band = smoothstep(0.15, 0.95, p.y);
+  col = mix(col, uA, smoothstep(-0.1, 0.9, n1) * 0.55 * band);
+  col = mix(col, uB, smoothstep(0.2, 1.0, n2) * 0.32 * band);
+  col = mix(col, uC, smoothstep(0.45, 1.0, n3 * n1 + 0.25) * 0.22);
+  float vig = smoothstep(1.15, 0.25, length((p - vec2(0.5, 0.58)) * vec2(1.0, 1.25)));
+  col *= mix(0.3, 0.9, vig);
+  col += (hash(p * 1024.0 + uTime) - 0.5) * 0.025;
+  gl_FragColor = vec4(col, 1.0);
+}`;
+
+function makeAurora() {
+  const mat = new THREE.ShaderMaterial({
+    vertexShader: AURORA_VERT,
+    fragmentShader: AURORA_FRAG,
+    uniforms: {
+      uTime: { value: 0 },
+      uBase: { value: new THREE.Color('#05060c') },
+      uA: { value: new THREE.Color('#4b2bd9') },
+      uB: { value: new THREE.Color('#0fb3d6') },
+      uC: { value: new THREE.Color('#c13cff') },
+    },
+    depthWrite: false,
+    toneMapped: false,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), mat);
+  mesh.renderOrder = -10;
+  mesh.frustumCulled = false;
+  return mesh;
+}
+
+// ---------- the shared stage ----------
+
+function createStage(box, { fov = 30, exposure = 1.0 } = {}) {
+  const full = webglOK() === 'full';
+  const renderer = new THREE.WebGLRenderer({ antialias: full, powerPreference: 'high-performance' });
+  const dpr = full ? Math.min(window.devicePixelRatio || 1, 1.75) : 1;
+  renderer.setPixelRatio(dpr);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = exposure;
+  renderer.domElement.className = 'gl-canvas';
+  box.prepend(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const envTex = pmrem.fromScene(new RoomEnvironment(), 0.03).texture;
+  scene.environment = envTex;
+  scene.environmentIntensity = 0.7;
+
+  const camera = new THREE.PerspectiveCamera(fov, 1, 0.1, 400);
+  scene.add(camera);
+  const aurora = makeAurora();
+  camera.add(aurora);
+  const backDist = 120;
+  aurora.position.z = -backDist;
+
+  let composer = null;
+  let bloomPass = null;
+  if (full) {
+    composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPass(scene, camera));
+    // only the light cores are brighter than 1.0, so only they glow
+    bloomPass = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.7, 0.5, 1.02);
+    composer.addPass(bloomPass);
+    composer.addPass(new OutputPass());
+  }
+
+  const stage = {
+    full, renderer, scene, camera, aurora, size: { w: 300, h: 300 },
+    resize() {
+      const w = box.clientWidth || 300;
+      const h = box.clientHeight || 300;
+      stage.size = { w, h };
+      renderer.setSize(w, h, false);
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      const hh = 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) * backDist;
+      aurora.scale.set(hh * camera.aspect * 1.9, hh * 1.9, 1); // big enough for shifted views too
+      if (composer) {
+        composer.setPixelRatio(dpr);
+        composer.setSize(w, h);
+        bloomPass.resolution.set(w / 2, h / 2);
+      }
+    },
+    render(time) {
+      aurora.material.uniforms.uTime.value = time;
+      if (composer) composer.render(); else renderer.render(scene, camera);
+    },
+    dispose() {
+      scene.traverse((o) => {
+        if (o.isMesh || o.isLineSegments) { o.geometry?.dispose(); (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => m?.dispose()); }
+      });
+      envTex.dispose();
+      pmrem.dispose();
+      composer?.dispose?.();
+      renderer.dispose();
+      renderer.forceContextLoss?.();
+    },
+  };
+  return stage;
+}
+
+/** Run a scene while it is on screen; free the GPU once the view is gone. Lite mode draws less often. */
+function runLoop(box, stage, onFrame) {
+  let visible = true;
+  let mounted = false;
+  let raf = 0;
+  let t0 = performance.now();
+  let last = 0;
+  const minGap = stage.full ? 0 : 1000 / 20;
+  const io = new IntersectionObserver((e) => { visible = e[e.length - 1]?.isIntersecting ?? true; });
+  const ro = new ResizeObserver(() => stage.resize());
+  const frame = (t) => {
+    if (!box.isConnected) {
+      if (mounted || t - t0 > 15000) { cancelAnimationFrame(raf); io.disconnect(); ro.disconnect(); stage.dispose(); return; }
+      raf = requestAnimationFrame(frame);
+      return;
+    }
+    if (!mounted) { mounted = true; t0 = t; stage.resize(); io.observe(box); ro.observe(box); }
+    raf = requestAnimationFrame(frame);
+    if (!visible || t - last < minGap) return;
+    last = t;
+    const s = (t - t0) / 1000;
+    onFrame(s);
+    stage.render(reduced() ? 0 : s);
+  };
+  raf = requestAnimationFrame(frame);
+}
+
+// A dark glossy floor with a faint grid of light, fading into the distance.
+function addFloor(scene, size) {
+  const floor = new THREE.Mesh(
+    new THREE.CircleGeometry(size * 4, 96),
+    new THREE.MeshStandardMaterial({ color: '#04050a', roughness: 0.7, metalness: 0.15, envMapIntensity: 0.06 }),
+  );
+  floor.rotation.x = -Math.PI / 2;
+  scene.add(floor);
+  const grid = new THREE.GridHelper(size * 2, Math.round((size * 2) / 0.7), 0x6d5cff, 0x2b2f66);
+  grid.position.y = 0.004;
+  grid.material.transparent = true;
+  grid.material.opacity = 0.22;
+  grid.material.depthWrite = false;
+  scene.add(grid);
+  scene.fog = new THREE.FogExp2('#05060c', 0.06);
+  return floor;
+}
+
+/** Real glass (refracts what is behind it) on a graphics chip; a light frosted look in lite mode. */
+function glassMaterial(full, tint, extra = {}) {
+  if (!full) {
+    return new THREE.MeshPhysicalMaterial({
+      color: new THREE.Color('#ffffff').lerp(new THREE.Color(tint), 0.25), roughness: 0.12, metalness: 0,
+      transparent: true, opacity: 0.32, clearcoat: 1, clearcoatRoughness: 0.05, depthWrite: false,
+    });
+  }
+  return new THREE.MeshPhysicalMaterial({
+    color: new THREE.Color('#ffffff').lerp(new THREE.Color(tint), 0.12),
+    metalness: 0, roughness: 0.14, transmission: 1, thickness: 0.45, ior: 1.38,
+    attenuationColor: new THREE.Color(tint), attenuationDistance: 4,
+    iridescence: 0.3, iridescenceIOR: 1.22, iridescenceThicknessRange: [150, 380],
+    clearcoat: 1, clearcoatRoughness: 0.03, specularIntensity: 0.9, envMapIntensity: 1.0,
+    ...extra,
+  });
+}
+
+function glowMaterial(hex, power = 2.4) {
+  return new THREE.MeshBasicMaterial({ color: new THREE.Color(hex).multiplyScalar(power), toneMapped: false });
+}
+
+// ---------- the order as glass towers ----------
+
 /**
  * columns: [{ name, color: 'c1'…'c8', items: [{ label, value, detail }] }]
  * opts: { height, autoRotate, interactive, maxPerRow, labels, ariaLabel, onPick(item, column) }
  */
 export function orderSkyline(columns, opts = {}) {
-  const { height = 360, interactive = true, maxPerRow = 12, labels = true, onPick = null } = opts;
-  const autoRotate = (opts.autoRotate ?? true) && !reduced();
-  const box = el('div', 'sky');
+  const { height = 400, interactive = true, maxPerRow = 12, labels = true, onPick = null } = opts;
+  const box = el('div', 'gl sky');
   box.style.height = `${height}px`;
   box.setAttribute('role', 'img');
-  box.setAttribute('aria-label', opts.ariaLabel || 'The order in 3D: one row per segment, one column per article, height is money.');
+  box.setAttribute('aria-label', opts.ariaLabel || 'The order in 3D: one row of glass towers per segment, one tower per article, height is money.');
   const labelLayer = el('div', 'sky-labels');
   const tip = el('div', 'sky-tip');
   tip.hidden = true;
   box.append(labelLayer, tip);
-  if (interactive) box.append(el('div', 'sky-hint', 'Drag to turn · pinch to zoom · tap a column'));
+  if (interactive) box.append(el('div', 'sky-hint', 'Drag to turn · pinch to zoom · tap a tower'));
 
-  // Rows: merge the long tail of each segment into one "more" column.
   const rows = columns.filter((c) => c.items.length).map((c) => {
     const items = [...c.items].sort((a, b) => b.value - a.value);
     if (items.length > maxPerRow) {
       const rest = items.splice(maxPerRow - 1);
-      const v = rest.reduce((s, x) => s + x.value, 0);
-      items.push({ label: `${rest.length} more articles`, value: v, detail: rest[0]?.restDetail || '', more: true });
+      items.push({ label: `${rest.length} more articles`, value: rest.reduce((s, x) => s + x.value, 0), detail: '', more: true });
     }
     return { ...c, items };
   });
   if (!rows.length) return box;
 
-  let renderer;
-  try {
-    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
-  } catch {
-    box.append(el('p', 'muted', '3D is not available on this device.'));
-    return box;
-  }
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-  renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 0.95;
-  renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  renderer.domElement.className = 'sky-canvas';
-  box.prepend(renderer.domElement);
+  let stage;
+  try { stage = createStage(box, { fov: 30, exposure: 1.05 }); } catch { box.append(el('p', 'muted', '3D is not available on this device.')); return box; }
+  const { scene, camera, renderer, full } = stage;
 
-  const scene = new THREE.Scene();
-  const pmrem = new THREE.PMREMGenerator(renderer);
-  const envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-  scene.environment = envTex;
-  scene.environmentIntensity = 0.55;
-
-  const css = getComputedStyle(document.documentElement);
-  const token = (name, fallback) => (css.getPropertyValue(name).trim() || fallback);
-  const dark = true; // the stage is always a dark studio: colours and reflections read best there
-
-  // Layout: segments as rows (z), articles left to right (x), biggest first.
-  const gapX = 1.05;
-  const gapZ = 1.75;
-  const W = 0.78;
+  const gapX = 1.0;
+  const gapZ = 1.7;
+  const W = 0.62;
   const maxCols = Math.max(...rows.map((r) => r.items.length));
   const maxValue = Math.max(1e-9, ...rows.flatMap((r) => r.items.map((i) => i.value)));
-  const maxH = Math.max(2.6, Math.min(4.2, maxCols * 0.45));
+  const maxH = Math.max(2.6, Math.min(4.4, maxCols * 0.45));
   const spanX = (maxCols - 1) * gapX;
   const spanZ = (rows.length - 1) * gapZ;
+  addFloor(scene, Math.max(spanX, spanZ) + 14);
 
-  // The plinth everything stands on.
-  const plinthW = spanX + 2.2;
-  const plinthD = spanZ + 2.2;
-  const plinth = new THREE.Mesh(
-    new RoundedBoxGeometry(plinthW, 0.24, plinthD, 6, 0.1),
-    new THREE.MeshPhysicalMaterial({
-      color: '#141a28', roughness: 0.22, metalness: 0.2, clearcoat: 1, clearcoatRoughness: 0.12,
-    }),
-  );
-  plinth.position.y = -0.12;
-  plinth.receiveShadow = true;
-  scene.add(plinth);
-  // Soft shadow on the page around the plinth.
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.ShadowMaterial({ opacity: dark ? 0.45 : 0.16 }));
-  ground.rotation.x = -Math.PI / 2;
-  ground.position.y = -0.24;
-  ground.receiveShadow = true;
-  scene.add(ground);
-
-  const meshes = [];
+  const towers = [];
   const rowLabels = [];
   rows.forEach((row, ri) => {
     const z = ri * gapZ - spanZ / 2;
-    const base = new THREE.Color(token(`--${row.color}`, '#4f5bd5'));
-    // a thin glass rail under each row
-    const rail = new THREE.Mesh(
-      new RoundedBoxGeometry(spanX + 1.3, 0.05, W + 0.5, 4, 0.025),
-      new THREE.MeshPhysicalMaterial({ color: base, roughness: 0.15, metalness: 0, transmission: 0, transparent: true, opacity: 0.22, clearcoat: 1 }),
-    );
-    rail.position.set(0, 0.025, z);
-    rail.receiveShadow = true;
-    scene.add(rail);
+    const tint = glowColor(row.color);
+    const strip = new THREE.Mesh(new THREE.PlaneGeometry(spanX + 1.2, 0.035), glowMaterial(tint, 1.6));
+    strip.rotation.x = -Math.PI / 2;
+    strip.position.set(0, 0.01, z + W / 2 + 0.28);
+    scene.add(strip);
+    const glass = glassMaterial(full, tint);
     row.items.forEach((it, ci) => {
-      const hgt = Math.max(0.06, (it.value / maxValue) * maxH);
-      const geo = new RoundedBoxGeometry(W, hgt, W, 5, Math.min(0.12, hgt / 2.2));
-      geo.translate(0, hgt / 2, 0);
-      // Deep, satin colours: the token colour, a little darker, fading slightly along the row.
-      const fade = ci / Math.max(1, row.items.length - 1);
-      const c = base.clone().offsetHSL(0, -0.08 - 0.12 * fade, -0.1 - 0.06 * fade);
-      if (it.more) c.lerp(new THREE.Color('#3a4256'), 0.6);
-      const mat = new THREE.MeshPhysicalMaterial({
-        color: c, roughness: 0.3, metalness: 0.25, clearcoat: 1, clearcoatRoughness: 0.05, specularIntensity: 0.8,
-        emissive: new THREE.Color(0x000000),
-      });
-      const m = new THREE.Mesh(geo, mat);
-      m.position.set(ci * gapX - spanX / 2, 0.05, z);
-      m.castShadow = true;
-      m.receiveShadow = true;
-      m.userData = { item: it, row, h: hgt, delay: ri * 90 + ci * 45 };
-      m.scale.y = reduced() ? 1 : 0.001;
-      // a thin glowing edge on top of each column
-      const cap = new THREE.Mesh(
-        new RoundedBoxGeometry(W * 0.86, 0.02, W * 0.86, 2, 0.008),
-        new THREE.MeshBasicMaterial({ color: base.clone().offsetHSL(0, 0.05, 0.22), toneMapped: false, transparent: true, opacity: it.more ? 0.35 : 0.9 }),
-      );
-      cap.position.y = hgt + 0.012;
-      m.add(cap);
-      cap.scale.y = 1;
-      scene.add(m);
-      meshes.push(m);
+      const h = Math.max(0.08, (it.value / maxValue) * maxH);
+      const shell = new THREE.Mesh(new RoundedBoxGeometry(W, h, W, full ? 5 : 2, Math.min(0.1, h / 2.2)).translate(0, h / 2, 0), glass);
+      const coreW = W * 0.3;
+      const core = new THREE.Mesh(new THREE.BoxGeometry(coreW, Math.max(0.02, h - 0.12), coreW).translate(0, h / 2, 0),
+        glowMaterial(tint, it.more ? 0.9 : 2.2));
+      const cap = new THREE.Mesh(new THREE.BoxGeometry(W * 0.7, 0.012, W * 0.7).translate(0, h - 0.035, 0), glowMaterial(tint, it.more ? 0.8 : 3));
+      const g = new THREE.Group();
+      g.add(core, cap, shell);
+      g.position.set(ci * gapX - spanX / 2, 0, z);
+      g.scale.y = reduced() ? 1 : 0.001;
+      g.userData = { item: it, row, h, delay: ri * 110 + ci * 55, shell, core };
+      shell.userData.tower = g;
+      scene.add(g);
+      towers.push(g);
     });
     if (labels) {
-      const lab = el('div', `sky-label ${row.color}`);
-      lab.append(el('i'), el('span', null, row.name));
+      const lab = el('div', 'sky-label');
+      const dot = el('i');
+      dot.style.background = tint;
+      dot.style.boxShadow = `0 0 10px ${tint}`;
+      lab.append(dot, el('span', null, row.name));
       labelLayer.append(lab);
-      const h0 = Math.max(0.06, (row.items[0].value / maxValue) * maxH);
-      rowLabels.push({ el: lab, pos: new THREE.Vector3(-spanX / 2, h0 + 0.35, z), mesh: null });
+      const h0 = Math.max(0.08, (row.items[0].value / maxValue) * maxH);
+      rowLabels.push({ el: lab, pos: new THREE.Vector3(-spanX / 2, h0 + 0.35, z) });
     }
   });
 
-  // Lights: the room environment gives reflections; one soft key light gives shadows.
-  scene.add(new THREE.HemisphereLight(0xffffff, dark ? 0x202840 : 0xdfe3f0, dark ? 0.55 : 0.75));
-  const key = new THREE.DirectionalLight(0xffffff, dark ? 2.2 : 2.6);
-  key.position.set(-spanX * 0.6 - 3, 9, spanZ + 6);
-  key.castShadow = true;
-  key.shadow.mapSize.set(2048, 2048);
-  key.shadow.radius = 6;
-  key.shadow.bias = -0.0004;
-  key.shadow.normalBias = 0.02;
-  const ext = Math.max(spanX, spanZ) / 2 + 3;
-  Object.assign(key.shadow.camera, { left: -ext, right: ext, top: ext, bottom: -ext, near: 1, far: 40 });
+  scene.add(new THREE.HemisphereLight(0x9aa8ff, 0x05060c, 0.6));
+  const key = new THREE.DirectionalLight(0xffffff, 1.4);
+  key.position.set(-6, 10, 8);
   scene.add(key);
-  const rim = new THREE.DirectionalLight(dark ? 0x9db0ff : 0xffffff, dark ? 1.1 : 0.6);
-  rim.position.set(spanX + 4, 5, -spanZ - 5);
+  const rim = new THREE.DirectionalLight(0x6ad8ff, 1.2);
+  rim.position.set(8, 4, -8);
   scene.add(rim);
 
-  // Camera: three-quarter view from the front left, then a gentle fly-in.
-  const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 200);
-  const target = new THREE.Vector3(0, maxH * 0.3, 0);
-  const dir = new THREE.Vector3(-0.5, 0.48, 0.82).normalize();
-  // Distance that fits the plinth and the tallest column for the current screen shape.
-  const sphere = Math.hypot(plinthW, plinthD, maxH * 1.4) / 2;
-  const fitDistance = (aspect) => {
-    const vf = THREE.MathUtils.degToRad(camera.fov) / 2;
-    const hf = Math.atan(Math.tan(vf) * aspect);
-    return (sphere / Math.sin(Math.min(vf, hf))) * 0.92;
-  };
-  let radius = fitDistance(1.6);
+  const target = new THREE.Vector3(0, maxH * 0.32, 0);
+  const dir = new THREE.Vector3(-0.48, 0.42, 0.84).normalize();
+  const sphere = Math.hypot(spanX + 1.6, spanZ + 1.6, maxH * 1.3) / 2;
   const endPos = new THREE.Vector3();
   const startPos = new THREE.Vector3();
-  const place = (aspect) => {
-    radius = fitDistance(aspect);
+  let radius = 10;
+  let started = false;
+  const place = () => {
+    const vf = THREE.MathUtils.degToRad(camera.fov) / 2;
+    const hf = Math.atan(Math.tan(vf) * camera.aspect);
+    radius = (sphere / Math.sin(Math.min(vf, hf))) * 0.86;
+    scene.fog.density = 0.42 / radius; // the towers stay clear; the far floor fades into the dark
     endPos.copy(dir).multiplyScalar(radius).add(target);
-    startPos.copy(dir).multiplyScalar(radius * 1.45).add(target).add(new THREE.Vector3(-radius * 0.35, -radius * 0.25, 0));
+    startPos.copy(dir).multiplyScalar(radius * 1.5).add(target).add(new THREE.Vector3(-radius * 0.4, radius * 0.25, 0));
   };
-  place(1.6);
-  camera.position.copy(reduced() ? endPos : startPos);
-  camera.lookAt(target);
-
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.target.copy(target);
   controls.enableDamping = true;
-  controls.dampingFactor = 0.08;
+  controls.dampingFactor = 0.07;
   controls.enablePan = false;
-  controls.minDistance = radius * 0.35;
-  controls.maxDistance = radius * 2.2;
-  controls.minPolarAngle = 0.25;
-  controls.maxPolarAngle = Math.PI / 2 - 0.08;
-  controls.autoRotate = autoRotate;
-  controls.autoRotateSpeed = 0.55;
+  controls.minPolarAngle = 0.3;
+  controls.maxPolarAngle = Math.PI / 2 - 0.1;
+  controls.autoRotate = (opts.autoRotate ?? true) && !reduced();
+  controls.autoRotateSpeed = 0.45;
   controls.enabled = interactive;
-  controls.enableZoom = interactive;
   let interacted = false;
   controls.addEventListener('start', () => { interacted = true; controls.autoRotate = false; });
+  const baseResize = stage.resize;
+  stage.resize = () => {
+    baseResize();
+    place();
+    controls.minDistance = radius * 0.4;
+    controls.maxDistance = radius * 2;
+    if (!interacted && (reduced() || started)) camera.position.copy(endPos);
+  };
+  place();
+  camera.position.copy(reduced() ? endPos : startPos);
 
-  // Picking: a tap (not a drag) on a column shows its numbers.
   const ray = new THREE.Raycaster();
   const ndc = new THREE.Vector2();
+  const shells = towers.map((t) => t.userData.shell);
   let down = null;
   let picked = null;
-  const setPicked = (m) => {
-    if (picked) picked.material.emissive.setRGB(0, 0, 0);
-    picked = m;
-    if (m) m.material.emissive.copy(m.material.color).multiplyScalar(0.35);
-    tip.hidden = !m;
-    if (m) {
+  const setPicked = (g) => {
+    if (picked) picked.userData.core.material.color.multiplyScalar(1 / 1.8);
+    picked = g;
+    if (g) g.userData.core.material.color.multiplyScalar(1.8);
+    tip.hidden = !g;
+    if (g) {
       tip.textContent = '';
-      tip.append(el('b', null, m.userData.item.label), el('span', null, `${m.userData.row.name}${m.userData.item.detail ? ` · ${m.userData.item.detail}` : ''}`));
-      onPick?.(m.userData.item, m.userData.row);
+      tip.append(el('b', null, g.userData.item.label), el('span', null, `${g.userData.row.name}${g.userData.item.detail ? ` · ${g.userData.item.detail}` : ''}`));
+      onPick?.(g.userData.item, g.userData.row);
     }
   };
   if (interactive) {
@@ -238,183 +404,126 @@ export function orderSkyline(columns, opts = {}) {
       const r = renderer.domElement.getBoundingClientRect();
       ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
       ray.setFromCamera(ndc, camera);
-      const hit = ray.intersectObjects(meshes, false)[0];
-      setPicked(hit ? hit.object : null);
+      const hit = ray.intersectObjects(shells, false)[0];
+      setPicked(hit ? hit.object.userData.tower : null);
     });
   }
 
-  // Size to the box.
-  const resize = () => {
-    const w = box.clientWidth || 300;
-    const hh = box.clientHeight || height;
-    renderer.setSize(w, hh, false);
-    camera.aspect = w / hh;
-    camera.updateProjectionMatrix();
-    place(camera.aspect);
-    controls.minDistance = radius * 0.35;
-    controls.maxDistance = radius * 2.2;
-    if (!interacted && (reduced() || performance.now() - t0 > 1800)) camera.position.copy(endPos);
-  };
-  const ro = new ResizeObserver(resize);
-  ro.observe(box);
-
-  // Animate only while on screen; free the GPU when the view is gone.
-  let visible = true;
-  const io = new IntersectionObserver((e) => { visible = e[e.length - 1]?.isIntersecting ?? true; });
-  let t0 = performance.now();
   const v = new THREE.Vector3();
-  let raf = 0;
-  let mounted = false;
-  const ease = (k) => 1 - (1 - k) ** 3;
-  const dispose = () => {
-    cancelAnimationFrame(raf);
-    ro.disconnect();
-    io.disconnect();
-    controls.dispose();
-    scene.traverse((o) => { if (o.isMesh) { o.geometry.dispose(); o.material.dispose(); } });
-    envTex.dispose();
-    pmrem.dispose();
-    renderer.dispose();
-    renderer.forceContextLoss?.();
-  };
-  const frame = (t) => {
-    if (!box.isConnected) {
-      if (mounted || t - t0 > 15000) { dispose(); return; }
-      raf = requestAnimationFrame(frame); // not in the page yet
-      return;
-    }
-    if (!mounted) { mounted = true; t0 = t; resize(); io.observe(box); } // observe only once it is in the page
-    raf = requestAnimationFrame(frame);
-    if (!visible) return;
-    const el2 = t - t0;
+  runLoop(box, stage, (s) => {
+    const ms = s * 1000;
     if (!reduced()) {
-      for (const m of meshes) {
-        const k = Math.min(1, Math.max(0, (el2 - 250 - m.userData.delay) / 900));
-        m.scale.y = Math.max(0.001, ease(k));
-      }
-      if (!interacted && el2 < 1800) camera.position.lerpVectors(startPos, endPos, ease(Math.min(1, el2 / 1800)));
+      for (const g of towers) g.scale.y = Math.max(0.001, ease(Math.min(1, Math.max(0, (ms - 250 - g.userData.delay) / 1000))));
+      if (!interacted && ms < 2000) camera.position.lerpVectors(startPos, endPos, ease(Math.min(1, ms / 2000)));
+      else started = true;
     }
     controls.update();
-    renderer.render(scene, camera);
-    // HTML labels follow the scene.
-    const w = box.clientWidth;
-    const hh = box.clientHeight;
-    const rise = reduced() ? 1 : Math.min(1, Math.max(0, (el2 - 900) / 900));
+    const { w, h } = stage.size;
+    const rise = reduced() ? 1 : Math.min(1, Math.max(0, (ms - 900) / 900));
     const placed = [];
-    const spots = rowLabels.map((l) => {
+    rowLabels.map((l) => {
       v.copy(l.pos);
       v.y = 0.2 + (l.pos.y - 0.2) * ease(rise);
       v.project(camera);
-      return { l, x: ((v.x + 1) / 2) * w, y: ((1 - v.y) / 2) * hh, front: v.z < 1 };
-    }).sort((a, b) => a.y - b.y);
-    for (const s2 of spots) {
-      const lw = s2.l.el.offsetWidth || 80;
-      const lh = (s2.l.el.offsetHeight || 24) + 4;
-      let y = s2.y;
-      // move a label up until it no longer covers one already placed
+      return { l, x: ((v.x + 1) / 2) * w, y: ((1 - v.y) / 2) * h, front: v.z < 1 };
+    }).sort((a, b) => a.y - b.y).forEach((sp) => {
+      const lw = sp.l.el.offsetWidth || 80;
+      const lh = (sp.l.el.offsetHeight || 24) + 4;
+      let y = sp.y;
       for (let k = 0; k < 6; k++) {
-        const hitRect = placed.find((p) => Math.abs(p.x - s2.x) < (p.w + lw) / 2 && Math.abs(p.y - y) < lh);
-        if (!hitRect) break;
-        y = hitRect.y - lh;
+        const hit = placed.find((p) => Math.abs(p.x - sp.x) < (p.w + lw) / 2 && Math.abs(p.y - y) < lh);
+        if (!hit) break;
+        y = hit.y - lh;
       }
-      placed.push({ x: s2.x, y, w: lw });
-      s2.l.el.style.transform = `translate(${s2.x}px, ${y}px) translate(-50%, -100%)`;
-      s2.l.el.style.opacity = s2.front ? String(rise) : '0';
-    }
+      placed.push({ x: sp.x, y, w: lw });
+      sp.l.el.style.transform = `translate(${sp.x}px, ${y}px) translate(-50%, -100%)`;
+      sp.l.el.style.opacity = sp.front ? String(rise) : '0';
+    });
     if (picked) {
-      v.set(picked.position.x, picked.userData.h + 0.15, picked.position.z).project(camera);
-      tip.style.transform = `translate(${((v.x + 1) / 2) * w}px, ${((1 - v.y) / 2) * hh}px) translate(-50%, calc(-100% - 10px))`;
+      v.set(picked.position.x, picked.userData.h + 0.18, picked.position.z).project(camera);
+      tip.style.transform = `translate(${((v.x + 1) / 2) * w}px, ${((1 - v.y) / 2) * h}px) translate(-50%, calc(-100% - 10px))`;
     }
-  };
-  raf = requestAnimationFrame(frame);
-  box.reset = () => { interacted = false; camera.position.copy(endPos); controls.target.copy(target); controls.autoRotate = autoRotate; setPicked(null); };
+  });
+  box.reset = () => { interacted = false; camera.position.copy(endPos); controls.target.copy(target); controls.autoRotate = !reduced(); setPicked(null); };
   return box;
 }
 
+// ---------- the start screen's crystal ----------
+
 /**
- * The start screen's hero: a glossy sculpture of thin stacked layers that twist and ripple, like
- * budget layers being shaped into an order. Decorative; transparent so the colour blocks show
- * through. Follows the pointer a little, and can be turned by dragging.
+ * A glass crystal with the plan inside: glowing bars (one per segment) that breathe, a few glass
+ * pebbles floating, all over the aurora. bars: [{ value, color: 'c1'… }]
  */
-export function sculpture(opts = {}) {
-  const { height = 380 } = opts;
-  const box = el('div', 'sculpt');
+export function crystal(opts = {}) {
+  const { height = 420, bars = [{ value: 30, color: 'c1' }, { value: 20, color: 'c2' }, { value: 25, color: 'c3' }, { value: 25, color: 'c4' }] } = opts;
+  const box = el('div', 'gl crystal');
   box.style.height = `${height}px`;
   box.setAttribute('role', 'img');
-  box.setAttribute('aria-label', 'A glossy 3D sculpture of stacked, twisting layers.');
-  let renderer;
-  try {
-    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
-  } catch { return box; }
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-  renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.0;
-  renderer.domElement.className = 'sculpt-canvas';
-  box.append(renderer.domElement);
-
-  const scene = new THREE.Scene();
-  const pmrem = new THREE.PMREMGenerator(renderer);
-  const envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-  scene.environment = envTex;
-  scene.environmentIntensity = 0.7;
+  box.setAttribute('aria-label', 'A glass crystal with glowing bars inside, standing for a plan.');
+  let stage;
+  try { stage = createStage(box, { fov: 28, exposure: 1.1 }); } catch { return box; }
+  const { scene, camera, full } = stage;
+  addFloor(scene, 16);
 
   const group = new THREE.Group();
   scene.add(group);
-  const N = 72;
-  const layerH = 0.045;
-  const gap = 0.062;
-  const stops = [new THREE.Color('#ff3b2f'), new THREE.Color('#ff2f7a'), new THREE.Color('#c13cff'), new THREE.Color('#5b3cff')];
-  const colorAt = (k) => {
-    const x = k * (stops.length - 1);
-    const i = Math.min(stops.length - 2, Math.floor(x));
-    return stops[i].clone().lerp(stops[i + 1], x - i);
-  };
-  const layers = [];
-  for (let i = 0; i < N; i++) {
-    const k = i / (N - 1);
-    const w = 2.1 + 0.75 * Math.sin(k * Math.PI * 1.15 + 0.3);
-    const d = 1.05 + 0.45 * Math.cos(k * Math.PI * 1.6);
-    const geo = new RoundedBoxGeometry(w, layerH, d, 3, Math.min(0.5, d / 2.05));
-    const mat = new THREE.MeshPhysicalMaterial({
-      color: colorAt(k), roughness: 0.22, metalness: 0.05, clearcoat: 1, clearcoatRoughness: 0.04, specularIntensity: 0.9,
-    });
-    const m = new THREE.Mesh(geo, mat);
-    m.position.y = i * gap - (N * gap) / 2;
-    m.userData = { k, base: k * 2.6, sway: 0.28 * Math.sin(k * Math.PI * 2) };
+  const cw = 2.3;
+  const ch = 2.9;
+  const cd = 1.5;
+  const shell = new THREE.Mesh(new RoundedBoxGeometry(cw, ch, cd, full ? 8 : 3, 0.22),
+    glassMaterial(full, '#9b8cff', { thickness: 1.6, iridescence: 0.9, attenuationDistance: 6 }));
+  shell.position.y = ch / 2 + 0.25;
+  group.add(shell);
+  const max = Math.max(...bars.map((b) => b.value), 1);
+  const bw = (cw - 0.7) / bars.length;
+  const inner = [];
+  bars.forEach((b, i) => {
+    const h = 0.4 + (b.value / max) * (ch - 0.9);
+    const m = new THREE.Mesh(new RoundedBoxGeometry(bw * 0.62, h, bw * 0.62, 3, 0.04).translate(0, h / 2, 0), glowMaterial(glowColor(b.color), 2.1));
+    m.position.set(-cw / 2 + 0.35 + bw * (i + 0.5), 0.45, 0);
+    m.userData = { ph: i * 0.9 };
     group.add(m);
-    layers.push(m);
-  }
-  // a few floating glossy "data points"
-  const dots = [];
-  const dotMat = (c) => new THREE.MeshPhysicalMaterial({ color: c, roughness: 0.15, clearcoat: 1, clearcoatRoughness: 0.03 });
-  [['#2f45ff', 0.22, -1.9, 1.2, 0.6], ['#ffd23f', 0.14, 1.8, -0.9, 0.9], ['#ffffff', 0.1, 1.5, 1.7, -0.4], ['#2f45ff', 0.12, -1.4, -1.6, -0.8]].forEach(([c, r, x, y, z]) => {
-    const s = new THREE.Mesh(new THREE.SphereGeometry(r, 48, 32), dotMat(c));
-    s.position.set(x, y, z);
-    s.userData = { y0: y, ph: Math.random() * 6 };
-    scene.add(s);
-    dots.push(s);
+    inner.push(m);
+  });
+  const base = new THREE.Mesh(new RoundedBoxGeometry(cw + 0.5, 0.06, cd + 0.5, 3, 0.03), glowMaterial('#7c6bff', 1.3));
+  base.position.y = 0.05;
+  group.add(base);
+  const pebbles = [];
+  [[1.9, 2.6, 0.9, 0.26, '#3dd9f5'], [-1.9, 1.4, 0.6, 0.2, '#ff6b9a'], [1.5, 0.9, -1.0, 0.16, '#ffc15e']].forEach(([x, y, z, r, c]) => {
+    const p = new THREE.Mesh(new THREE.SphereGeometry(r, full ? 48 : 20, full ? 32 : 14), glassMaterial(full, c, { thickness: r * 2, iridescence: 1 }));
+    p.position.set(x, y, z);
+    p.add(new THREE.Mesh(new THREE.SphereGeometry(r * 0.35, 16, 12), glowMaterial(c, 2.5)));
+    p.userData = { y0: y, ph: x * 2 };
+    group.add(p);
+    pebbles.push(p);
   });
 
-  scene.add(new THREE.HemisphereLight(0xffffff, 0x2b1d6b, 0.9));
-  const key = new THREE.DirectionalLight(0xffffff, 2.4);
-  key.position.set(-3, 5, 4);
+  scene.add(new THREE.HemisphereLight(0xb0b8ff, 0x05060c, 0.7));
+  const key = new THREE.DirectionalLight(0xffffff, 1.8);
+  key.position.set(-5, 8, 6);
   scene.add(key);
-  const rimBlue = new THREE.DirectionalLight(0x4f6bff, 2.2);
-  rimBlue.position.set(4, 1, -3);
-  scene.add(rimBlue);
-  const rimPink = new THREE.DirectionalLight(0xff5aa5, 1.4);
-  rimPink.position.set(-4, -2, -2);
-  scene.add(rimPink);
+  const rim = new THREE.DirectionalLight(0x6ad8ff, 1.4);
+  rim.position.set(6, 3, -6);
+  scene.add(rim);
 
-  const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
-  camera.position.set(0, 0.6, 10.5);
-  camera.lookAt(0, 0, 0);
+  const target = new THREE.Vector3(0, 1.7, 0);
+  const baseResize = stage.resize;
+  stage.resize = () => {
+    baseResize();
+    const portrait = camera.aspect < 0.85;
+    const dist = portrait ? (11.5 / Math.max(0.6, camera.aspect)) * 1.02 : 11.5;
+    camera.position.set(0, 3.1, dist);
+    camera.lookAt(target);
+    scene.fog.density = 0.45 / dist;
+    const { w, h } = stage.size;
+    if (portrait) camera.setViewOffset(w, h, 0, h * 0.27, w, h); // shift the picture up, above the text
+    else camera.setViewOffset(w, h, -w * 0.2, 0, w, h); // wide screens: crystal on the right
+    camera.updateProjectionMatrix();
+  };
 
-  // pointer: a little parallax; dragging turns the sculpture
   let px = 0;
   let py = 0;
-  let spin = -0.5;
+  let spin = 0.5;
   let drag = null;
   box.addEventListener('pointermove', (e) => {
     const r = box.getBoundingClientRect();
@@ -422,59 +531,21 @@ export function sculpture(opts = {}) {
     py = ((e.clientY - r.top) / r.height - 0.5) * 2;
     if (drag) spin = drag.spin + (e.clientX - drag.x) * 0.012;
   });
-  box.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, spin }; box.setPointerCapture?.(e.pointerId); });
+  box.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, spin }; });
   const up = () => { drag = null; };
   box.addEventListener('pointerup', up);
   box.addEventListener('pointercancel', up);
-  box.addEventListener('pointerleave', () => { px = 0; py = 0; });
+  box.addEventListener('pointerleave', () => { px = 0; py = 0; drag = null; });
 
-  const resize = () => {
-    const w = box.clientWidth || 300;
-    const hh = box.clientHeight || height;
-    renderer.setSize(w, hh, false);
-    camera.aspect = w / hh;
-    // keep the whole sculpture in view on narrow screens
-    camera.position.z = camera.aspect < 0.9 ? 10.5 / Math.max(0.55, camera.aspect) * 0.9 : 10.5;
-    camera.updateProjectionMatrix();
-  };
-  const ro = new ResizeObserver(resize);
-  ro.observe(box);
-  let visible = true;
-  const io = new IntersectionObserver((e) => { visible = e[e.length - 1]?.isIntersecting ?? true; });
-  let mounted = false;
-  let raf = 0;
-  const t0 = performance.now();
-  const still = reduced();
-  const dispose = () => {
-    cancelAnimationFrame(raf); ro.disconnect(); io.disconnect();
-    scene.traverse((o) => { if (o.isMesh) { o.geometry.dispose(); o.material.dispose(); } });
-    envTex.dispose(); pmrem.dispose(); renderer.dispose(); renderer.forceContextLoss?.();
-  };
-  const frame = (t) => {
-    if (!box.isConnected) {
-      if (mounted || t - t0 > 15000) { dispose(); return; }
-      raf = requestAnimationFrame(frame);
-      return;
-    }
-    if (!mounted) { mounted = true; resize(); io.observe(box); }
-    raf = requestAnimationFrame(frame);
-    if (!visible) return;
-    const s = still ? 0 : (t - t0) / 1000;
-    const intro = still ? 1 : Math.min(1, s / 1.6);
-    const e3 = 1 - (1 - intro) ** 3;
-    for (const m of layers) {
-      const u = m.userData;
-      m.rotation.y = u.base * e3 + 0.22 * Math.sin(s * 0.9 + u.k * 6.2);
-      m.position.x = u.sway * e3 + 0.06 * Math.sin(s * 1.3 + u.k * 9);
-      m.scale.setScalar(0.4 + 0.6 * e3);
-    }
-    for (const d of dots) d.position.y = d.userData.y0 + 0.12 * Math.sin(s * 1.2 + d.userData.ph);
-    if (!drag && !still) spin += 0.0035;
-    group.rotation.y += ((spin + px * 0.35) - group.rotation.y) * 0.08;
-    group.rotation.x += ((-0.12 + py * 0.15) - group.rotation.x) * 0.08;
-    group.rotation.z = -0.18;
-    renderer.render(scene, camera);
-  };
-  raf = requestAnimationFrame(frame);
+  runLoop(box, stage, (s) => {
+    const still = reduced();
+    const intro = still ? 1 : ease(Math.min(1, s / 1.8));
+    inner.forEach((m) => { m.scale.y = Math.max(0.001, intro * (1 + (still ? 0 : 0.06 * Math.sin(s * 1.4 + m.userData.ph)))); });
+    pebbles.forEach((p) => { p.position.y = p.userData.y0 + (still ? 0 : 0.15 * Math.sin(s * 1.1 + p.userData.ph)); });
+    if (!drag && !still) spin += 0.0028;
+    group.rotation.y += ((spin + px * 0.3) - group.rotation.y) * 0.07;
+    group.rotation.x += ((py * 0.06) - group.rotation.x) * 0.07;
+    group.position.y = still ? 0 : 0.08 * Math.sin(s * 0.8);
+  });
   return box;
 }

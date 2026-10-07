@@ -404,32 +404,34 @@ function homeView() {
 
 /** The colour-block banner with the 3D sculpture, on top of the plans list. */
 function plansHero() {
-  const art = h('div', { class: 'landing-art' });
-  import('./scene3d.js')
-    .then((m) => { if (m.webglOK()) art.append(m.sculpture({ height: 300 })); })
-    .catch(() => {});
+  const latest = [...data.plans].sort((a, b) => b.updated - a.updated)[0];
+  const art = heroArt(latest ? latest.segments.map((x, i) => ({ value: x.pct, color: COLORS[i % COLORS.length] })) : null);
   return h('div', { class: 'landing-hero compact' },
-    h('div', { class: 'blob b1', 'aria-hidden': 'true' }), h('div', { class: 'blob b2', 'aria-hidden': 'true' }),
     art,
     h('div', { class: 'landing-copy' },
       h('p', { class: 'eyebrow' }, 'One plan per customer and season'),
-      h('h1', { class: 'mega' }, h('span', null, 'Your'), h('span', { class: 'pink' }, 'plans.')),
+      h('h1', { class: 'mega' }, h('span', null, 'Your plans,'), h('span', { class: 'glow' }, 'in glass and light.')),
       h('p', { class: 'lead' }, 'Budget in, order out: split, predict, and get money and units for every article.'),
       h('div', { class: 'cta' }, h('button', { class: 'btn primary big', onclick: newPlan }, icon('plus'), 'New plan'))));
 }
 
-function welcomeView() {
+/** The 3D crystal as the background of a hero (on the live aurora); a soft gradient if 3D is missing. */
+function heroArt(bars) {
   const art = h('div', { class: 'landing-art' });
   import('./scene3d.js')
-    .then((m) => { if (m.webglOK()) art.append(m.sculpture({ height: 420 })); })
+    .then((m) => { if (m.webglOK()) art.append(m.crystal({ height: 560, bars: bars?.length ? bars.slice(0, 6) : undefined })); })
     .catch(() => {});
+  return art;
+}
+
+function welcomeView() {
+  const art = heroArt(null);
   return h('section', { class: 'view landing' },
     h('div', { class: 'landing-hero' },
-      h('div', { class: 'blob b1', 'aria-hidden': 'true' }), h('div', { class: 'blob b2', 'aria-hidden': 'true' }),
       art,
       h('div', { class: 'landing-copy' },
         h('p', { class: 'eyebrow' }, 'Sales planning for brands, wholesalers and shops'),
-        h('h1', { class: 'mega' }, h('span', null, 'Budget in.'), h('span', { class: 'pink' }, 'Order out.')),
+        h('h1', { class: 'mega' }, h('span', null, 'Budget in.'), h('span', { class: 'glow' }, 'Order out.')),
         h('p', { class: 'lead' }, 'Give a customer\'s budget. Get money and units for every article, predicted from your own past seasons.'),
         h('div', { class: 'cta' },
           h('button', { class: 'btn primary big', onclick: loadSample }, icon('spark'), 'See an example (food wholesaler)'),
@@ -965,6 +967,7 @@ function planResult(p) {
     p.final ? h('div', { class: 'card info' }, icon('flag'), h('div', null,
       h('p', null, `Final result saved ${fmtDateTime(p.final.at)}. Later changes to articles do not change it.`),
       h('button', { class: 'btn small', onclick: () => { p.final = null; touch(p); render(); } }, 'Reopen'))) : null,
+    h('div', { class: 'bento' },
     orderScene(r),
     h('div', { class: 'kpis' },
       kpi('Budget', { n: r.budgetCents, f: (v) => moneyShort(Math.round(v)) }),
@@ -976,7 +979,7 @@ function planResult(p) {
       r.checks.ok
         ? `Checked: placed ${money(t.placedCents, { cents: true })} + left over ${money(t.leftoverCents, { cents: true })} = budget ${money(r.budgetCents, { cents: true })}`
         : 'The totals do not add up. Please report this.'),
-    demandNote(p, r),
+    demandNote(p, r)),
     r.warnings.map((w) => h('div', { class: 'card warn slim' }, icon('alert'), h('p', null, w))),
   ]);
   r.segments.forEach((s, si) => box.append(segmentResult(s, si, p)));
@@ -1049,7 +1052,7 @@ function orderScene(r) {
     return { name: s.name, color: COLORS[i % COLORS.length], total: s.placedCents, items };
   }).filter((c) => c.total > 0);
   if (!cols.length) return null;
-  const info = h('div', { class: 'scene-info', 'aria-live': 'polite' }, icon('box', 16), h('span', null, 'Tap a column to see the article. Drag to turn, pinch to zoom.'));
+  const info = h('div', { class: 'scene-info', 'aria-live': 'polite' }, icon('box', 16), h('span', null, 'Tap a tower to see the article. Drag to turn, pinch to zoom.'));
   const onPick = (it, col) => {
     clear(info);
     append(info, [h('i', { class: `dot ${col.color}` }), h('span', null, h('b', null, it.label), h('br'), h('span', { class: 'muted' }, `${col.name} · ${it.detail}`))]);

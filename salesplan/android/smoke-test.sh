@@ -54,7 +54,7 @@ PY
 
 wait_for "Order out" || exit 1
 tap "See an example" || exit 1
-wait_for "Checked: placed" || exit 1
-wait_for "Predicted demand" || exit 1
+wait_for "Placed" || exit 1
+wait_for "Your order in 3D" || exit 1
 adb exec-out screencap -p > emulator.png
 echo "The app works: example loaded, model trained on the phone, plan calculated and checked."
