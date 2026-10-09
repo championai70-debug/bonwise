@@ -6,7 +6,8 @@ Run:  python3 tools/build_i18n.py           build static/i18n.js
       python3 tools/build_i18n.py --add     append missing English texts to the table (empty translations)
 
 The table (tab-separated, header row: en de tr ar hi) is the one place for all texts: the
-app (static/app.js via t()/tn(), and the words on static/index.html), the server's messages
+app (static/app.js via t()/tn(), and the words on static/index.html; the same for the landing
+page, static/welcome.js and welcome.html), the server's messages
 (bonwise/i18n.py) and words from the price data (categories, product and shop kinds).
 {name} parts are filled in by the code; translations must keep them.
 """
@@ -119,7 +120,9 @@ def server_texts():
 
 def all_texts():
     js = js_texts((ROOT / "static" / "app.js").read_text(encoding="utf-8"))
+    js += js_texts((ROOT / "static" / "welcome.js").read_text(encoding="utf-8"))
     page = page_texts((ROOT / "static" / "index.html").read_text(encoding="utf-8"))
+    page += page_texts((ROOT / "static" / "welcome.html").read_text(encoding="utf-8"))
     return list(dict.fromkeys(js + page + data_words() + server_texts()))
 
 

@@ -2,7 +2,7 @@
 (function () {
   "use strict";
   var $ = function (id) { return document.getElementById(id); };
-  var COLS = [["open", "App opens"], ["trip", "List searches"], ["shops", "Shop searches"], ["scan.photo", "Photo scans"],
+  var COLS = [["open", "App opens"], ["welcome", "Landing page"], ["trip", "List searches"], ["shops", "Shop searches"], ["scan.photo", "Photo scans"],
     ["scan.text", "Text scans"], ["reader.ai", "Read by AI"], ["scan.fail", "Failed scans"], ["list.prices", "List price checks"],
     ["prices.report", "Receipts shared"], ["household.new", "New households"], ["limit.429", "Hit a limit"], ["error.5xx", "Server errors"]];
   function load(key) {

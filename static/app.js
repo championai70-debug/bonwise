@@ -820,7 +820,7 @@
   // A short burst of confetti when Bonwise finds money for you.
   function celebrate() {
     try { if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return; } catch (e) {}
-    var box = document.createElement("div"), colors = ["#0E7A52", "#FFD166", "#E4573D", "#3A6FD8", "#F58E3B", "#48B87A"];
+    var box = document.createElement("div"), colors = ["#5B2BD9", "#FFD23F", "#FF4FA3", "#2F5BFF", "#3DDC97", "#F58E3B"];
     box.className = "confetti"; box.setAttribute("aria-hidden", "true");
     for (var i = 0; i < 36; i++) {
       var c = document.createElement("i");

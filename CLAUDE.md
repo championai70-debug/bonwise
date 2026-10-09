@@ -24,7 +24,7 @@ python3 -m unittest discover -s tests -t .   # all tests, no network or token ne
 
 | Path | Role |
 |---|---|
-| `app.py` | HTTP server and all routes (`/api/*`, `/privacy`, `/impressum`, PWA files) |
+| `app.py` | HTTP server and all routes (`/api/*`, `/welcome`, `/privacy`, `/impressum`, PWA files) |
 | `bonwise/config.py` | Settings from environment variables / `.env` |
 | `bonwise/ai_reader.py` | Hugging Face chat-completions call, prompt, JSON repair, model fallback, total self-check, discount-line fix |
 | `bonwise/ocr.py`, `bonwise/parser.py` | Tesseract backup reader and rule-based German receipt parser |
@@ -40,6 +40,7 @@ python3 -m unittest discover -s tests -t .   # all tests, no network or token ne
 | `i18n/strings.tsv`, `tools/build_i18n.py`, `static/i18n.js`, `bonwise/i18n.py` | Languages: English, German, Turkish, Arabic (right-to-left), Hindi. One table for the app and the server. The app wraps texts in `t()`/`tn()` and translates the page's words at start; the phone's language is used unless chosen in Settings, and sent as `X-Lang`. The server translates `message`/`notice`/`tip`/`hint`/`alt` in every answer (`{placeholder}` sentences are matched as patterns). After changing texts: `python3 tools/build_i18n.py --add`, fill in the translations, then `python3 tools/build_i18n.py` (a test fails if anything is missing). Typed lists in Hindi/Arabic script and Turkish letters: `trip.native()`, `data.NATIVE_WORDS` |
 | `static/sw.js`, `static/manifest.webmanifest` | PWA / Android app shell. The app page and its script open from the phone's copy at once and refresh in the background, so a sleeping server never shows Render's "starting" page; only answers with the `X-Bonwise: 1` header (set in `_send`) are kept. `/api/` is never cached |
 | `static/jar/`, `static/vendor/three-jar.min.js`, `tools/3d/` | 3D savings jar (Three.js r186, WebGL 2, plain ES modules, no build step for the app). The SVG jar in `index.html` (`jarLevel()` in app.js) is the first picture, the a11y label and the fallback; the 3D loads a few seconds after `load` only on capable devices (`quality.js`), never with reduce-motion/data-saver, steps down or back to SVG when slow. Tune in `static/jar/quality.js`; rebuild Three.js with `tools/3d/build_three.sh` when using more of it. See README "3D savings jar" |
+| `static/welcome.html`, `static/welcome.js`, `static/mascot/` | Landing page `/welcome`: six colour-blocked sections, Bonni (receipt mascot) in 3D on one fixed transparent canvas between the "behind" words (z-index 0) and the text (z-index 2). Parts: `index.js` (HeroScene), `character.js`, `props.js`, `sections.js`, `lighting.js`, `loader.js`, `quality.js`. Still pictures `mascot/posters/N.webp` (and the app's `mascot/bonni.webp`) are rendered from the scene by `tools/3d/render_posters.mjs`: re-render after changing the scene. Same tiers/fallbacks as the jar (also no 3D on software rendering). Mirrored for Arabic. See README "Landing page and Bonni" |
 | `storage.count()`, `/stats` (`static/stats.html`, `stats.js`) | Usage counts: daily totals only (no IDs, IPs, cookies), shown on the private `/stats` page behind `STATS_KEY` |
 | `tools/monitor.py`, `.github/workflows/monitor.yml` | Hourly live check (page, CSP, German list search, reading receipt lines); a failed run emails the owner |
 | `android/`, `.github/workflows/android-apk.yml` | Test APK (Trusted Web Activity, package `com.onrender.bonwise.preview`), built by GitHub Actions and published at the `android-preview` release |
@@ -60,7 +61,8 @@ python3 -m unittest discover -s tests -t .   # all tests, no network or token ne
   (localStorage); the server copy is for household sharing. Deletions are tombstones
   with an `updated` timestamp.
 - The page loads `app.js?v=<mtime>` so browsers never mix a new page with an old script.
-  If you add another static script or stylesheet, add it to that list in `app.py`.
+  If you add another static script or stylesheet, add it to that page's list in `app.py` (`versioned()`).
+  `three-jar.min.js` is cached for a year: its URL carries a content hash written by `tools/3d/build_three.sh`.
 - User-facing text: plain, short English in the code, always through `t()` (app) or the table (server), with German, Turkish, Arabic and Hindi in `i18n/strings.tsv`. Prices via `eur()` (`€1.19`, `1,19 €` in German).
 - **Counting:** only daily totals via `storage.count()`; never store IDs, IPs or anything per visitor.
 - **Security** (see `SECURITY.md`): keep every limit, the `SECURITY_HEADERS` (CSP) and the

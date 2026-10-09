@@ -29,11 +29,11 @@ export async function mount(box, api) {
   progress.done();
   const [sceneMod, lighting, model, effects] = parts;
 
-  const css = getComputedStyle(document.documentElement);
+  const css = getComputedStyle(box);         // the card's own colours (the yellow card keeps them in dark mode)
   const v = (name, fallback) => (css.getPropertyValue(name) || "").trim() || fallback;
   const palette = {
-    lid: v("--accent", "#0E7A52"), sheen: v("--accent", "#0E7A52"), glass: "#EAF6EF",
-    gold: "#E3B23C", copper: "#C47A45", silver: "#D3D9DC",
+    lid: v("--accent", "#5B2BD9"), sheen: v("--accent", "#5B2BD9"), glass: "#F3EEFF",
+    gold: "#F2A900", copper: "#D07A3E", silver: "#D3D9DC",
     sky: v("--hero-a", "#E3F4EA"), ground: v("--hero-b", "#FFF4DA"), shadow: v("--ink", "#14201A"),
   };
 

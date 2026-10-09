@@ -556,3 +556,29 @@ Wrong key.	Falscher Schlüssel.	Yanlış anahtar.	مفتاح خاطئ.	गलत
 Savings jar	Spardose	Kumbara	حصّالة التوفير	बचत का गुल्लक
 Savings jar: {amount} left this month	Spardose: {amount} übrig diesen Monat	Kumbara: bu ay {amount} kaldı	حصّالة التوفير: متبقٍ {amount} هذا الشهر	बचत का गुल्लक: इस महीने {amount} बचे
 Drag to tilt the jar	Zum Kippen ziehen	Eğmek için sürükle	اسحب لإمالة الحصّالة	झुकाने के लिए खींचें
+Bonwise: scan it, save it	Bonwise: scannen, sparen	Bonwise: tara, biriktir	Bonwise: امسح ووفّر	Bonwise: स्कैन करो, बचत करो
+Bonni is on the way… {pct}%	Bonni ist unterwegs… {pct} %	Bonni yolda… %{pct}	بوني في الطريق… {pct}٪	बोनी आ रहा है… {pct}%
+Open the app	App öffnen	Uygulamayı aç	افتح التطبيق	ऐप खोलें
+Scan it.	Scannen.	Tara.	امسح.	स्कैन करो।
+Save it.	Sparen.	Biriktir.	وفّر.	बचत करो।
+Photograph a receipt. Bonwise shows cheaper swaps, keeps your monthly budget and finds the cheapest shop near you.	Fotografiere einen Kassenbon. Bonwise zeigt günstigere Alternativen, behält dein Monatsbudget im Blick und findet den günstigsten Laden in deiner Nähe.	Bir fişin fotoğrafını çek. Bonwise daha ucuz alternatifleri gösterir, aylık bütçeni takip eder ve yakınındaki en ucuz mağazayı bulur.	صوّر إيصالاً. يعرض Bonwise بدائل أرخص، ويتابع ميزانيتك الشهرية، ويجد أرخص متجر بالقرب منك.	रसीद की फ़ोटो लें। Bonwise सस्ते विकल्प दिखाता है, आपका मासिक बजट संभालता है और पास की सबसे सस्ती दुकान ढूँढता है।
+Open Bonwise	Bonwise öffnen	Bonwise'ı aç	افتح Bonwise	Bonwise खोलें
+Bonni, a smiling paper receipt, waves from a giant coin	Bonni, ein lächelnder Kassenbon, winkt von einer riesigen Münze	Gülümseyen bir kâğıt fiş olan Bonni, dev bir madeni paranın üstünden el sallıyor	بوني، إيصال ورقي مبتسم، يلوّح من فوق عملة عملاقة	बोनी, एक मुस्कुराती काग़ज़ की रसीद, एक बड़े सिक्के पर खड़ा होकर हाथ हिलाता है
+01 · Scan	01 · Scannen	01 · Tara	01 · امسح	01 · स्कैन
+Every receipt, read in seconds.	Jeder Kassenbon, in Sekunden gelesen.	Her fiş, saniyeler içinde okunur.	كل إيصال يُقرأ في ثوانٍ.	हर रसीद, सेकंडों में पढ़ी गई।
+Take a photo. Bonwise reads each line, checks that it adds up to the total and shows where the same things cost less.	Mach ein Foto. Bonwise liest jede Zeile, prüft, ob die Summe stimmt, und zeigt, wo dieselben Sachen weniger kosten.	Bir fotoğraf çek. Bonwise her satırı okur, toplamın tuttuğunu kontrol eder ve aynı ürünlerin nerede daha ucuz olduğunu gösterir.	التقط صورة. يقرأ Bonwise كل سطر، ويتحقق من أن المجموع صحيح، ويُظهر أين تكلّف الأشياء نفسها أقل.	फ़ोटो लें। Bonwise हर लाइन पढ़ता है, जाँचता है कि जोड़ कुल रकम से मिलता है और दिखाता है कि वही चीज़ें कहाँ सस्ती हैं।
+Real prices from ALDI SÜD and Open Prices	Echte Preise von ALDI SÜD und Open Prices	ALDI SÜD ve Open Prices'tan gerçek fiyatlar	أسعار حقيقية من ALDI SÜD وOpen Prices	ALDI SÜD और Open Prices की असली क़ीमतें
+02 · Find	02 · Finden	02 · Bul	02 · اعثر	02 · ढूँढें
+The cheapest shop near you.	Der günstigste Laden in deiner Nähe.	Yakınındaki en ucuz mağaza.	أرخص متجر بالقرب منك.	आपके पास की सबसे सस्ती दुकान।
+Type your list in any language (milk, Milch, süt, दूध) and see which shop nearby is cheapest and open now.	Tippe deine Liste in jeder Sprache (milk, Milch, süt, दूध) und sieh, welcher Laden in der Nähe am günstigsten ist und gerade geöffnet hat.	Listeni istediğin dilde yaz (milk, Milch, süt, दूध) ve yakındaki hangi mağazanın en ucuz olduğunu ve şu an açık olduğunu gör.	اكتب قائمتك بأي لغة (milk، Milch، süt، दूध) وشاهد أي متجر قريب هو الأرخص ومفتوح الآن.	अपनी सूची किसी भी भाषा में लिखें (milk, Milch, süt, दूध) और देखें कि पास की कौन-सी दुकान सबसे सस्ती है और अभी खुली है।
+03 · Care	03 · Achten	03 · Önem ver	03 · اهتم	03 · परवाह
+See the climate cost too.	Sieh auch die Klimakosten.	İklim maliyetini de gör.	شاهد التكلفة المناخية أيضاً.	जलवायु पर असर भी देखें।
+Foods on your receipt show their footprint and a greener swap, with numbers from a large scientific study.	Lebensmittel auf deinem Kassenbon zeigen ihren CO₂-Fußabdruck und eine klimafreundlichere Alternative, mit Zahlen aus einer großen wissenschaftlichen Studie.	Fişindeki gıdalar karbon ayak izini ve daha çevreci bir alternatifi gösterir; rakamlar büyük bir bilimsel çalışmadan gelir.	تُظهر الأطعمة في إيصالك بصمتها الكربونية وبديلاً أكثر مراعاة للبيئة، بأرقام من دراسة علمية كبيرة.	आपकी रसीद के खाने-पीने के सामान अपना कार्बन फ़ुटप्रिंट और एक हरित विकल्प दिखाते हैं, एक बड़े वैज्ञानिक अध्ययन के आँकड़ों के साथ।
+04 · Keep	04 · Behalten	04 · Sakla	04 · احتفظ	04 · संभालें
+Your money, kept.	Dein Geld, gut aufgehoben.	Paran güvende.	أموالك محفوظة.	आपका पैसा, सुरक्षित।
+Set a monthly budget and watch the jar fill as you save. Receipts wait in your vault, with reminders before returns and warranties run out.	Leg ein Monatsbudget fest und sieh zu, wie sich das Glas füllt, wenn du sparst. Kassenbons warten in deinem Tresor, mit Erinnerungen, bevor Rückgabe- und Garantiefristen ablaufen.	Aylık bir bütçe belirle ve biriktirdikçe kavanozun dolduğunu izle. Fişler kasanda bekler; iade ve garanti süreleri dolmadan hatırlatılırsın.	حدّد ميزانية شهرية وشاهد البرطمان يمتلئ كلما وفّرت. تنتظر الإيصالات في خزنتك، مع تذكيرات قبل انتهاء مهل الإرجاع والضمان.	मासिक बजट तय करें और बचत के साथ जार भरता देखें। रसीदें आपकी तिजोरी में रहती हैं, वापसी और वारंटी ख़त्म होने से पहले याद दिलाने के साथ।
+Let’s save!	Los, sparen!	Hadi biriktirelim!	هيا نوفّر!	चलो बचत करें!
+Open Bonwise, it’s free	Bonwise öffnen, kostenlos	Bonwise'ı aç, ücretsiz	افتح Bonwise، إنه مجاني	Bonwise खोलें, यह मुफ़्त है
+No account needed. Photos are never stored.	Kein Konto nötig. Fotos werden nie gespeichert.	Hesap gerekmez. Fotoğraflar asla saklanmaz.	لا حاجة إلى حساب. لا تُحفظ الصور أبداً.	खाता नहीं चाहिए। फ़ोटो कभी सेव नहीं की जातीं।
+Privacy	Datenschutz	Gizlilik	الخصوصية	गोपनीयता
+Legal notice	Impressum	Yasal bildirim	إشعار قانوني	कानूनी सूचना

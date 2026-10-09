@@ -75,6 +75,10 @@ export function createModel(THREE, palette, tier) {
   const coins = new THREE.InstancedMesh(coinGeo, coinMat, max);
   coins.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   coins.renderOrder = 2;
+  // Three.js works out the pile's bounds once, at the first frame; a jar that starts empty
+  // would get empty bounds and its coins would never be drawn. The pile is always inside the
+  // jar (in view), so skip that check.
+  coins.frustumCulled = false;
   const rest = slots(max), color = new THREE.Color();
   rest.forEach((s, i) => {
     color.set(s.kind < 0.7 ? palette.gold : s.kind < 0.88 ? palette.copper : palette.silver);

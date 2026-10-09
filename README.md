@@ -119,6 +119,7 @@ The tests use a fake Hugging Face server, so they need no token or internet.
 | `bonwise/trip.py` | Plan my shop: typed list → cheapest shops nearby (`POST /api/trip`) |
 | `static/` | The browser app (budget, swaps, savings plan, price check) |
 | `static/jar/`, `static/vendor/` | The 3D savings jar (see below) |
+| `static/welcome.html`, `static/welcome.js`, `static/mascot/` | The landing page at `/welcome` with Bonni in 3D (see below) |
 
 ## 3D savings jar
 
@@ -144,7 +145,7 @@ the jar. When a receipt has cheaper swaps, coins drop in for the money you'd kee
 | `static/jar/model.js` | The jar, lid and coins (one InstancedMesh), coin drop/sink animation |
 | `static/jar/effects.js` | AgX tone mapping, contact shadow, frame-time monitor |
 | `static/jar/loader.js` | Downloads Three.js with real progress |
-| `static/vendor/three-jar.min.js` | Three.js with only the parts the jar uses (~135 KB compressed). Rebuild: `sh tools/3d/build_three.sh` |
+| `static/vendor/three-jar.min.js` | Three.js with only the parts the jar and Bonni use (~147 KB compressed). Rebuild: `sh tools/3d/build_three.sh` (it also writes the file's hash into both loaders' URLs, because browsers keep it for a year) |
 
 **Adding or replacing 3D assets.** The jar and coins are made in code, so there are no model
 files. To use a modelled object instead (for example a jar from [Poly Haven](https://polyhaven.com/models)
@@ -153,6 +154,48 @@ or a CC0 model on Sketchfab), optimise it with `sh tools/3d/optimize_model.sh in
 `model.js` with `GLTFLoader` (add it to `tools/3d/build_three.sh` and rebuild), and follow the
 notes in that script about the decoders and the security rules. Keep the SVG jar in step with
 the 3D one: it is what most first visits and all weak phones see.
+
+## Landing page and Bonni
+
+`/welcome` is a playful landing page for sharing and marketing (the app itself stays at `/`).
+Bonni, a paper receipt ("Bon") on a giant euro coin, guides six colour-blocked sections:
+scan, find the cheapest shop, climate cost, the savings jar, and "Let's save!". It is a normal
+scrolling page; the 3D follows the scroll with springs (no scroll-jacking). Mouse or finger
+moves Bonni's eyes, hovering squashes him, a click makes him hop.
+
+- **Everyone gets the still pictures** (`static/mascot/posters/0–5.webp`, 15–35 KB each),
+  rendered from the same 3D scene. They are the page's first picture (LCP), and what
+  "reduce motion", data saver, weak phones, phones without WebGL 2 and software rendering
+  (no graphics chip) show.
+- **Capable devices also get the 3D** about a second after the page has loaded: one fixed
+  transparent canvas between the big "behind" words and the text. If frames are slow it
+  softens, then hands back to the still pictures. It pauses in background tabs and stops
+  drawing after 30 s without input.
+- Texts are in the same table as the app (`i18n/strings.tsv`); Arabic mirrors the layout and
+  the scene.
+- The app's budget card shows a small Bonni (`static/mascot/bonni.webp`) next to the jar.
+
+| File | Component | Role |
+|---|---|---|
+| `static/mascot/quality.js` | Quality settings | Tiers (medium/high), props, sharpness, idle frame rate, when to step down. Tune here |
+| `static/mascot/index.js` | HeroScene | Entry: tier, loading, the canvas, scroll/pointer input, frame loop, adaptive quality, `?capture=1` for the still pictures |
+| `static/mascot/character.js` | Character | Bonni made in code: bevelled receipt body, face, arms, shoes, coin; look, blink, wave, squash, hop |
+| `static/mascot/props.js` | FloatingProps | Toy groceries and coins (one InstancedMesh) that bob and drift with the mouse |
+| `static/mascot/sections.js` | SectionScenes | Bonni's place and the camera per section, plus each section's object (scan beam, map pins, leaf, the jar) |
+| `static/mascot/lighting.js` | Lighting | Studio reflections made in code, warm key, cool rim, fill; darker for the jar section |
+| `static/jar/effects.js` (shared) | Effects | Contact shadow, frame-time monitor (Bonni uses neutral tone mapping for bright toy colours) |
+| `static/mascot/loader.js` | Loader | "Bonni is on the way… 42%" pill with real download progress |
+| `static/welcome.html` posters | Fallback | The still pictures; they fade back if the 3D stops |
+| `tools/3d/render_posters.mjs` | | Renders the still pictures and `bonni.webp` from the scene (`node tools/3d/render_posters.mjs`) |
+
+**Assets and sources.** Everything is made in code: no model, texture or HDRI files, so
+there are no licences to track beyond Three.js (MIT, `static/vendor/LICENSE-three.txt`) and
+the fonts (SIL OFL, `static/fonts/`). The still pictures are rendered from the scene.
+To replace Bonni with a sculpted model later: a CC0 model (for example
+[Kenney's Food Kit](https://kenney.nl/assets/food-kit) for the groceries) or one made with a
+text-to-3D tool whose terms allow commercial use; optimise it with
+`sh tools/3d/optimize_model.sh` (see "Adding or replacing 3D assets" above), keep the hit
+targets and the update(t, state) interface of `character.js`, and re-render the posters.
 
 ## API
 

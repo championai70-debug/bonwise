@@ -4,7 +4,7 @@
      sleeping server (Render's free plan spins down after a quiet while).
    - Only Bonwise's own page, script, icons and manifest are kept. Answers from /api/
      (receipts, prices, household) always come fresh from the server; nothing personal is cached. */
-const CACHE = "bonwise-v4";
+const CACHE = "bonwise-v5";
 const PAGE = "/";
 const SHELL = ["/offline.html", "/manifest.webmanifest", "/static/icons/icon-192.png", "/static/favicon.png"];
 // Versioned files the page points to (app.js?v=…, i18n.js?v=…, fonts.css?v=…).
