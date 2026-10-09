@@ -36,6 +36,9 @@ export function createMonitor(settings, onSlow) {
     sample(ms) {
       if (ms <= 0 || ms > 250) return;             // tab switches and pauses don't count
       sum += ms; n++;
+      // Far too slow from the start (e.g. no graphics chip): step down at once, without
+      // making the page stutter through a whole round of frames first.
+      if (n === 8 && sum / n > settings.slowFrameMs * 3) { const avg = sum / n; sum = 0; n = 0; onSlow(avg); return; }
       if (n >= settings.slowFrames) {
         const avg = sum / n;
         sum = 0; n = 0;

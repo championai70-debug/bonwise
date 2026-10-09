@@ -69,6 +69,7 @@ export function createScene(THREE, canvas, opts, parts) {
     const onlyIdle = !springing && !coinsBusy;
     if (!onlyIdle || first || ts - lastRender >= 1000 / settings.idleFps - 2) {
       if (!onlyIdle && lastRender) monitor.sample(ts - lastRender);
+      if (disposed) return;                       // too slow: back to the SVG jar
       renderer.render(scene, camera);
       lastRender = ts;
       if (first) { first = false; if (opts.onFirstFrame) opts.onFirstFrame(); }

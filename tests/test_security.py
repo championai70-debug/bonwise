@@ -247,8 +247,21 @@ class JarFilesTests(unittest.TestCase):
         self.assertRegex(page, r'data-jar="/static/jar/index\.js\?v=\d+"')
         self.assertIn('class="simple"', page)        # no layout jump when the simple view applies
 
+    def three_url(self, folder):
+        import re
+        src = (Path(app.STATIC) / folder / "loader.js").read_text()
+        return re.search(r'THREE_URL = "([^"]+)"', src).group(1)
+
+    def test_three_url_changes_with_the_file(self):
+        # The file is cached for a year under its URL, so the URL must name this exact file;
+        # tools/3d/build_three.sh writes the hash into both loaders.
+        import hashlib
+        digest = hashlib.sha256((Path(app.STATIC) / "vendor" / "three-jar.min.js").read_bytes()).hexdigest()[:10]
+        for folder in ("jar", "mascot"):
+            self.assertTrue(self.three_url(folder).endswith("-" + digest), folder)
+
     def test_three_cached_and_progress_header(self):
-        s, h, body = self.get("/static/vendor/three-jar.min.js?r=0.186.1", {"Accept-Encoding": "gzip"})
+        s, h, body = self.get(self.three_url("jar"), {"Accept-Encoding": "gzip"})
         self.assertEqual(s, 200)
         self.assertIn("immutable", h.get("Cache-Control"))
         self.assertEqual(h.get("Content-Encoding"), "gzip")
@@ -259,7 +272,72 @@ class JarFilesTests(unittest.TestCase):
     def test_jar_modules_have_no_outside_imports(self):
         # Only this site's files (the CSP allows scripts from 'self' only).
         import re
-        root = Path(app.STATIC) / "jar"
-        for f in root.glob("*.js"):
+        for f in list((Path(app.STATIC) / "jar").glob("*.js")) + list((Path(app.STATIC) / "mascot").glob("*.js")):
             for spec in re.findall(r'(?:import\s*\(|from\s+)\s*["\']([^"\']+)', f.read_text()):
                 self.assertFalse(spec.startswith("http"), (f.name, spec))
+
+
+class WelcomePageTests(unittest.TestCase):
+    """The landing page (/welcome) and its 3D Bonni (static/mascot)."""
+
+    @classmethod
+    def setUpClass(cls):
+        storage.reset_for_tests(tempfile.mkdtemp())
+        cls.srv = ThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
+        threading.Thread(target=cls.srv.serve_forever, daemon=True).start()
+        cls.base = "http://127.0.0.1:%d" % cls.srv.server_address[1]
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.srv.shutdown()
+
+    def get(self, path):
+        req = urllib.request.Request(self.base + path, headers={"User-Agent": "Mozilla/5.0 test"})
+        with urllib.request.urlopen(req) as r:
+            return r.status, r.headers, r.read().decode()
+
+    def test_page_is_served_with_the_security_headers(self):
+        s, h, page = self.get("/welcome")
+        self.assertEqual(s, 200)
+        self.assertIn("text/html", h.get("Content-Type"))
+        self.assertIn("script-src 'self'", h.get("Content-Security-Policy"))
+        self.assertEqual(h.get("X-Bonwise"), "1")
+
+    def test_scripts_are_versioned(self):
+        page = self.get("/welcome")[2]
+        for name in ("i18n.js", "welcome.js", "fonts/fonts.css"):
+            self.assertRegex(page, r'/static/%s\?v=\d+"' % name.replace(".", r"\."))
+        self.assertRegex(page, r'data-mascot="/static/mascot/index\.js\?v=\d+"')
+
+    def test_no_inline_scripts_or_handlers(self):
+        import re
+        page = (Path(app.STATIC) / "welcome.html").read_text()
+        self.assertEqual(re.findall(r"<script(?![^>]*\bsrc=)[^>]*>", page), [])
+        self.assertEqual(re.findall(r"\son[a-z]+\s*=", page), [])
+
+    def test_every_section_has_its_still_picture(self):
+        import re
+        page = (Path(app.STATIC) / "welcome.html").read_text()
+        scenes = re.findall(r'data-scene="(\d)"', page)
+        self.assertEqual(scenes, [str(i) for i in range(6)])
+        for i in scenes:
+            poster = Path(app.STATIC) / "mascot" / "posters" / ("%s.webp" % i)
+            self.assertTrue(poster.is_file(), poster)
+            self.assertLess(poster.stat().st_size, 60 * 1024)
+            self.assertIn("/static/mascot/posters/%s.webp" % i, page)
+        # the 3D has a pose for each section
+        sections = (Path(app.STATIC) / "mascot" / "sections.js").read_text()
+        self.assertEqual(len(re.findall(r"^  \{ b: \[", sections, re.M)), len(scenes))
+
+    def test_scene_parts_exist(self):
+        import re
+        root = Path(app.STATIC) / "mascot"
+        for spec in re.findall(r'"(\.{1,2}/[\w/]+\.js)"', (root / "index.js").read_text()):
+            self.assertTrue((root / spec).resolve().is_file(), spec)
+
+    def test_visits_are_a_daily_total(self):
+        before = storage.stats(1)
+        self.get("/welcome")
+        after = storage.stats(1)
+        day = max(after)
+        self.assertEqual(after[day].get("welcome", 0), before.get(day, {}).get("welcome", 0) + 1)

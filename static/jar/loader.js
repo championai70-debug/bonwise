@@ -4,7 +4,7 @@
    The file's URL never changes for one Three.js version, so the browser and the service
    worker keep it: the second time it loads from the phone. */
 
-export const THREE_URL = "/static/vendor/three-jar.min.js?r=0.186.1";
+export const THREE_URL = "/static/vendor/three-jar.min.js?r=0.186.1-e9b9de692a";
 
 export function showProgress(box) {
   const ring = document.createElement("span");

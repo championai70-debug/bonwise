@@ -203,6 +203,18 @@ def prices_payload():
     }
 
 
+def versioned(html, names):
+    """Point a page at this exact version of its scripts and styles (`?v=<mtime>`), so a browser
+    or CDN never pairs a new page with an old, cached script after an update. The 3D parts
+    (jar/, mascot/) are several files loaded together: their version is the newest of them."""
+    for name in names:
+        folder = name.split("/")[0]
+        files = (STATIC / folder).glob("*.js") if folder in ("jar", "mascot") else [STATIC / name]
+        stamp = int(max(f.stat().st_mtime for f in files))
+        html = html.replace('/static/%s"' % name, '/static/%s?v=%d"' % (name, stamp))
+    return html
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "Bonwise"
     sys_version = ""              # don't announce the Python version
@@ -289,14 +301,13 @@ class Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         if path in ("/", "/index.html"):
             self._count("open")
-            # Point the page at this exact version of its script and styles, so a browser or CDN
-            # never pairs a new page with an old, cached app.js after an update.
-            html = (STATIC / "index.html").read_text(encoding="utf-8")
-            for name in ("i18n.js", "app.js", "fonts/fonts.css", "jar/index.js"):
-                # The 3D jar is several files loaded together: its version is the newest of them.
-                files = (STATIC / "jar").glob("*.js") if name.startswith("jar/") else [STATIC / name]
-                stamp = int(max(f.stat().st_mtime for f in files))
-                html = html.replace('/static/%s"' % name, '/static/%s?v=%d"' % (name, stamp))
+            html = versioned((STATIC / "index.html").read_text(encoding="utf-8"),
+                             ("i18n.js", "app.js", "fonts/fonts.css", "jar/index.js"))
+            return self._send(200, html, "text/html; charset=utf-8", "no-cache")
+        if path in ("/welcome", "/welcome.html"):
+            self._count("welcome")
+            html = versioned((STATIC / "welcome.html").read_text(encoding="utf-8"),
+                             ("i18n.js", "welcome.js", "fonts/fonts.css", "mascot/index.js"))
             return self._send(200, html, "text/html; charset=utf-8", "no-cache")
         if path == "/manifest.webmanifest":
             return self._send(200, (STATIC / "manifest.webmanifest").read_bytes(), "application/manifest+json", "no-cache")
@@ -319,8 +330,8 @@ class Handler(BaseHTTPRequestHandler):
             target = (STATIC / path[len("/static/"):]).resolve()
             if STATIC.resolve() in target.parents and target.is_file():
                 # Vendored libraries carry their version in the URL (?r=…): they can be kept for a year.
-                versioned = path.startswith("/static/vendor/") and "?" in self.path
-                return self._file(target, cache="public, max-age=31536000, immutable" if versioned else "no-cache")
+                pinned = path.startswith("/static/vendor/") and "?" in self.path
+                return self._file(target, cache="public, max-age=31536000, immutable" if pinned else "no-cache")
             return self._send(404, {"error": "not_found"})
         if path in ("/impressum", "/imprint"):
             text = html_escape(config.IMPRESSUM).replace("\\n", "\n").replace("\n", "<br>") if config.IMPRESSUM else (

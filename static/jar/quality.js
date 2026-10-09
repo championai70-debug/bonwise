@@ -2,7 +2,7 @@
 
    Tiers
    - low:    no 3D at all. The SVG jar in index.html is shown instead (weak phones, data saver,
-             "reduce motion", no WebGL 2, or when a faster tier was still too slow).
+             "reduce motion", no WebGL 2, software rendering, or when a faster tier was still too slow).
    - medium: most phones.
    - high:   newer phones and laptops.
    While running, the jar steps down by itself (sharper → softer → SVG) when frames are slow. */
@@ -24,6 +24,7 @@ export const SETTINGS = {
   cursorTilt: 0.45,         // share of the tilt that follows the mouse on computers (0 = off)
   hintOnce: true,           // show "Drag to tilt" once per phone
   fadeMs: 600,              // cross-fade from the SVG jar to the 3D jar
+  softwareGL: false,        // true: also run on software rendering (no graphics chip; for tests)
 };
 
 // For tuning and tests: localStorage "bonwise.jarSettings" = {"slowFrameMs": 1000, ...} overrides the above.
@@ -46,9 +47,20 @@ export function hasWebGL2() {
   try {
     const c = document.createElement("canvas");
     const gl = c.getContext("webgl2");
-    const ok = !!gl;
+    const ok = !!gl && (SETTINGS.softwareGL || !softwareRenderer(gl));
     if (gl) { const lose = gl.getExtension("WEBGL_lose_context"); if (lose) lose.loseContext(); }
     return ok;
+  } catch (e) {
+    return false;
+  }
+}
+
+// Browsers draw WebGL in software when there's no usable graphics chip: far too slow for 3D.
+export function softwareRenderer(gl) {
+  try {
+    const info = gl.getExtension("WEBGL_debug_renderer_info");
+    const name = String(gl.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : gl.RENDERER) || "");
+    return /SwiftShader|llvmpipe|softpipe|Software|Basic Render/i.test(name);
   } catch (e) {
     return false;
   }
