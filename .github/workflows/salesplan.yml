@@ -1,5 +1,6 @@
 # SalesPlan (salesplan/): tests, Android APK + Play Store bundle (AAB), emulator check.
-# The APK is published for testers at the "salesplan-preview" release (main branch only).
+# The APK is published for testers at the "salesplan-preview" release: on main, and from any branch
+# when the workflow is started by hand.
 #
 # Signing: add these repository secrets so every build is signed with the same key
 # (needed for updates and for Google Play):
@@ -117,7 +118,8 @@ jobs:
 
   publish:
     needs: emulator
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    # main publishes on every push; any branch can publish by starting the workflow by hand (Run workflow)
+    if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: write
