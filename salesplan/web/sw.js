@@ -1,10 +1,16 @@
 // Offline support for the web version: the app files are kept on the device and served from
 // there first, then refreshed in the background. User data is never cached here (it lives in
 // IndexedDB) and the app makes no other network requests.
-const CACHE = 'salesplan-v6';
+const CACHE = 'salesplan-v7';
 const FILES = [
   './', 'index.html', 'styles.css', 'manifest.webmanifest', 'privacy.html', 'icon.svg', 'icon-192.png', 'icon-512.png',
-  'js/app.js', 'js/engine.js', 'js/csv.js', 'js/xlsx.js', 'js/vault.js', 'js/ui.js', 'js/sample.js', 'js/model.js', 'js/train-worker.js', 'js/visuals.js', 'js/scene3d.js', 'vendor/three/three.module.min.js', 'vendor/three/three.core.min.js', 'vendor/three/OrbitControls.js', 'vendor/three/RoomEnvironment.js', 'vendor/three/RoundedBoxGeometry.js', 'vendor/three/postprocessing/EffectComposer.js', 'vendor/three/postprocessing/RenderPass.js', 'vendor/three/postprocessing/ShaderPass.js', 'vendor/three/postprocessing/MaskPass.js', 'vendor/three/postprocessing/Pass.js', 'vendor/three/postprocessing/UnrealBloomPass.js', 'vendor/three/postprocessing/OutputPass.js', 'vendor/three/shaders/CopyShader.js', 'vendor/three/shaders/LuminosityHighPassShader.js', 'vendor/three/shaders/OutputShader.js', 'fonts/geist-latin-wght-normal.woff2', 'fonts/geist-mono-latin-wght-normal.woff2',
+  'js/app.js', 'js/engine.js', 'js/csv.js', 'js/xlsx.js', 'js/vault.js', 'js/ui.js', 'js/sample.js', 'js/model.js', 'js/train-worker.js', 'js/visuals.js',
+  'js/3d/quality.js', 'js/3d/probe-worker.js', 'js/3d/loader.js', 'js/3d/fallback.js', 'js/3d/scene.js', 'js/3d/lighting.js', 'js/3d/model.js', 'js/3d/effects.js', 'js/3d/skyline.js', 'js/3d/hero.js',
+  'img/hero-wide.webp', 'img/hero-tall.webp', 'img/skyline.webp',
+  'vendor/three/three.core.min.js', 'vendor/three/three.webgpu.min.js', 'vendor/three/three.tsl.min.js',
+  'vendor/three/addons/OrbitControls.js', 'vendor/three/addons/RoundedBoxGeometry.js', 'vendor/three/addons/BloomNode.js', 'vendor/three/addons/GTAONode.js', 'vendor/three/addons/ChromaticAberrationNode.js', 'vendor/three/addons/GaussianBlurNode.js',
+  'vendor/gsap/gsap-core.min.js',
+  'fonts/geist-latin-wght-normal.woff2', 'fonts/geist-mono-latin-wght-normal.woff2',
 ];
 
 self.addEventListener('install', (e) => {

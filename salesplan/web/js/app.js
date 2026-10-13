@@ -10,6 +10,7 @@ import { readXlsx } from './xlsx.js';
 import { Vault, Wait, WrongSecret, idbBackend, makeBackup, memoryBackend, readBackup } from './vault.js';
 import { SAMPLE, sampleHistory } from './sample.js';
 import { countUp, palletScene, splitBar, tilt } from './visuals.js';
+import { heroStage, skylineStage } from './3d/loader.js';
 import {
   append, clear, confirmBox, debounce, h, icon, numberInput, promptBox, sheet, toast,
 } from './ui.js';
@@ -415,13 +416,9 @@ function plansHero() {
       h('div', { class: 'cta' }, h('button', { class: 'btn primary big', onclick: newPlan }, icon('plus'), 'New plan'))));
 }
 
-/** The 3D crystal as the background of a hero (on the live aurora); a soft gradient if 3D is missing. */
+/** The 3D crystal behind a hero: its picture at once, the live scene where the device allows (3d/loader.js). */
 function heroArt(bars) {
-  const art = h('div', { class: 'landing-art' });
-  import('./scene3d.js')
-    .then((m) => { if (m.webglOK()) art.append(m.crystal({ height: 560, bars: bars?.length ? bars.slice(0, 6) : undefined })); })
-    .catch(() => {});
-  return art;
+  return h('div', { class: 'landing-art' }, heroStage({ bars }));
 }
 
 function welcomeView() {
@@ -1018,25 +1015,15 @@ function demandNote(p, r) {
 }
 
 /**
- * Real 3D (WebGL) when the device has it, loaded on demand so the app starts fast and never breaks:
- * if WebGL or the 3D files are missing, the simpler CSS 3D view is shown instead.
+ * The order in real 3D (3d/loader.js): a picture first, then the live scene once it is near the screen.
+ * Without WebGL2, or if the 3D can't start, the simpler CSS 3D view is shown instead.
  */
 function view3d(cols, opts) {
-  const holder = h('div', { class: 'view3d', style: { height: `${opts.height}px` } });
-  holder.reset = () => holder.firstChild?.reset?.();
-  const fallback = () => {
-    clear(holder);
+  const fallback = (holder) => {
     const stacks = cols.map((c) => ({ ...c, items: c.items.slice(0, 7) }));
     holder.append(palletScene(stacks, { compact: !opts.onPick, draggable: true, autoTurn: !opts.onPick, height: opts.height, maxStack: opts.height * 0.55, onPick: opts.onPick }));
   };
-  import('./scene3d.js')
-    .then((m) => {
-      if (!m.webglOK()) { fallback(); return; }
-      clear(holder);
-      holder.append(m.orderSkyline(cols, opts));
-    })
-    .catch(fallback);
-  return holder;
+  return skylineStage(cols, { ...opts, fallback });
 }
 
 /** The order as 3D columns: one row per segment, one column per article. */
@@ -1052,7 +1039,7 @@ function orderScene(r) {
     return { name: s.name, color: COLORS[i % COLORS.length], total: s.placedCents, items };
   }).filter((c) => c.total > 0);
   if (!cols.length) return null;
-  const info = h('div', { class: 'scene-info', 'aria-live': 'polite' }, icon('box', 16), h('span', null, 'Tap a tower to see the article. Drag to turn, pinch to zoom.'));
+  const info = h('div', { class: 'scene-info', 'aria-live': 'polite' }, icon('box', 16), h('span', null, 'Tap a tower to see the article, or a segment below to fly to it.'));
   const onPick = (it, col) => {
     clear(info);
     append(info, [h('i', { class: `dot ${col.color}` }), h('span', null, h('b', null, it.label), h('br'), h('span', { class: 'muted' }, `${col.name} · ${it.detail}`))]);
@@ -1061,7 +1048,14 @@ function orderScene(r) {
   return h('div', { class: 'card scene-card no-print' },
     h('div', { class: 'row between' }, h('h2', null, icon('box'), 'Your order in 3D'), h('button', { class: 'btn small ghost', onclick: () => scene.reset?.() }, 'Reset view')),
     scene,
-    h('div', { class: 'legend' }, cols.map((c) => h('span', null, h('i', { class: c.color }), `${c.name} ${moneyShort(c.total)}`))),
+    h('div', { class: 'legend seg-jump' }, cols.map((c, i) => h('button', {
+      type: 'button',
+      onclick: () => {
+        scene.focusSegment?.(i);
+        clear(info);
+        append(info, [h('i', { class: `dot ${c.color}` }), h('span', null, h('b', null, c.name), h('br'), h('span', { class: 'muted' }, `${moneyShort(c.total)} placed`))]);
+      },
+    }, h('i', { class: c.color }), `${c.name} ${moneyShort(c.total)}`))),
     info);
 }
 

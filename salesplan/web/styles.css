@@ -132,7 +132,7 @@ main { flex: 1; width: 100%; max-width: 880px; margin: 0 auto; padding: 1rem 1re
   flex: 1; max-width: 160px; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: .55rem 0 .5rem;
   font-size: .75rem; font-weight: 600; color: var(--muted); text-decoration: none; position: relative;
 }
-.tabbar a.active { color: var(--primary); }
+.tabbar a.active { color: color-mix(in srgb, var(--primary) 80%, var(--text)); } /* AA contrast in both themes */
 .tabbar a.active::before { content: ""; position: absolute; top: 0; width: 32px; height: 3px; border-radius: 0 0 3px 3px; background: var(--primary); }
 
 /* ---------- buttons and inputs ---------- */
@@ -492,7 +492,7 @@ details.how ol { margin: .5rem 0 0; padding-left: 1.2rem; display: flex; flex-di
 :root { --studio-text: #eef0f8; --studio-muted: #a3a9c4; }
 .view3d { position: relative; }
 .sky {
-  position: relative; overflow: hidden; border-radius: 18px; touch-action: none; user-select: none; -webkit-user-select: none;
+  position: relative; overflow: hidden; border-radius: 18px; touch-action: pan-y; user-select: none; -webkit-user-select: none;
   background:
     #05060a;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .06), 0 18px 40px -18px rgba(10, 14, 30, .55);
@@ -517,7 +517,13 @@ details.how ol { margin: .5rem 0 0; padding-left: 1.2rem; display: flex; flex-di
 }
 .sky-tip b { font-size: .86rem; }
 .sky-tip span { color: var(--studio-muted); }
-.sky-hint { position: absolute; left: 0; right: 0; bottom: .55rem; text-shadow: 0 1px 6px rgba(0, 0, 0, .6); text-align: center; font-size: .72rem; font-weight: 600; color: var(--studio-muted); pointer-events: none; letter-spacing: .02em; }
+.sky-hint {
+  position: absolute; left: 50%; bottom: .7rem; transform: translateX(-50%); max-width: calc(100% - 1.5rem); padding: .4rem .8rem; border-radius: 99px;
+  text-align: center; font-size: .74rem; font-weight: 600; color: var(--studio-text); pointer-events: none; letter-spacing: .01em;
+  background: rgba(14, 18, 30, .7); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); box-shadow: 0 0 0 1px rgba(255, 255, 255, .1);
+  transition: opacity .4s ease;
+}
+.sky-hint.gone { opacity: 0; }
 
 
 
@@ -583,12 +589,35 @@ h1.mega .glow { background: linear-gradient(90deg, #b3a8ff, #6ee7ff 70%); -webki
   .steps.pop li { flex: 1; }
 }
 
-/* 3D stage pieces */
-.gl { position: relative; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; background: #05060a; }
-.gl-canvas { position: absolute; inset: 0; width: 100% !important; height: 100% !important; display: block; }
+/* 3D stage pieces (js/3d): the poster shows first, the canvas fades in over it on its first frame */
+.gl { position: relative; overflow: hidden; touch-action: pan-y; user-select: none; -webkit-user-select: none; background: #05060a; height: 100%; }
+.gl-poster, .gl-poster-wrap, .gl-poster-wrap img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
+.gl.sky .gl-poster { filter: blur(6px) saturate(1.1); transform: scale(1.04); opacity: .7; }
+.gl-canvas { position: absolute; inset: 0; z-index: 1; width: 100% !important; height: 100% !important; display: block; opacity: 0; transition: opacity .7s ease; }
+.gl .sky-labels, .gl .sky-tip, .gl .sky-hint, .gl .gl-loader { z-index: 2; }
+.gl.live .gl-canvas { opacity: 1; }
 .gl.sky { border-radius: 18px; box-shadow: 0 0 0 1px rgba(255, 255, 255, .06), 0 30px 60px -30px rgba(80, 60, 220, .5); }
 .gl.sky .gl-canvas { cursor: grab; }
-.gl.crystal { cursor: grab; touch-action: pan-y; }
+.gl.sky:focus-visible { outline: 3px solid #b3a8ff; outline-offset: 3px; }
+.gl.crystal { cursor: grab; }
+.gl-loader {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; align-items: center; gap: .7rem;
+  padding: .7rem 1rem; border-radius: 16px; color: var(--studio-text); background: rgba(10, 12, 22, .72);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); box-shadow: 0 0 0 1px rgba(255, 255, 255, .1), 0 18px 40px rgba(0, 0, 0, .45);
+  transition: opacity .5s ease; pointer-events: none;
+}
+.gl-loader.corner { left: auto; top: auto; right: 1rem; bottom: 1rem; transform: none; padding: .5rem .75rem; }
+.gl-loader.done { opacity: 0; }
+.gl-loader-mark { width: 22px; height: 26px; border-radius: 6px; background: linear-gradient(160deg, rgba(255, 255, 255, .9), #b3a8ff 40%, #6ee7ff); box-shadow: 0 0 16px rgba(139, 124, 255, .7); transform: skewY(-8deg); }
+.gl-loader-body { display: flex; flex-direction: column; gap: .35rem; min-width: 130px; }
+.gl-loader-bar { display: block; height: 3px; border-radius: 3px; background: rgba(255, 255, 255, .14); overflow: hidden; }
+.gl-loader-bar i { display: block; height: 100%; background: linear-gradient(90deg, #b3a8ff, #6ee7ff); transform-origin: left; transform: scaleX(0); transition: transform .2s ease-out; }
+.gl-loader-text { font-family: var(--mono); font-size: .68rem; letter-spacing: .04em; color: var(--studio-muted); }
+.legend.seg-jump button { display: inline-flex; align-items: center; gap: .4rem; padding: .3rem .6rem; border: 1px solid var(--card-border); border-radius: 99px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.legend.seg-jump button:hover { background: color-mix(in srgb, var(--primary) 10%, transparent); }
+.legend.seg-jump button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+@media (prefers-reduced-motion: reduce) { .gl-canvas, .gl-loader, .sky-hint { transition: none; } }
 
 /* result as a bento grid: the 3D view is the big tile */
 .bento { display: grid; grid-template-columns: minmax(0, 1fr); gap: .8rem; }
