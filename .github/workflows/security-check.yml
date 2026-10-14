@@ -12,11 +12,11 @@ jobs:
   first:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: python3 tools/check_live_security.py "${{ vars.APP_URL || 'https://bonwise.onrender.com' }}"
   second:
     needs: first
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: python3 tools/check_live_security.py "${{ vars.APP_URL || 'https://bonwise.onrender.com' }}" --second
