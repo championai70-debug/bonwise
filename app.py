@@ -16,6 +16,7 @@ from html import escape as html_escape
 import mimetypes
 import threading
 import time
+import urllib.request
 from collections import defaultdict, deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -468,8 +469,40 @@ class Handler(BaseHTTPRequestHandler):
         return self._send(200, target.read_bytes(), ctype, cache)
 
 
+def keep_awake(url, minutes, stop=None):
+    """Visit this server's own public address every few minutes so the free Render instance
+    doesn't fall asleep (see config.KEEP_AWAKE). Runs in a background thread; never raises.
+    The visits say "Bonwise" in their User-Agent, so they aren't counted as app use."""
+    stop = stop or threading.Event()
+    target = url + "/api/health"
+    req = urllib.request.Request(target, headers={"User-Agent": "Bonwise keep-awake"})
+    misses = 0
+    while not stop.wait(minutes * 60):
+        try:
+            with urllib.request.urlopen(req, timeout=60) as r:
+                r.read()
+            misses = 0
+        except Exception as e:  # noqa: BLE001 - a missed visit must never stop the loop
+            misses += 1
+            if misses in (1, 10, 100):           # say so now and then, not every time
+                print("keep-awake: no answer from the public address (%s), %d time(s)" % (type(e).__name__, misses), flush=True)
+    return stop
+
+
+def start_keep_awake():
+    """Start the keep-awake visits when switched on and the public address is known."""
+    if not (config.KEEP_AWAKE and config.KEEP_AWAKE_URL.startswith(("http://", "https://"))):
+        return None
+    stop = threading.Event()
+    threading.Thread(target=keep_awake, args=(config.KEEP_AWAKE_URL, config.KEEP_AWAKE_MINUTES, stop),
+                     name="keep-awake", daemon=True).start()
+    print("Keep-awake: visiting %s every %g minutes" % (config.KEEP_AWAKE_URL, config.KEEP_AWAKE_MINUTES), flush=True)
+    return stop
+
+
 def main():
     server = ThreadingHTTPServer((config.HOST, config.PORT), Handler)
+    start_keep_awake()
     ai = ("on, models: " + ", ".join(config.MODELS)) if config.HF_TOKEN else "off (set HF_TOKEN to turn it on)"
     print("Bonwise running at http://localhost:%d  |  AI reader %s" % (config.PORT, ai), flush=True)
     try:

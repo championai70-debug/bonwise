@@ -1,7 +1,9 @@
-# Keeps the live site awake. Render's free plan puts a web service to sleep after
-# 15 minutes without visits; the next visitor then waits up to a minute. A small visit
-# to /api/health every 10 minutes stops that. (GitHub may start scheduled runs a few
-# minutes late; the app also opens instantly from the phone's copy, see static/sw.js.)
+# Backup for keeping the live site awake. Render's free plan puts a web service to sleep
+# after 15 minutes without visits; the next visitor then waits up to a minute. The server
+# now keeps itself awake (keep_awake() in app.py); this workflow wakes it again if it ever
+# fell asleep anyway, e.g. after Render restarted it. GitHub runs scheduled workflows much
+# less often than asked (about hourly instead of every 10 minutes), so it can't be the
+# only guard. The app also opens instantly from the phone's copy, see static/sw.js.
 # A paid Render plan never sleeps; then this workflow can be switched off.
 # Uses repository variable APP_URL if set, else https://bonwise.onrender.com
 name: Keep site awake

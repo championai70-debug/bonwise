@@ -66,8 +66,12 @@ launch, use a paid instance with a persistent disk mounted at `/home/user/app/da
 **Legal (Germany):** set `IMPRESSUM` (name, postal address, email; use `\n` for new
 lines) and `CONTACT_EMAIL`. The pages are `/impressum` and `/privacy`.
 
-The free plan sleeps after 15 minutes without visitors; the next visit takes about a
-minute to wake it. Hugging Face gives free accounts a small amount of Inference Providers
+The free plan sleeps after 15 minutes without visitors, and waking takes 20–60 seconds.
+To prevent that, the server visits its own public address every 10 minutes
+(`RENDER_EXTERNAL_URL`, set by Render; `KEEP_AWAKE=0` turns it off, e.g. on a paid plan).
+The "Keep site awake" workflow does the same from GitHub as a backup (GitHub runs it far less
+often than scheduled). Render's 750 free hours a month are shared by all free services in
+an account; one service running all month uses about 745. Hugging Face gives free accounts a small amount of Inference Providers
 credit each month. Each visitor can scan 20 receipts an hour (`HOURLY_LIMIT`).
 The same Dockerfile also runs on a Hugging Face Docker Space (paid PRO plan).
 
