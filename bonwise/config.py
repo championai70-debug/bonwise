@@ -77,6 +77,15 @@ HOUSEHOLD_SECRET = os.environ.get("HOUSEHOLD_SECRET", "")
 # the page is switched off.
 STATS_KEY = os.environ.get("STATS_KEY", "")
 
+# Keep the free Render server awake: it sleeps after 15 minutes without visitors, and waking
+# takes 20-60 seconds. While it runs, the server visits its own public address every
+# KEEP_AWAKE_MINUTES, which counts as a visitor. Render sets RENDER_EXTERNAL_URL by itself;
+# elsewhere set KEEP_AWAKE_URL. KEEP_AWAKE=0 turns it off (e.g. on a paid plan, which never
+# sleeps). Note: Render's free hours (750 a month) are shared by all free services in an account.
+KEEP_AWAKE = os.environ.get("KEEP_AWAKE", "1").strip() != "0"
+KEEP_AWAKE_URL = (os.environ.get("KEEP_AWAKE_URL") or os.environ.get("RENDER_EXTERNAL_URL") or "").strip().rstrip("/")
+KEEP_AWAKE_MINUTES = float(os.environ.get("KEEP_AWAKE_MINUTES", "10") or 10)
+
 # Legal notice (Impressum), required for commercial apps and websites in Germany.
 # Multi-line text: name, postal address, email (and phone if you have one).
 IMPRESSUM = os.environ.get("IMPRESSUM", "").strip()

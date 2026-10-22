@@ -77,8 +77,10 @@ python3 -m unittest discover -s tests -t .   # all tests, no network or token ne
 GitHub `main` → Render auto-deploys (Docker, see `Dockerfile`). The Android app needs no
 new release for web changes. Live site: https://bonwise.onrender.com
 Check after deploy: `/api/health`, then scan the sample receipt.
-Render's free plan sleeps after 15 minutes without visits; the "Keep site awake" workflow
-(`.github/workflows/keep-awake.yml`) visits `/api/health` every 10 minutes. On a paid plan it can be switched off.
+Render's free plan sleeps after 15 minutes without visits. The server keeps itself awake: `keep_awake()` in
+`app.py` visits its own public address (`RENDER_EXTERNAL_URL`, set by Render) every 10 minutes; `KEEP_AWAKE=0`
+turns it off (paid plan). The "Keep site awake" workflow (`.github/workflows/keep-awake.yml`) is the backup;
+GitHub runs it only about hourly, not every 10 minutes.
 The "Monitor" workflow checks the live app every hour and fails (email) when something is broken.
 
 ## Roadmap
