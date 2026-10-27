@@ -6,10 +6,12 @@ owner about the failed run. With STATS_KEY set (a repository secret), yesterday'
 today's usage totals are added to the run's summary page.
 
 Checks (as a phone would use the app, in German):
-1. The page loads, carries the security rules and points to its script and translations.
+1. The page loads, carries the security rules and points to its script and translations;
+   the landing page (/welcome) and its first picture load.
 2. /api/health answers and says whether the AI reader is on (off = warning).
 3. A shopping-list search answers with items and German text.
 4. Reading pasted receipt lines works (quick reader, no AI credits used).
+5. The "Try a sample receipt" button's answer (already read, no AI credits used).
 Visits from this check are not counted in the usage totals.
 """
 import json
@@ -67,6 +69,12 @@ def main():
     ok(s == 200 and "/static/app.js?v=" in page and "/static/i18n.js?v=" in page, "app page", "%.1f s" % secs)
     ok("script-src 'self'" in (h.get("Content-Security-Policy") or ""), "security rules (CSP) on the page")
 
+    s, h, body, secs = call("/welcome")
+    page = body.decode("utf-8", "replace")
+    poster = call("/static/mascot/posters/0.webp")
+    ok(s == 200 and 'data-mascot="/static/mascot/index.js?v=' in page and poster[0] == 200 and poster[2][:4] == b"RIFF",
+       "landing page (/welcome)", "%.1f s" % secs)
+
     s, h, body, secs = call("/api/health")
     health = json.loads(body) if s == 200 else {}
     ok(s == 200 and health.get("ok") is True, "/api/health", "%.1f s" % secs)
@@ -83,6 +91,10 @@ def main():
     s, h, body, secs = call("/api/scan-text", {"text": "LIDL\nMilbona Vollmilch 1L 0,99\nButter 250g 1,99\nSUMME 2,98", "useAi": False})
     receipt = (json.loads(body) if s == 200 else {}).get("receipt") or {}
     ok(s == 200 and len(receipt.get("items") or []) == 2, "reading receipt lines", "%.1f s" % secs)
+
+    s, h, body, secs = call("/api/scan", {"sample": True})
+    sample = (json.loads(body) if s == 200 else {}).get("receipt") or {}
+    ok(s == 200 and len(sample.get("items") or []) == 11 and sample.get("total") == 22.35, "sample receipt", "%.1f s" % secs)
 
     key = os.environ.get("STATS_KEY")
     if key:

@@ -243,7 +243,7 @@
     if (it.flag === "unreadable" || it.price == null) return '<span class="chip bad">' + t("enter price") + '</span>';
     return "";
   }
-  var READER = { ai: t("Read by AI"), "ai-text": t("Checked by AI"), ocr: t("Read by backup OCR"), text: t("Read from your text") };
+  var READER = { ai: t("Read by AI"), "ai-text": t("Checked by AI"), ocr: t("Read by backup OCR"), text: t("Read from your text"), sample: t("Sample receipt") };
   function renderReceipt() {
     $("receiptCard").hidden = false;
     $("rStore").textContent = cur.store || t("Receipt");
@@ -637,10 +637,13 @@
   ["dragenter", "dragover"].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add("drag"); }); });
   ["dragleave", "drop"].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove("drag"); }); });
   drop.addEventListener("drop", function (e) { scanImage(e.dataTransfer.files && e.dataTransfer.files[0]); });
+  // The sample is already read on the server (bonwise/sample_receipt.json): instant, no AI credits.
   $("sampleBtn").addEventListener("click", function () {
-    fetch("/static/sample-receipt.jpg").then(function (r) { if (!r.ok) throw 0; return r.blob(); })
-      .then(function (b) { scanImage(new File([b], "sample-receipt.jpg", { type: "image/jpeg" })); })
-      .catch(function () { showErr(t("The sample receipt couldn’t be loaded.")); });
+    closeReceipt(); showErr(""); aiState("");
+    showTab("home", true);
+    $("thumb").src = "/static/sample-receipt.jpg";
+    $("scanCard").hidden = false; $("scanCard").scrollIntoView({ behavior: "smooth", block: "start" });
+    run("/api/scan", { sample: true, useAi: false, context: context() }, t("Reading your receipt…"));
   });
   $("pasteToggle").addEventListener("click", function () {
     $("pasteBox").hidden = !$("pasteBox").hidden; syncScanCard();
