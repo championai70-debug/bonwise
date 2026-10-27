@@ -37,8 +37,14 @@ Scan any receipt and Bonwise shows where the same things are cheaper next time
   tagged "Real price" (ALDI SÜD shelf prices, prices users paid) or "Estimate".
 - **Simple view** (on by default): Home shows just the budget, "Going shopping?",
   "Just shopped?" and the swaps. "Show all details" brings back every chart and number.
+- **Barcode check:** the barcode button in the search box reads a product's barcode with
+  the camera (Android) or takes the typed numbers, finds the product's name and shows its
+  prices per chain. Only the number is sent; the camera picture stays on the phone.
 - **Receipt vault:** every saved receipt with its items, return window and 2-year
   warranty date, plus "Coming up" reminders with an "Add to calendar" link.
+- **Your month:** what you spent this month (compared with the same days of last month),
+  where (by shop) and on what (by category), and what the swaps could have saved,
+  worked out on the phone.
 - **Shopping list:** "Buy again" from past receipts, best known price per item, share
   the list to WhatsApp or anywhere.
 - **Shops near you:** supermarkets, discounters and drugstores from OpenStreetMap,
@@ -121,6 +127,7 @@ The tests use a fake Hugging Face server, so they need no token or internet.
 | `bonwise/storage.py` | SQLite: household sharing and anonymous community prices |
 | `bonwise/places.py` | Nearby shops from OpenStreetMap, "open now" from opening hours |
 | `bonwise/trip.py` | Plan my shop: typed list → cheapest shops nearby (`POST /api/trip`) |
+| `bonwise/barcode.py` | Barcode check: number → product name (Open Prices data, else Open Food Facts), then the normal search |
 | `static/` | The browser app (budget, swaps, savings plan, price check) |
 | `static/jar/`, `static/vendor/` | The 3D savings jar (see below) |
 | `static/welcome.html`, `static/welcome.js`, `static/mascot/` | The landing page at `/welcome` with Bonni in 3D (see below) |
@@ -208,5 +215,7 @@ targets and the update(t, state) interface of `character.js`, and re-render the 
 - `POST /api/test-ai` checks that each AI model answers
 - `POST /api/household/new`, `POST /api/household/sync`, `POST /api/household/delete`
 - `POST /api/prices/report` (anonymous), `POST /api/list/prices`
+- `POST /api/barcode` with `{"code": "4006381333931"}`: the product's name and a ready search text (Open Prices data, else Open Food Facts)
+- `POST /api/scan` with `{"sample": true}`: the sample receipt, already read (no AI credits)
 - `GET /api/shops?lat=&lon=&dow=&min=`
 - `GET /api/health`, `GET /api/prices`

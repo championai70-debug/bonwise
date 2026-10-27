@@ -44,6 +44,9 @@
   <h2>Planning a shop</h2>
   <p>When you use “Going shopping?” or “Find cheapest shops for my list”, the items you typed are sent to the Bonwise server to look up prices. They are used only to answer that request and are not stored.</p>
 
+  <h2>Checking a product’s barcode</h2>
+  <p>When you tap the barcode button, the app asks to use the camera. The camera picture is read on your phone to find the barcode; it is never sent or stored. Only the barcode number (for example 4006381333931) is sent to the Bonwise server, or the number you type. If the product isn’t in Bonwise’s price data, the server asks Open Food Facts (openfoodfacts.org, free open product data) for the product’s name, sending only the barcode number, nothing about you. The server keeps such product names in memory for up to one day and never stores which barcodes anyone checked.</p>
+
   <h2>Your location</h2>
   <p>Only when you tap “Find shops near me”, “Find” (to compare shops for your list) or “Show the nearest shops” (for the swaps on a receipt) does the app ask for your location. If you have already allowed location for Bonwise, the nearest shops for a receipt’s swaps are shown straight away. It is rounded to about 100 metres. Your phone then asks a free OpenStreetMap map service for the shops in that area: Overpass (overpass-api.de), or when that is busy Photon by komoot (photon.komoot.io, Germany). Like any website, that service sees your phone’s IP address. The shop list and the rounded position are sent to the Bonwise server to work out distances and prices. If your phone can’t reach them, the Bonwise server asks the same services instead. The server keeps shop lists it fetched itself in memory for up to six hours to answer repeat searches and never stores your location. If you don’t allow location, the app still shows the best prices it knows.</p>
 
@@ -59,7 +62,7 @@
   <h2>What Bonwise does not do</h2>
   <ul>
     <li>No accounts, no ads, no analytics or tracking.</li>
-    <li>No selling of your data. Data is shared only as described above: receipts with the AI service to be read, and your rounded location with OpenStreetMap’s map service when you search for shops.</li>
+    <li>No selling of your data. Data is shared only as described above: receipts with the AI service to be read, your rounded location with OpenStreetMap’s map service when you search for shops, and barcode numbers (only the number) with Open Food Facts to find a product’s name.</li>
   </ul>
 
   <h2>Other services</h2>

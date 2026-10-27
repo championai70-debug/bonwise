@@ -584,3 +584,28 @@ Privacy	Datenschutz	Gizlilik	الخصوصية	गोपनीयता
 Legal notice	Impressum	Yasal bildirim	إشعار قانوني	कानूनी सूचना
 Sample receipt	Beispiel-Kassenbon	Örnek fiş	إيصال تجريبي	नमूना रसीद
 About Bonwise	Über Bonwise	Bonwise hakkında	عن Bonwise	Bonwise के बारे में
+That isn’t a barcode number. Type the 8 or 13 digits under the bars.	Das ist keine Barcode-Nummer. Tippe die 8 oder 13 Ziffern unter den Strichen ein.	Bu bir barkod numarası değil. Çizgilerin altındaki 8 veya 13 rakamı yaz.	هذا ليس رقم باركود. اكتب الأرقام الـ 8 أو 13 الموجودة تحت الخطوط.	यह बारकोड नंबर नहीं है। लाइनों के नीचे लिखे 8 या 13 अंक टाइप करें।
+This product isn’t in the open product data yet. Type its name in the search box instead.	Dieses Produkt ist noch nicht in den offenen Produktdaten. Tippe stattdessen seinen Namen ins Suchfeld.	Bu ürün henüz açık ürün verilerinde yok. Bunun yerine adını arama kutusuna yaz.	هذا المنتج غير موجود بعد في بيانات المنتجات المفتوحة. اكتب اسمه في مربع البحث بدلاً من ذلك.	यह उत्पाद अभी खुले उत्पाद डेटा में नहीं है। इसके बजाय खोज बॉक्स में इसका नाम लिखें।
+Barcode {code}: <b>{name}</b>	Barcode {code}: <b>{name}</b>	Barkod {code}: <b>{name}</b>	الباركود {code}: <b>{name}</b>	बारकोड {code}: <b>{name}</b>
+Your browser can’t read barcodes with the camera. Type the numbers under the barcode.	Dein Browser kann Barcodes nicht mit der Kamera lesen. Tippe die Zahlen unter dem Barcode ein.	Tarayıcın barkodları kamerayla okuyamıyor. Barkodun altındaki rakamları yaz.	لا يستطيع متصفحك قراءة الباركود بالكاميرا. اكتب الأرقام الموجودة تحت الباركود.	आपका ब्राउज़र कैमरे से बारकोड नहीं पढ़ सकता। बारकोड के नीचे लिखे अंक टाइप करें।
+Point the camera at the barcode on the pack.	Halte die Kamera auf den Barcode der Packung.	Kamerayı paketin üzerindeki barkoda tut.	وجّه الكاميرا نحو الباركود على العبوة.	कैमरे को पैकेट पर बने बारकोड की ओर रखें।
+Starting the camera…	Kamera startet…	Kamera açılıyor…	جارٍ تشغيل الكاميرا…	कैमरा शुरू हो रहा है…
+The camera isn’t allowed for Bonwise. Type the numbers under the barcode instead.	Bonwise darf die Kamera nicht nutzen. Tippe stattdessen die Zahlen unter dem Barcode ein.	Bonwise'ın kamerayı kullanmasına izin verilmedi. Bunun yerine barkodun altındaki rakamları yaz.	لا يُسمح لـ Bonwise باستخدام الكاميرا. اكتب الأرقام الموجودة تحت الباركود بدلاً من ذلك.	Bonwise को कैमरे की अनुमति नहीं है। इसके बजाय बारकोड के नीचे लिखे अंक टाइप करें।
+Looking up {code}…	Suche {code}…	{code} aranıyor…	جارٍ البحث عن {code}…	{code} खोजा जा रहा है…
+Type the 8 or 13 digits under the bars.	Tippe die 8 oder 13 Ziffern unter den Strichen ein.	Çizgilerin altındaki 8 veya 13 rakamı yaz.	اكتب الأرقام الـ 8 أو 13 الموجودة تحت الخطوط.	लाइनों के नीचे लिखे 8 या 13 अंक टाइप करें।
+Check a product’s barcode	Barcode eines Produkts prüfen	Bir ürünün barkodunu kontrol et	افحص باركود منتج	किसी उत्पाद का बारकोड जाँचें
+Check a product	Produkt prüfen	Ürün kontrol et	افحص منتجاً	उत्पाद जाँचें
+Close	Schließen	Kapat	إغلاق	बंद करें
+Scan again	Nochmal scannen	Tekrar tara	امسح مرة أخرى	फिर से स्कैन करें
+Or type the numbers under the bars	Oder tippe die Zahlen unter den Strichen	Ya da çizgilerin altındaki rakamları yaz	أو اكتب الأرقام الموجودة تحت الخطوط	या लाइनों के नीचे लिखे अंक टाइप करें
+Barcode number	Barcode-Nummer	Barkod numarası	رقم الباركود	बारकोड नंबर
+Check	Prüfen	Kontrol et	افحص	जाँचें
+Only the barcode number is sent. The camera picture stays on your phone.	Nur die Barcode-Nummer wird gesendet. Das Kamerabild bleibt auf deinem Handy.	Yalnızca barkod numarası gönderilir. Kamera görüntüsü telefonunda kalır.	يُرسَل رقم الباركود فقط. تبقى صورة الكاميرا على هاتفك.	सिर्फ़ बारकोड नंबर भेजा जाता है। कैमरे की तस्वीर आपके फ़ोन पर ही रहती है।
+About the same as at the same point in {month} ({amount}).	Etwa so viel wie zum gleichen Zeitpunkt im {month} ({amount}).	{month} ayının aynı noktasıyla hemen hemen aynı ({amount}).	تقريباً مثل نفس الفترة من {month} ({amount}).	{month} में इसी समय जितना ही ({amount})।
+{pct}% more than at the same point in {month} ({amount}).	{pct} % mehr als zum gleichen Zeitpunkt im {month} ({amount}).	{month} ayının aynı noktasına göre %{pct} daha fazla ({amount}).	أكثر بنسبة {pct}٪ مقارنة بنفس الفترة من {month} ({amount}).	{month} में इसी समय की तुलना में {pct}% ज़्यादा ({amount})।
+{pct}% less than at the same point in {month} ({amount}).	{pct} % weniger als zum gleichen Zeitpunkt im {month} ({amount}).	{month} ayının aynı noktasına göre %{pct} daha az ({amount}).	أقل بنسبة {pct}٪ مقارنة بنفس الفترة من {month} ({amount}).	{month} में इसी समय की तुलना में {pct}% कम ({amount})।
+Your month	Dein Monat	Ayın	شهرك	आपका महीना
+Spent	Ausgegeben	Harcanan	المصروف	ख़र्च
+Swaps could save	Tauschtipps könnten sparen	Değişikliklerle tasarruf	يمكن توفيره بالبدائل	बदलाव से बचत संभव
+Where your money went	Wo dein Geld hinging	Paran nereye gitti	أين ذهبت أموالك	आपका पैसा कहाँ गया
+What you bought	Was du gekauft hast	Neler aldın	ماذا اشتريت	आपने क्या ख़रीदा
