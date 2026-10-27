@@ -380,6 +380,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self._stats()
             if path.startswith(("/api/household/", "/api/prices/", "/api/list/", "/api/trip", "/api/shops")):
                 return self._data_api(path, body)
+            if path == "/api/scan" and body.get("sample") is True:
+                # The sample receipt is already read: no AI credits, so the general limit is enough.
+                if not api_limiter.allow(self._client()):
+                    return self._send(429, {"error": "too_many", "message": "Too many requests. Try again in a while."})
+                self._count("scan.sample")
+                return self._send(200, service.scan_sample())
             # Scans and the AI test cost AI credits: per-visitor limit, then a limit for everyone.
             if not limiter.allow(self._client()):
                 return self._send(429, {"error": "too_many", "message":

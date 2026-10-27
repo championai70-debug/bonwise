@@ -3,7 +3,9 @@ then savings advice on whatever was read."""
 
 import base64
 import binascii
+import json
 import time
+from pathlib import Path
 
 from . import ai_reader, config, ocr, storage
 from .advisor import advise_receipt
@@ -102,6 +104,19 @@ def scan_text(text, context=None, use_ai=True):
                         "Couldn't find products with prices. Put one product per line with its price, "
                         "e.g. “Butter 250g 2,29”.")
     return _finish(_from_parsed(parsed, "text"), started, notice)
+
+
+SAMPLE = Path(__file__).with_name("sample_receipt.json")
+
+
+def scan_sample():
+    """The "Try a sample receipt" button: static/sample-receipt.jpg as already read (stored in
+    sample_receipt.json), with fresh savings advice. Instant, and it uses no AI credits, so the
+    demo works for every new visitor even when the month's free AI credits are used up."""
+    started = time.monotonic()
+    receipt = ai_reader._clean(json.loads(SAMPLE.read_text(encoding="utf-8")), "")
+    receipt["reader"] = "sample"
+    return _finish(receipt, started)
 
 
 def health():

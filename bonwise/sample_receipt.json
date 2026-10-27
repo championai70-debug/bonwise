@@ -1,0 +1,110 @@
+{
+ "_about": "static/sample-receipt.jpg as read (checked by hand: the items add up to the printed total). The 'Try a sample receipt' button uses this, so the demo works without AI credits.",
+ "store": "REWE Markt GmbH",
+ "date": "23.09.2026",
+ "currency": "EUR",
+ "language": "German",
+ "total": 22.35,
+ "items": [
+  {
+   "raw": "Bio Eier 10er",
+   "en": "Organic eggs 10 pcs",
+   "price": 2.79,
+   "original": null,
+   "discount": null,
+   "deposit": false,
+   "category": "Dairy"
+  },
+  {
+   "raw": "Roggenbrot 500g",
+   "en": "Rye bread 500 g",
+   "price": 2.19,
+   "original": null,
+   "discount": null,
+   "deposit": false,
+   "category": "Bakery"
+  },
+  {
+   "raw": "Gouda Scheiben",
+   "en": "Gouda slices",
+   "price": 1.89,
+   "original": null,
+   "discount": null,
+   "deposit": false,
+   "category": "Dairy"
+  },
+  {
+   "raw": "Bananen 1kg",
+   "en": "Bananas 1 kg",
+   "price": 1.49,
+   "original": null,
+   "discount": null,
+   "deposit": false,
+   "category": "Fruit & veg"
+  },
+  {
+   "raw": "Tomaten 500g",
+   "en": "Tomatoes 500 g",
+   "price": 1.99,
+   "original": null,
+   "discount": null,
+   "deposit": false,
+   "category": "Fruit & veg"
+  },
+  {
+   "raw": "Nudeln Penne 500g",
+   "en": "Penne pasta 500 g",
+   "price": 0.89,
+   "original": null,
+   "discount": null,
+   "deposit": false,
+   "category": "Pantry"
+  },
+  {
+   "raw": "Butter 250g",
+   "en": "Butter 250 g",
+   "price": 2.29,
+   "original": null,
+   "discount": null,
+   "deposit": false,
+   "category": "Dairy"
+  },
+  {
+   "raw": "Orangensaft 1L",
+   "en": "Orange juice 1 l",
+   "price": 1.69,
+   "original": null,
+   "discount": null,
+   "deposit": false,
+   "category": "Drinks"
+  },
+  {
+   "raw": "Coca Cola 1,5L",
+   "en": "Coca-Cola 1.5 l",
+   "price": 1.89,
+   "original": null,
+   "discount": null,
+   "deposit": false,
+   "category": "Drinks"
+  },
+  {
+   "raw": "Pfand",
+   "en": "Bottle deposit",
+   "price": 0.25,
+   "original": null,
+   "discount": null,
+   "deposit": true,
+   "category": "Pfand"
+  },
+  {
+   "raw": "Kaffee gemahlen 500g",
+   "en": "Ground coffee 500 g",
+   "price": 4.99,
+   "original": null,
+   "discount": null,
+   "deposit": false,
+   "category": "Pantry"
+  }
+ ],
+ "tips": []
+}
