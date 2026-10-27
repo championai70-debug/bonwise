@@ -204,7 +204,11 @@ button,input,textarea{font:inherit;color:inherit}
 .src-tag.real{background:var(--accent);color:var(--accent-ink)}
 .src-tag.est{background:var(--sunk);color:var(--ink-2)}
 .src-tag.tip{background:var(--warn-soft);color:var(--warn)}
-.titems .also{display:block;font-size:12.5px;color:var(--ink-3);margin-top:2px}
+.titems .also{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+/* other chains' real prices, one chip each, so an entry never breaks across lines */
+.titems .pc{font-size:12px;line-height:1.3;white-space:nowrap;border:1px solid var(--line);border-radius:8px;padding:2px 7px;color:var(--ink-2);background:var(--surface)}
+.titems .pc b{font-family:var(--mono);font-weight:500;color:var(--ink);margin-inline-start:4px}
+.titems .eco-line{display:block}
 .pricecheck{grid-column:1/-1;font-size:13px;color:var(--accent);display:flex;gap:6px;align-items:baseline}
 .coverage{margin-top:12px;font-size:13px;color:var(--ink-2)}
 .coverage b{color:var(--ink)}
@@ -262,7 +266,7 @@ body{padding-bottom:env(safe-area-inset-bottom)}
   --ink:#16112A;--ink-2:#3B3256;--ink-3:#5E5672;--surface:#FFFBEA;--sunk:#FFF3C2;--line:#E3BE3A;
   --accent:#5B2BD9;--accent-ink:#FFFFFF;--accent-soft:#ECE6FF;--good:#0B6B47;--good-soft:#E3F3EA;
   --warn:#8A4F00;--warn-soft:#FFF0CF;--bad:#A3341F;--bad-soft:#FBE3DC;color:var(--ink)}
-.hero-art{width:150px;height:150px;justify-self:end}
+.hero-art{width:150px;height:150px;justify-self:end;align-self:start}
 /* savings jar: SVG first, a 3D jar fades in on top on capable devices (static/jar/) */
 .jar{position:relative;outline:none;border-radius:18px}
 .jar-svg{position:absolute;inset:0;width:100%;height:100%;animation:bob 5s ease-in-out infinite;transition:opacity .6s}
@@ -391,7 +395,7 @@ body{padding-bottom:env(safe-area-inset-bottom)}
 .eco-list .mid .bar i{background:var(--warn)}
 .eco-list .high .bar i{background:var(--bad)}
 .eco-list .sw{grid-column:1/-1;font-size:13px;color:var(--ink-2)}
-.eco-chip{display:inline-block;margin:5px 6px 0 0;font-size:12px;font-weight:600;border-radius:99px;padding:2px 9px;background:var(--accent-soft);color:var(--accent);white-space:nowrap}
+.eco-chip{display:inline-block;margin:5px 6px 0 0;font-size:12px;font-weight:600;border-radius:99px;padding:2px 9px;background:var(--good-soft);color:var(--good);white-space:nowrap}
 .eco-chip.mid{background:var(--warn-soft);color:var(--warn)}
 .eco-chip.high{background:var(--bad-soft);color:var(--bad)}
 .eco-chip.sw{background:var(--sunk);color:var(--ink-2);font-weight:500}
@@ -680,11 +684,11 @@ body.simple .adv{display:none!important}
   <section class="card welcome" id="welcomeCard" aria-labelledby="wH">
     <h2 id="wH">Save on every shop, in 3 steps</h2>
     <ol class="steps">
-      <li><svg viewBox="0 0 64 64" aria-hidden="true"><rect x="10" y="8" width="44" height="50" rx="8" fill="#E3ECFB"/><path d="M20 22h24M20 32h24M20 42h14" stroke="#3A6FD8" stroke-width="4" stroke-linecap="round"/><circle cx="48" cy="46" r="9" fill="#3A6FD8"/><path d="M52 50l5 5" stroke="#3A6FD8" stroke-width="4" stroke-linecap="round"/><circle cx="48" cy="46" r="4" fill="#E3ECFB"/></svg>
+      <li><svg viewBox="0 0 64 64" aria-hidden="true"><rect x="10" y="8" width="44" height="50" rx="8" fill="#E4EAFF"/><path d="M20 22h24M20 32h24M20 42h14" stroke="#2F5BFF" stroke-width="4" stroke-linecap="round"/><circle cx="48" cy="46" r="9" fill="#2F5BFF"/><path d="M52 50l5 5" stroke="#2F5BFF" stroke-width="4" stroke-linecap="round"/><circle cx="48" cy="46" r="4" fill="#E4EAFF"/></svg>
         <b>Type what you need</b><span>Bonwise shows the cheapest shop near you.</span></li>
-      <li><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M32 58s-18-15-18-29a18 18 0 0 1 36 0c0 14-18 29-18 29z" fill="#FCE3D6"/><circle cx="32" cy="29" r="8" fill="#D9642B"/><path d="M10 58h44" stroke="#D9642B" stroke-width="4" stroke-linecap="round"/></svg>
+      <li><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M32 58s-18-15-18-29a18 18 0 0 1 36 0c0 14-18 29-18 29z" fill="#FFE0EF"/><circle cx="32" cy="29" r="8" fill="#E0337F"/><path d="M10 58h44" stroke="#E0337F" stroke-width="4" stroke-linecap="round"/></svg>
         <b>Shop there</b><span>Directions, opening hours and prices in one place.</span></li>
-      <li><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M16 6h32v52l-8-5-8 5-8-5-8 5z" fill="#ECE6FF"/><path d="M23 20h18M23 29h18M23 38h10" stroke="#5B2BD9" stroke-width="4" stroke-linecap="round"/><circle cx="46" cy="44" r="12" fill="#FFD166"/><text x="46" y="50" text-anchor="middle" font-family="system-ui,sans-serif" font-weight="800" font-size="15" fill="#8A5A00">€</text></svg>
+      <li><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M16 6h32v52l-8-5-8 5-8-5-8 5z" fill="#ECE6FF"/><path d="M23 20h18M23 29h18M23 38h10" stroke="#5B2BD9" stroke-width="4" stroke-linecap="round"/><circle cx="46" cy="44" r="12" fill="#FFD23F"/><text x="46" y="50" text-anchor="middle" font-family="system-ui,sans-serif" font-weight="800" font-size="15" fill="#8A5A00">€</text></svg>
         <b>Scan the receipt</b><span>See what you’d save next time, and track your budget.</span></li>
     </ol>
     <div class="welcome-actions">
@@ -725,7 +729,7 @@ body.simple .adv{display:none!important}
         <button class="btn small" type="submit">Add</button>
       </form>
       <ul class="slist" id="slist"></ul>
-      <div class="empty" id="slistEmpty" style="margin-top:10px;text-align:center"><svg class="empty-art" viewBox="0 0 64 64" aria-hidden="true"><rect x="12" y="8" width="40" height="50" rx="8" fill="#E3ECFB"/><path d="M21 22l3 3 5-6M21 34l3 3 5-6" stroke="#3A6FD8" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M34 23h10M34 35h10M22 46h22" stroke="#3A6FD8" stroke-width="3.5" stroke-linecap="round"/></svg>Your list is empty. Add items above or tap “Buy again” below.</div>
+      <div class="empty" id="slistEmpty" style="margin-top:10px;text-align:center"><svg class="empty-art" viewBox="0 0 64 64" aria-hidden="true"><rect x="12" y="8" width="40" height="50" rx="8" fill="#E4EAFF"/><path d="M21 22l3 3 5-6M21 34l3 3 5-6" stroke="#2F5BFF" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M34 23h10M34 35h10M22 46h22" stroke="#2F5BFF" stroke-width="3.5" stroke-linecap="round"/></svg>Your list is empty. Add items above or tap “Buy again” below.</div>
       <div class="row2" style="margin-top:12px" id="listTripRow" hidden>
         <button class="btn" id="listTrip" type="button" style="flex:1 1 auto;justify-content:center">Find cheapest shops for my list</button>
       </div>
@@ -747,7 +751,7 @@ body.simple .adv{display:none!important}
     <div class="panel-h"><h1 class="view-title">Shops near you</h1><button class="close-btn" type="button" data-tab="home" aria-label="Close shops near you">✕</button></div>
     <section class="card" aria-labelledby="shH">
       <div class="card-h"><h2 id="shH">Nearby</h2><span class="label" id="shopCount"></span></div>
-      <svg class="empty-art" viewBox="0 0 64 64" aria-hidden="true" id="shopArt"><path d="M32 58s-18-15-18-29a18 18 0 0 1 36 0c0 14-18 29-18 29z" fill="#FCE3D6"/><circle cx="32" cy="29" r="8" fill="#D9642B"/></svg>
+      <svg class="empty-art" viewBox="0 0 64 64" aria-hidden="true" id="shopArt"><path d="M32 58s-18-15-18-29a18 18 0 0 1 36 0c0 14-18 29-18 29z" fill="#FFE0EF"/><circle cx="32" cy="29" r="8" fill="#E0337F"/></svg>
       <p class="muted" id="shopIntro" style="text-align:center">Find supermarkets, discounters and drugstores around you, with opening hours. Discounters like Aldi, Lidl and Penny are usually cheapest for basics.</p>
       <div class="row2" style="margin-top:12px">
         <button class="btn" id="findShops" type="button">Find shops near me</button>
