@@ -97,6 +97,11 @@ OVERPASS_URL = os.environ.get("OVERPASS_URL", "https://overpass-api.de/api/inter
 # static/privacy.html.
 OVERPASS_FALLBACKS = [u.strip() for u in os.environ.get("OVERPASS_FALLBACKS", "").split(",") if u.strip()]
 
+# Barcode check: product names for barcodes that aren't in the price data come from Open Food
+# Facts (free, open data, ODbL), asked by this server, so only the barcode number leaves it.
+# Empty turns it off.
+OFF_PRODUCT_URL = os.environ.get("OFF_PRODUCT_URL", "https://world.openfoodfacts.org/api/v2/product/")
+
 # Backup source for nearby shops when Overpass fails: Photon by komoot (Germany), free, no
 # key, OpenStreetMap data (no opening hours). Empty turns it off.
 PHOTON_URL = os.environ.get("PHOTON_URL", "https://photon.komoot.io/reverse")

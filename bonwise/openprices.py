@@ -62,8 +62,9 @@ def _load():
                 raw = json.loads(PATH.read_text(encoding="utf-8"))
             except (OSError, ValueError):
                 raw = {}
-            items = []
+            items, codes = [], {}
             for code, e in (raw.get("products") or {}).items():
+                codes[code] = e
                 name = norm(e.get("n", "") + " " + e.get("b", ""))
                 toks = set(re.findall(r"[a-z][a-z0-9\-]+", name))
                 toks |= {part for t in toks for part in t.split("-") if part}  # "coca-cola" -> coca, cola
@@ -72,7 +73,7 @@ def _load():
                        or any(t.endswith("futter") for t in toks))
                 items.append((toks, " " + name + " ", dict(e, pet=pet)))
             _db = {"meta": {k: raw.get(k) for k in ("source", "generated", "since", "prices")},
-                   "items": items, "categories": raw.get("categories") or {}}
+                   "items": items, "codes": codes, "categories": raw.get("categories") or {}}
     return _db
 
 
@@ -177,3 +178,12 @@ def _size_text(s):
     if v >= 1000:
         return ("%g" % (v / 1000)) + (" kg" if unit == "g" else " l")
     return ("%g " % v) + unit
+
+
+def by_barcode(code):
+    """The product with this barcode (EAN/UPC digits) in the price data, or None.
+    -> {"name", "brand", "size"}; its prices are found by the normal name search."""
+    e = _load()["codes"].get(code)
+    if e is None:
+        return None
+    return {"name": e.get("n", ""), "brand": e.get("b", ""), "size": _size_text(e.get("s"))}

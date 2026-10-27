@@ -137,9 +137,12 @@ Data types to declare:
 | **Financial info → Purchase history** (receipt items/prices when household sharing is on; anonymous prices) | Yes | No | No | Optional | App functionality |
 | **Location → Approximate location** (rounded, only when you search shops, plan a shop or look up the nearest shops for a receipt’s swaps) | Yes | No* | Yes (not stored) | Optional | App functionality |
 | **Financial info → Purchase history** (items typed into "Going shopping?", used to look up prices) | Yes | No | Yes (not stored) | Optional | App functionality |
+| **Financial info → Purchase history** (barcode number of a product you check; the camera picture is read on the phone and never sent) | Yes | No* | Yes (not stored) | Optional | App functionality |
 
 \* Sending data to a service provider that processes it for you (the AI service
-reading receipts; OpenStreetMap finding shops) is not "sharing" in Google's definition.
+reading receipts; OpenStreetMap finding shops; Open Food Facts looking up a product name from its
+barcode number, with no user data) is not "sharing" in Google's definition. The camera is used only
+on the phone to read barcodes: declare no photos or videos for it.
 
 Not collected: name, email, contacts, device IDs, advertising ID, app activity,
 crash logs, messages, health data.

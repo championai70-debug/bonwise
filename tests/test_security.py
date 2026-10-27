@@ -341,3 +341,14 @@ class WelcomePageTests(unittest.TestCase):
         after = storage.stats(1)
         day = max(after)
         self.assertEqual(after[day].get("welcome", 0), before.get(day, {}).get("welcome", 0) + 1)
+
+
+class PageStructureTests(unittest.TestCase):
+    def test_every_id_on_the_app_page_is_unique(self):
+        # A repeated id makes getElementById() write into the wrong element (it happened:
+        # "Your month" once wrote the spent amount into the budget bar).
+        import re
+        from collections import Counter
+        page = (Path(app.STATIC) / "index.html").read_text()
+        repeated = [i for i, n in Counter(re.findall(r'\sid="([^"]+)"', page)).items() if n > 1]
+        self.assertEqual(repeated, [])

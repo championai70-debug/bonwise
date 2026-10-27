@@ -887,6 +887,62 @@
     }).join("");
   }
 
+  /* ---------- your month ----------
+     Worked out on this phone from the saved receipts: what was spent, where, on what, what the
+     swaps could have saved, and how that compares with the same days of last month. */
+  var CHAINS = [["ALDI", /\baldi\b/], ["Lidl", /\blidl\b/], ["REWE", /\brewe\b/], ["EDEKA", /\bedeka\b|\bmarktkauf\b/],
+    ["Netto", /\bnetto\b/], ["Penny", /\bpenny\b/], ["Kaufland", /\bkaufland\b/], ["dm", /\bdm\b|drogerie ?markt/],
+    ["Rossmann", /\brossmann\b/], ["Müller", /\bm(ü|ue)ller\b/], ["Norma", /\bnorma\b/], ["Globus", /\bglobus\b/], ["tegut", /\btegut\b/]];
+  function chainOf(store) {
+    var s = String(store || "").toLowerCase();
+    for (var i = 0; i < CHAINS.length; i++) if (CHAINS[i][1].test(s)) return CHAINS[i][0];
+    return String(store || "").trim().slice(0, 28) || t("Other");
+  }
+  function topBars(totals, n) {
+    var rows = Object.keys(totals).map(function (k) { return [k, r2(totals[k])]; }).filter(function (x) { return x[1] > 0; })
+      .sort(function (a, b) { return b[1] - a[1]; });
+    // At most n bars; everything else (and things that already are "Other") as one "Other", last.
+    var other = t("Other"), keep = rows.filter(function (x) { return x[0] !== other; });
+    var extra = rows.filter(function (x) { return x[0] === other; }).reduce(function (a, x) { return a + x[1]; }, 0);
+    if (keep.length + (extra > 0 ? 1 : 0) > n) { extra += keep.slice(n - 1).reduce(function (a, x) { return a + x[1]; }, 0); keep = keep.slice(0, n - 1); }
+    if (extra > 0) keep.push([other, r2(extra)]);
+    rows = keep;
+    var sum = rows.reduce(function (a, x) { return a + x[1]; }, 0) || 1, max = Math.max.apply(null, rows.map(function (x) { return x[1]; }).concat([0.01]));
+    return rows.map(function (x) {
+      var pct = Math.round(x[1] / sum * 100);
+      return '<li title="' + esc(x[0] + ": " + eur(x[1]) + " (" + pct + "%)") + '"><span class="nm">' + esc(x[0]) + '</span><span class="amt"><bdi>' + eur(x[1]) + '</bdi><small><bdi>' + pct + '%</bdi></small></span>' +
+        '<span class="bar" aria-hidden="true"><i style="width:' + Math.max(2, Math.round(x[1] / max * 100)) + '%"></i></span></li>';
+    }).join("");
+  }
+  function renderMonth() {
+    var mine = monthReceipts();
+    $("ymCard").hidden = !mine.length;
+    if (!mine.length) return;
+    var spent = spentSaved(), save = r2(mine.reduce(function (a, r) { return a + (r.save || 0); }, 0));
+    $("ymLabel").textContent = now.toLocaleDateString(LOCALE, { month: "long", year: "numeric" });
+    $("ymSpent").textContent = eur(spent); $("ymCount").textContent = numTxt(mine.length, 0); $("ymSave").textContent = eur(save);
+    // Fair comparison: last month up to the same day of the month.
+    var lm = new Date(now.getFullYear(), now.getMonth() - 1, 1), lmKey = lm.getFullYear() + "-" + String(lm.getMonth() + 1).padStart(2, "0");
+    var lastRs = mem.receipts.filter(function (r) { return r.month === lmKey && purchaseDate(r).getDate() <= day; });
+    var before = r2(lastRs.reduce(function (a, r) { return a + r.total; }, 0));
+    if (lastRs.length && before > 0) {
+      var pct = Math.round((spent - before) / before * 100), lmName = lm.toLocaleDateString(LOCALE, { month: "long" });
+      var vars = { pct: Math.abs(pct), month: lmName, amount: eur(before) };
+      $("ymDelta").innerHTML = Math.abs(pct) < 3 ? esc(t("About the same as at the same point in {month} ({amount}).", vars))
+        : pct > 0 ? '<span class="up" aria-hidden="true">↑</span> ' + esc(t("{pct}% more than at the same point in {month} ({amount}).", vars))
+        : '<span class="down" aria-hidden="true">↓</span> ' + esc(t("{pct}% less than at the same point in {month} ({amount}).", vars));
+      $("ymDelta").hidden = false;
+    } else $("ymDelta").hidden = true;
+    var shops = {}, cats = {};
+    mine.forEach(function (r) {
+      var c = chainOf(r.store); shops[c] = (shops[c] || 0) + r.total;
+      (r.items || []).forEach(function (it) { if (!it.d && it.p > 0) { var k = tw(it.c || "Other"); cats[k] = (cats[k] || 0) + it.p; } });
+    });
+    $("ymShops").innerHTML = topBars(shops, 4);
+    $("ymCats").innerHTML = topBars(cats, 5);
+    $("ymCatsH").hidden = !Object.keys(cats).length;
+  }
+
   /* ---------- receipt vault ---------- */
   var openReceipt = null, delArmed = null;
   function renderVault() {
@@ -1193,6 +1249,8 @@
     tripItems = j.items || [];
     var shops = j.shops || [], best = j.best != null ? shops[j.best] : null, going = j.going != null ? shops[j.going] : null, html = "";
     var n = tripItems.filter(function (it) { return !it.online; }).length;
+    if (scanned && lastTrip && lastTrip.payload.text === scanned.query)
+      html += '<p class="scan-note">' + t("Barcode {code}: <b>{name}</b>", { code: esc(scanned.code), name: esc(scanned.name + (scanned.brand ? " · " + scanned.brand : "")) }) + '</p>';
     if (locWhy) html += '<div class="notice warn" style="margin-top:0;margin-bottom:12px">' + esc(locWhy) + ' ' + t("Below are the best prices we know.") + '</div>';
     else if (j.notice) html += '<div class="notice warn" style="margin-top:0;margin-bottom:12px">' + esc(j.notice) + (j.retry ? ' <button class="linkbtn" type="button" id="tripRetry">' + t("Try again") + '</button>' : "") + '</div>';
     else if (j.located && !best && n) html += '<div class="notice warn" style="margin-top:0;margin-bottom:12px">' + t("No shop within 1.5 km sells everything on this list. See each item below.") + '</div>';
@@ -1281,6 +1339,7 @@
     var typed = $("tripText").value.trim();
     if (!typed) { $("tripText").focus(); $("tripText").placeholder = t("Type a few things first, e.g. milk, bread"); return; }
     store.set("bonwise.tripText", typed);
+    if (!scanned || typed !== scanned.query) scanned = null;
     $("tripText").blur();
     showTab("home", true);
     runTrip({ text: typed }, "tripSlotHome");
@@ -1289,6 +1348,87 @@
     var open = mem.list.filter(function (x) { return !x.done; }).map(function (x) { return x.name; });
     if (open.length) runTrip({ items: open }, "tripSlotList");
   });
+  /* ---------- barcode check ----------
+     The phone's camera reads the barcode (BarcodeDetector, on Android's Chrome) or the numbers are
+     typed; only the number goes to the server, which finds the product's name (bonwise/barcode.py).
+     Then the normal price search runs for that name. The camera is off whenever the sheet is closed. */
+  var cam = { stream: null, timer: 0, detector: null, opener: null }, scanned = null;
+  function codeMsg(text, bad) { $("codeMsg").textContent = text || ""; $("codeMsg").classList.toggle("bad", !!bad); }
+  function stopCam() {
+    clearTimeout(cam.timer); cam.timer = 0;
+    if (cam.stream) { cam.stream.getTracks().forEach(function (tr) { tr.stop(); }); cam.stream = null; }
+    $("codeVideo").srcObject = null; $("codeCam").hidden = true;
+  }
+  function canScan() { return "BarcodeDetector" in window && navigator.mediaDevices && navigator.mediaDevices.getUserMedia; }
+  function startCam() {
+    $("codeAgain").hidden = true;
+    if (!canScan()) {
+      $("codeHelp").textContent = t("Your browser can’t read barcodes with the camera. Type the numbers under the barcode.");
+      $("codeInput").focus();
+      return;
+    }
+    $("codeHelp").textContent = t("Point the camera at the barcode on the pack.");
+    codeMsg(t("Starting the camera…"));
+    Promise.resolve(window.BarcodeDetector.getSupportedFormats ? window.BarcodeDetector.getSupportedFormats() : ["ean_13"]).then(function (formats) {
+      var want = ["ean_13", "ean_8", "upc_a"].filter(function (f) { return formats.indexOf(f) >= 0; });
+      if (!want.length) throw { name: "NotSupported" };
+      cam.detector = new window.BarcodeDetector({ formats: want });
+      return navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
+    }).then(function (stream) {
+      if ($("codeSheet").hidden) { stream.getTracks().forEach(function (tr) { tr.stop(); }); return; }
+      cam.stream = stream; $("codeVideo").srcObject = stream; $("codeCam").hidden = false;
+      return $("codeVideo").play().then(function () { codeMsg(""); look(); });
+    }).catch(function (e) {
+      stopCam();
+      codeMsg(e && e.name === "NotAllowedError" ? t("The camera isn’t allowed for Bonwise. Type the numbers under the barcode instead.")
+        : t("Your browser can’t read barcodes with the camera. Type the numbers under the barcode."), true);
+      $("codeInput").focus();
+    });
+  }
+  function look() {
+    if (!cam.stream || !cam.detector) return;
+    cam.detector.detect($("codeVideo")).then(function (codes) {
+      var hit = (codes || []).map(function (c) { return String(c.rawValue || ""); }).filter(function (v) { return /^\d{8,14}$/.test(v); })[0];
+      if (hit) { if (navigator.vibrate) navigator.vibrate(40); checkCode(hit); }
+      else cam.timer = setTimeout(look, 250);
+    }, function () { cam.timer = setTimeout(look, 500); });
+  }
+  function checkCode(code) {
+    stopCam();
+    codeMsg(t("Looking up {code}…", { code: code }));
+    api("/api/barcode", { code: code }).then(function (r) {
+      if (!r.found) { codeMsg(r.message, true); $("codeAgain").hidden = !canScan(); return; }
+      closeCode();
+      scanned = { code: r.code, name: r.name, brand: r.brand, query: r.query };
+      $("tripText").value = r.query;
+      showTab("home", true);
+      runTrip({ text: r.query }, "tripSlotHome");
+    }, function (e) { codeMsg((e && e.message) || t("Something went wrong. Try again."), true); $("codeAgain").hidden = !canScan(); });
+  }
+  function openCode() {
+    cam.opener = document.activeElement;
+    $("codeSheet").hidden = false; codeMsg(""); $("codeInput").value = "";
+    $("codeSheet").querySelector(".sheet").focus();
+    startCam();
+  }
+  function closeCode() {
+    stopCam();
+    $("codeSheet").hidden = true;
+    if (cam.opener && cam.opener.focus) cam.opener.focus();
+  }
+  $("codeBtn").addEventListener("click", openCode);
+  $("codeClose").addEventListener("click", closeCode);
+  $("codeAgain").addEventListener("click", startCam);
+  $("codeSheet").addEventListener("click", function (e) { if (e.target === $("codeSheet")) closeCode(); });
+  $("codeSheet").addEventListener("keydown", function (e) { if (e.key === "Escape") closeCode(); });
+  $("codeForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var v = $("codeInput").value.replace(/[\s-]/g, "");
+    if (!/^\d{8,14}$/.test(v)) { codeMsg(t("Type the 8 or 13 digits under the bars."), true); $("codeInput").focus(); return; }
+    checkCode(v);
+  });
+  document.addEventListener("visibilitychange", function () { if (document.hidden && !$("codeSheet").hidden) closeCode(); });
+
   // Quick picks under the box: the shopping list, and things you buy often.
   function renderTripChips() {
     var open = mem.list.filter(function (x) { return !x.done; }), top = againTop(5), html = "";
@@ -1426,7 +1566,7 @@
   });
   document.addEventListener("visibilitychange", function () { if (!document.hidden) { syncNow(); renderReminders(); } });
 
-  function renderAll() { renderBudget(); renderVault(); renderReminders(); renderPlan(); renderList(); renderSettings(); applySimple(); }
+  function renderAll() { renderBudget(); renderMonth(); renderVault(); renderReminders(); renderPlan(); renderList(); renderSettings(); applySimple(); }
   renderAll();
   showTab((location.hash || "").slice(1) || "home");
   syncNow();

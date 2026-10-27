@@ -12,6 +12,7 @@ Checks (as a phone would use the app, in German):
 3. A shopping-list search answers with items and German text.
 4. Reading pasted receipt lines works (quick reader, no AI credits used).
 5. The "Try a sample receipt" button's answer (already read, no AI credits used).
+6. The barcode check finds a well-known product's name (Open Food Facts: a warning if it doesn't).
 Visits from this check are not counted in the usage totals.
 """
 import json
@@ -91,6 +92,16 @@ def main():
     s, h, body, secs = call("/api/scan-text", {"text": "LIDL\nMilbona Vollmilch 1L 0,99\nButter 250g 1,99\nSUMME 2,98", "useAi": False})
     receipt = (json.loads(body) if s == 200 else {}).get("receipt") or {}
     ok(s == 200 and len(receipt.get("items") or []) == 2, "reading receipt lines", "%.1f s" % secs)
+
+    # Barcode check for a product that is in Open Food Facts (Nutella 450 g). Open Food Facts is
+    # an outside service, so no answer is a warning, not a failure.
+    s, h, body, secs = call("/api/barcode", {"code": "3017620422003"})
+    code = json.loads(body) if s == 200 else {}
+    if code.get("found"):
+        ok(True, "barcode check", "%s in %.1f s" % (code.get("name"), secs))
+    else:
+        ok(s == 200, "barcode check answers", "%.1f s" % secs)
+        warn.append("Barcode check: Open Food Facts didn't give a name for a well-known product (HTTP %d)." % s)
 
     s, h, body, secs = call("/api/scan", {"sample": True})
     sample = (json.loads(body) if s == 200 else {}).get("receipt") or {}

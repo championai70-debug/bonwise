@@ -3,6 +3,7 @@
 from bonwise import config
 
 config.PHOTON_URL = ""
+config.OFF_PRODUCT_URL = ""   # barcode names from Open Food Facts: off unless a test uses a fake server
 
 # Open Prices data changes every week, so tests use a fixed sample (or none).
 from bonwise import openprices  # noqa: E402

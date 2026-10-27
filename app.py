@@ -22,7 +22,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from bonwise import advisor, ai_reader, config, data, i18n, places, service, storage, trip
+from bonwise import advisor, ai_reader, barcode, config, data, i18n, places, service, storage, trip
 
 STATIC = Path(__file__).resolve().parent / "static"
 mimetypes.add_type("font/woff2", ".woff2")
@@ -368,7 +368,7 @@ class Handler(BaseHTTPRequestHandler):
         self._start()
         path = urlparse(self.path).path
         if path not in ("/api/scan", "/api/scan-text", "/api/test-ai", "/api/household/new", "/api/household/sync", "/api/household/delete",
-                        "/api/prices/report", "/api/list/prices", "/api/trip", "/api/shops", "/api/stats"):
+                        "/api/prices/report", "/api/list/prices", "/api/trip", "/api/shops", "/api/stats", "/api/barcode"):
             return self._send(404, {"error": "not_found"})
         origin = self.headers.get("Origin")
         hosts = {h.strip() for h in (self.headers.get("Host", ""), self.headers.get("X-Forwarded-Host", "")) if h}
@@ -378,7 +378,7 @@ class Handler(BaseHTTPRequestHandler):
             body = self._json_body() or {}
             if path == "/api/stats":
                 return self._stats()
-            if path.startswith(("/api/household/", "/api/prices/", "/api/list/", "/api/trip", "/api/shops")):
+            if path.startswith(("/api/household/", "/api/prices/", "/api/list/", "/api/trip", "/api/shops", "/api/barcode")):
                 return self._data_api(path, body)
             if path == "/api/scan" and body.get("sample") is True:
                 # The sample receipt is already read: no AI credits, so the general limit is enough.
@@ -437,6 +437,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(*plan_trip(body))
             if path == "/api/shops":
                 return self._send(*shops_near(body))
+            if path == "/api/barcode":
+                status, answer = barcode.check(body.get("code"))
+                if answer.get("found"):
+                    self._count("barcode.found")
+                return self._send(status, answer)
             return self._send(200, {"items": list_prices(body.get("items"))})
         except storage.HouseholdError as e:
             return self._send(e.status, {"error": e.code, "message": e.message})
