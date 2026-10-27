@@ -1239,8 +1239,12 @@
         where = t("Usually cheapest at {where}", { where: esc(it.hint) });
       } else where = t("No price yet · usually cheapest at {where}", { where: esc(it.hint) });
       // Real prices at other chains, cheapest first (from Open Prices).
-      var also = (it.chains || []).filter(function (c) { return !(it.best && shops[it.best.shop] && shops[it.best.shop].chain === c.chain && it.best.src === "open"); }).slice(0, 4);
-      if (also.length && !it.online && !it.tip) where += '<span class="also">' + also.map(function (c) { return esc(c.chain) + " " + eur(c.price); }).join(" · ") + '</span>';
+      // (Not the chain already named above at the same price.)
+      var also = (it.chains || []).filter(function (c) {
+        if (it.best && shops[it.best.shop] && shops[it.best.shop].chain === c.chain && it.best.src === "open") return false;
+        return !(!it.best && it.known && it.known.chain === c.chain && it.known.price === c.price);
+      }).slice(0, 4);
+      if (also.length && !it.online && !it.tip) where += '<span class="also">' + also.map(function (c) { return '<span class="pc">' + esc(c.chain) + "<b>" + eur(c.price) + "</b></span>"; }).join("") + '</span>';
       if (it.co2) where += '<span class="eco-line">' + ecoChips(it.co2) + '</span>';
       return '<li><span class="nm">' + esc(tw(it.name)) + (size ? '<small>' + esc(size) + '</small>' : "") + typed + '</span><span class="amt num">' + amt + '</span><span class="where">' + where + '</span></li>';
     }).join("") + '</ul>';
