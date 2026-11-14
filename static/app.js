@@ -943,12 +943,40 @@
     $("ymCatsH").hidden = !Object.keys(cats).length;
   }
 
+  /* ---------- receipts as a spreadsheet ----------
+     A CSV file made on the phone (nothing is sent): one row per item. German and Turkish use
+     ";" between columns and a decimal comma, as their Excel expects. Text that starts like a
+     formula (= + - @) gets a leading ' so a spreadsheet never runs it. */
+  function csvFile() {
+    var comma = LANG === "de" || LANG === "tr", sep = comma ? ";" : ",";
+    var num = function (n) { return n == null || !isFinite(n) ? "" : (comma ? Number(n).toFixed(2).replace(".", ",") : Number(n).toFixed(2)); };
+    var cell = function (v) {
+      v = String(v == null ? "" : v);
+      if (/^[=+\-@\t\r]/.test(v)) v = "'" + v;
+      return /[";,\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+    };
+    var rows = [[t("Date"), t("Shop"), t("Item"), t("Category"), t("Price (€)"), t("Receipt total (€)")].map(cell).join(sep)];
+    mem.receipts.slice().sort(function (a, b) { return purchaseDate(a) - purchaseDate(b) || a.at - b.at; }).forEach(function (r) {
+      var d = purchaseDate(r), day = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+      var lines = r.items && r.items.length ? r.items : [{ n: "", p: null, c: "" }];
+      lines.forEach(function (it) { rows.push([cell(day), cell(r.store || ""), cell(it.n), cell(it.c ? tw(it.c) : ""), num(it.p), num(r.total)].join(sep)); });
+    });
+    return "\ufeff" + rows.join("\r\n") + "\r\n";
+  }
+  $("exportBtn").addEventListener("click", function () {
+    var url = URL.createObjectURL(new Blob([csvFile()], { type: "text/csv;charset=utf-8" })), a = document.createElement("a");
+    a.href = url; a.download = "bonwise-receipts-" + new Date().toISOString().slice(0, 10) + ".csv";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+  });
+
   /* ---------- receipt vault ---------- */
   var openReceipt = null, delArmed = null;
   function renderVault() {
     var list = mem.receipts.slice().sort(function (a, b) { return purchaseDate(b) - purchaseDate(a) || b.at - a.at; });
     $("histEmpty").hidden = list.length > 0;
     $("resetBtn").hidden = monthReceipts().length === 0;
+    $("exportBtn").hidden = list.length === 0;
     var html = "", lastMonth = "";
     list.forEach(function (r) {
       var mk = r.month || "";
@@ -1001,17 +1029,27 @@
   /* ---------- shopping list ---------- */
   var priceCache = {};
   function listKey(n) { return norm(n); }
+  // Shop sections in the order most German supermarkets are walked through.
+  var SECTIONS = ["Fruit & veg", "Bakery", "Meat & fish", "Dairy", "Frozen", "Pantry", "Snacks", "Drinks", "Household", "Drugstore", "Baby", "Pet"];
+  function sectionOf(x) { var p = priceCache[listKey(x.name)], c = p && p.cat; return SECTIONS.indexOf(c) >= 0 ? c : "Other"; }
   function renderList() {
-    var items = mem.list.slice().sort(function (a, b) { return (a.done - b.done) || (a.created || 0) - (b.created || 0); });
+    var rank = function (x) { var i = SECTIONS.indexOf(sectionOf(x)); return i < 0 ? SECTIONS.length : i; };
+    var items = mem.list.slice().sort(function (a, b) { return (a.done - b.done) || (!a.done && rank(a) - rank(b)) || (a.created || 0) - (b.created || 0); });
     $("slistEmpty").hidden = items.length > 0;
     $("clearDone").hidden = !items.some(function (x) { return x.done; });
-    var total = 0, priced = 0, open = 0;
+    var total = 0, priced = 0, open = 0, lastSect = null;
+    // Section headings only when the open items are in more than one section.
+    var sections = {}; items.forEach(function (x) { if (!x.done) sections[sectionOf(x)] = 1; });
+    var showSections = Object.keys(sections).length > 1;
     $("slist").innerHTML = items.map(function (x) {
-      var p = priceCache[listKey(x.name)], best = bestOf(p), bp = "";
+      var p = priceCache[listKey(x.name)], best = bestOf(p), bp = "", head = "";
       if (!x.done) { open++; if (best) { total += best.price; priced++; } }
       if (best) bp = '<span class="bp">' + t("Best: <b>{amount}</b> at {shop}", { amount: eur(best.price), shop: esc(best.where) }) + (best.note ? ' · ' + esc(best.note) : "") + '</span>';
       else if (p) bp = '<span class="bp">' + t("No price yet") + '</span>';
-      return '<li class="' + (x.done ? "done" : "") + '"><input type="checkbox" data-li="' + esc(x.id) + '"' + (x.done ? " checked" : "") + ' aria-label="' + esc(t("Bought {item}", { item: x.name })) + '">' +
+      if (!x.done && x.drop && best && best.price < x.drop.from) bp += '<span class="cheaper">↓ ' + esc(t("Cheaper than before: was {amount}", { amount: eur(x.drop.from) })) + '</span>';
+      var sect = x.done ? "" : sectionOf(x);
+      if (showSections && !x.done && sect !== lastSect) { lastSect = sect; head = '<li class="sect" aria-hidden="true">' + esc(tw(sect)) + '</li>'; }
+      return head + '<li class="' + (x.done ? "done" : "") + '"><input type="checkbox" data-li="' + esc(x.id) + '"' + (x.done ? " checked" : "") + ' aria-label="' + esc(t("Bought {item}", { item: x.name })) + '">' +
         '<span><span class="nm">' + esc(x.name) + '</span>' + bp + '</span><button class="del" type="button" data-rm="' + esc(x.id) + '" aria-label="' + esc(t("Remove {item}", { item: x.name })) + '">×</button></li>';
     }).join("");
     $("listTripRow").hidden = !open;
@@ -1032,6 +1070,18 @@
     if (!need.length) return renderList();
     api("/api/list/prices", { items: need }).then(function (j) {
       (j.items || []).forEach(function (e) { priceCache[listKey(e.name)] = e; });
+      // Remember the best real price seen for each item; when it drops by 5 cents or more
+      // (new weekly prices, prices other users paid), say so until the item is bought.
+      var changed = false, weekAgo2 = Date.now() - 14 * DAY;
+      mem.list.forEach(function (x) {
+        if (x.done) return;
+        var best = bestOf(priceCache[listKey(x.name)]);
+        if (x.drop && x.drop.at < weekAgo2) { delete x.drop; stamp(x); changed = true; }
+        if (!best) return;
+        if (x.seen != null && best.price <= x.seen - 0.05) { x.drop = { from: x.seen, at: Date.now() }; }
+        if (x.seen !== best.price) { x.seen = best.price; stamp(x); changed = true; }
+      });
+      if (changed) persist();
       renderList();
     }).catch(function () {});
   }
@@ -1045,7 +1095,7 @@
   $("listForm").addEventListener("submit", function (e) { e.preventDefault(); addToList($("listInput").value); $("listInput").value = ""; $("listInput").focus(); });
   $("slist").addEventListener("change", function (e) {
     var id = e.target.dataset && e.target.dataset.li; if (!id) return;
-    mem.list.forEach(function (x) { if (x.id === id) { x.done = e.target.checked; stamp(x); } });
+    mem.list.forEach(function (x) { if (x.id === id) { x.done = e.target.checked; if (x.done) delete x.drop; stamp(x); } });
     persist(); renderList();
   });
   $("slist").addEventListener("click", function (e) {

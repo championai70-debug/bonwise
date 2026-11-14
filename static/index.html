@@ -452,6 +452,10 @@ body{padding-bottom:env(safe-area-inset-bottom)}
 .slist .bp{display:block;font-size:12.5px;color:var(--ink-2);font-weight:500}
 .slist .bp b{color:var(--accent)}
 .slist li.done .nm{text-decoration:line-through;color:var(--ink-3)}
+.slist li.sect{display:block;padding:12px 0 2px;border-bottom:0;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
+.slist li.sect:first-child{padding-top:0}
+.slist .cheaper{display:block;font-size:12.5px;font-weight:700;color:var(--good);margin-top:2px}
+.card-acts{display:flex;gap:14px;flex-wrap:wrap;justify-content:flex-end}
 .sugg{display:flex;flex-wrap:wrap;gap:8px}
 .sugg button{border:1.5px solid var(--line);background:var(--surface);color:var(--ink);border-radius:99px;padding:7px 12px;font-size:13.5px;font-weight:600;cursor:pointer}
 .sugg button:hover{border-color:var(--accent)}
@@ -779,7 +783,7 @@ body.simple .adv{display:none!important}
       <ul class="bars" id="ymCats" aria-labelledby="ymCatsH"></ul>
     </section>
     <section class="card" aria-labelledby="hH">
-      <div class="card-h"><h2 id="hH">Your receipts</h2><button class="linkbtn" id="resetBtn" type="button" hidden>Clear this month</button></div>
+      <div class="card-h"><h2 id="hH">Your receipts</h2><span class="card-acts"><button class="linkbtn" id="exportBtn" type="button" hidden>Save as spreadsheet</button><button class="linkbtn" id="resetBtn" type="button" hidden>Clear this month</button></span></div>
       <p class="muted" style="margin-bottom:6px">Tap a receipt to see its items, return window and warranty.</p>
       <ul class="vault" id="hist"></ul>
       <div class="empty" id="histEmpty" style="text-align:center"><svg class="empty-art" viewBox="0 0 64 64" aria-hidden="true"><path d="M16 6h32v52l-8-5-8 5-8-5-8 5z" fill="#DDF3E8"/><path d="M23 20h18M23 29h18M23 38h10" stroke="#0F9A63" stroke-width="4" stroke-linecap="round"/></svg>No receipts yet. Tap “Scan receipt” above, check the prices, then press “Add to this month”.</div>

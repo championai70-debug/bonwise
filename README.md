@@ -41,12 +41,14 @@ Scan any receipt and Bonwise shows where the same things are cheaper next time
   the camera (Android) or takes the typed numbers, finds the product's name and shows its
   prices per chain. Only the number is sent; the camera picture stays on the phone.
 - **Receipt vault:** every saved receipt with its items, return window and 2-year
-  warranty date, plus "Coming up" reminders with an "Add to calendar" link.
+  warranty date, plus "Coming up" reminders with an "Add to calendar" link. "Save as
+  spreadsheet" downloads all receipts as a CSV file (made on the phone, opens in Excel).
 - **Your month:** what you spent this month (compared with the same days of last month),
   where (by shop) and on what (by category), and what the swaps could have saved,
   worked out on the phone.
-- **Shopping list:** "Buy again" from past receipts, best known price per item, share
-  the list to WhatsApp or anywhere.
+- **Shopping list:** sorted by shop section in the order you walk through a supermarket,
+  "Buy again" from past receipts, best known price per item with a "Cheaper than before"
+  note when it drops, share the list to WhatsApp or anywhere.
 - **Shops near you:** supermarkets, discounters and drugstores from OpenStreetMap,
   with distance, "open now" and directions.
 - **Household sharing:** a code (BW-XXXX-XXXX-XXXX) shares receipts, the list, the
