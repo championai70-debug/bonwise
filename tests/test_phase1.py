@@ -290,6 +290,9 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(milk["community"]["chain"], "PENNY")
         self.assertEqual(butter["aldi"]["price"], 1.19)
         self.assertIsNone(fruit["aldi"])
+        self.assertEqual((milk["cat"], butter["cat"]), ("Dairy", "Dairy"))     # shop sections for sorting the list
+        s, j = self.call("/api/list/prices", {"items": ["Bananen", "Spülmittel", "दूध"]})
+        self.assertEqual([x["cat"] for x in j["items"]], ["Fruit & veg", "Household", "Dairy"])
 
     def test_shops(self):
         Overpass.calls.clear()

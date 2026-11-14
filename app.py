@@ -137,7 +137,8 @@ def assetlinks():
 
 
 def list_prices(names):
-    """Best known price for each shopping-list item: our ALDI SÜD shelf prices and community prices."""
+    """Best known price for each shopping-list item (ALDI SÜD shelf prices, community prices, Open
+    Prices) and its shop section ("cat")."""
     names = [str(n).strip()[:80] for n in (names or []) if str(n).strip()][:100]
     plain = {n: trip.native(n) for n in names}   # "दूध" -> "milk", "süt" -> "milk"
     community = storage.best_prices(list(plain.values()))
@@ -151,7 +152,9 @@ def list_prices(names):
         c = community.get(storage.price_key(plain[n]))
         if c:
             entry["community"] = {"price": c["price"], "chain": c["chain"], "day": c["day"], "reports": c["reports"]}
-        found = trip.resolve(n)["open"]
+        r = trip.resolve(n)
+        entry["cat"] = r["cat"]           # shop section, to sort the list in walking order
+        found = r["open"]
         if found:
             chain = min(found, key=lambda k: found[k]["price"])
             entry["open"] = dict(found[chain], chain=chain)
